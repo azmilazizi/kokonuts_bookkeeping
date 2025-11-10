@@ -15,12 +15,14 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
+    final theme = Theme.of(context);
 
     return DefaultTabController(
       length: _tabs.length,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Kokonuts Bookkeeping'),
+          title: null,
+          automaticallyImplyLeading: false,
           actions: [
             IconButton(
               onPressed: () => appState.logout(),
@@ -28,8 +30,22 @@ class HomeScreen extends StatelessWidget {
               tooltip: 'Log out',
             ),
           ],
-          bottom: TabBar(
-            isScrollable: true,
+        ),
+        body: TabBarView(
+          children: _tabs
+              .map((tab) => _HomeTabContent(
+                    title: tab.title,
+                    icon: tab.icon,
+                  ))
+              .toList(),
+        ),
+        bottomNavigationBar: Material(
+          color: theme.colorScheme.surface,
+          child: TabBar(
+            labelColor: theme.colorScheme.primary,
+            unselectedLabelColor:
+                theme.colorScheme.onSurface.withOpacity(0.7),
+            indicatorColor: theme.colorScheme.primary,
             tabs: _tabs
                 .map(
                   (tab) => Tab(
@@ -39,14 +55,6 @@ class HomeScreen extends StatelessWidget {
                 )
                 .toList(),
           ),
-        ),
-        body: TabBarView(
-          children: _tabs
-              .map((tab) => _HomeTabContent(
-                    title: tab.title,
-                    icon: tab.icon,
-                  ))
-              .toList(),
         ),
       ),
     );
