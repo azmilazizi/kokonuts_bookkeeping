@@ -6,9 +6,10 @@ import 'session_manager.dart';
 
 /// Thrown when authentication fails.
 class AuthException implements Exception {
-  const AuthException(this.message);
+  const AuthException(this.message, {this.fieldErrors = const <String, List<String>>{}});
 
   final String message;
+  final Map<String, List<String>> fieldErrors;
 
   @override
   String toString() => 'AuthException: $message';
@@ -48,17 +49,40 @@ class AuthService {
       return token;
     }
 
-    String message = 'Login failed with status code ${response.statusCode}.';
+    final fallbackMessage = 'Login failed with status code ${response.statusCode}.';
+    String message = fallbackMessage;
+    Map<String, List<String>>? fieldErrors;
+    final generalMessages = <String>{};
     try {
-      final decoded = jsonDecode(response.body) as Map<String, dynamic>?;
-      final serverMessage = decoded?['message'] as String?;
-      if (serverMessage != null && serverMessage.isNotEmpty) {
-        message = serverMessage;
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final primaryMessage = _extractPrimaryMessage(decoded);
+        if (primaryMessage != null && primaryMessage.isNotEmpty) {
+          message = primaryMessage;
+        }
+        final parsedFieldErrors = _extractFieldErrors(decoded, generalMessages);
+        if (parsedFieldErrors.isNotEmpty) {
+          fieldErrors = parsedFieldErrors;
+        }
+        generalMessages.addAll(_normalizeMessages(decoded['error']));
       }
     } catch (_) {
       // Ignore parsing errors and fall back to default message.
     }
-    throw AuthException(message);
+
+    if (generalMessages.isNotEmpty) {
+      final combinedGeneral = generalMessages.join('\n');
+      if (message == fallbackMessage || message.trim().isEmpty) {
+        message = combinedGeneral;
+      } else if (combinedGeneral != message) {
+        message = '$message\n$combinedGeneral';
+      }
+    }
+
+    throw AuthException(
+      message,
+      fieldErrors: fieldErrors ?? const <String, List<String>>{},
+    );
   }
 
   /// Clears persisted authentication state.
@@ -100,5 +124,90 @@ class AuthService {
     }
 
     return null;
+  }
+
+  String? _extractPrimaryMessage(Map<String, dynamic> decoded) {
+    const keys = ['message', 'detail', 'error'];
+    for (final key in keys) {
+      final value = decoded[key];
+      if (value is String) {
+        final trimmed = value.trim();
+        if (trimmed.isNotEmpty) {
+          return trimmed;
+        }
+      }
+    }
+    return null;
+  }
+
+  Map<String, List<String>> _extractFieldErrors(
+    Map<String, dynamic> decoded,
+    Set<String> generalMessages,
+  ) {
+    final fieldErrors = <String, List<String>>{};
+    final rawErrors = decoded['errors'];
+    if (rawErrors is Map) {
+      rawErrors.forEach((key, value) {
+        final messages = _normalizeMessages(value);
+        if (messages.isEmpty) {
+          return;
+        }
+        final normalizedKey = key.toString().toLowerCase();
+        if (normalizedKey.contains('user') || normalizedKey.contains('email')) {
+          _mergeFieldMessages(fieldErrors, 'username', messages);
+        } else if (normalizedKey.contains('password')) {
+          _mergeFieldMessages(fieldErrors, 'password', messages);
+        } else if (normalizedKey == 'non_field_errors') {
+          generalMessages.addAll(messages);
+        } else {
+          generalMessages.addAll(messages);
+        }
+      });
+    }
+
+    for (final field in ['username', 'password']) {
+      final messages = _normalizeMessages(decoded[field]);
+      if (messages.isNotEmpty) {
+        _mergeFieldMessages(fieldErrors, field, messages);
+      }
+    }
+
+    return fieldErrors;
+  }
+
+  List<String> _normalizeMessages(dynamic value) {
+    if (value == null) {
+      return const <String>[];
+    }
+    if (value is String) {
+      final trimmed = value.trim();
+      return trimmed.isEmpty ? const <String>[] : [trimmed];
+    }
+    if (value is Iterable) {
+      return value
+          .expand<String>((element) => _normalizeMessages(element))
+          .toList();
+    }
+    if (value is Map) {
+      return value.values
+          .expand<String>((element) => _normalizeMessages(element))
+          .toList();
+    }
+    return const <String>[];
+  }
+
+  void _mergeFieldMessages(
+    Map<String, List<String>> fieldErrors,
+    String field,
+    List<String> messages,
+  ) {
+    if (messages.isEmpty) {
+      return;
+    }
+    fieldErrors.update(
+      field,
+      (existing) => [...existing, ...messages],
+      ifAbsent: () => List<String>.from(messages),
+    );
   }
 }

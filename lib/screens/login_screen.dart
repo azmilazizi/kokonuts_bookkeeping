@@ -16,6 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isSubmitting = false;
   String? _error;
+  Map<String, String> _fieldErrors = {};
 
   @override
   void dispose() {
@@ -25,13 +26,17 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    setState(() {
+      _fieldErrors = {};
+      _error = null;
+    });
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
     setState(() {
       _isSubmitting = true;
-      _error = null;
     });
 
     final appState = AppStateScope.of(context);
@@ -42,12 +47,30 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text,
       );
     } on AuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final parsedFieldErrors = _mapFieldErrors(error.fieldErrors);
+      final generalMessages = _extractGeneralMessages(error.fieldErrors);
+
       setState(() {
-        _error = error.message;
+        _fieldErrors = parsedFieldErrors;
+        final resolvedMessages = <String>[];
+        if (generalMessages.isNotEmpty) {
+          resolvedMessages.add(generalMessages.join('\n'));
+        }
+        final trimmedMessage = error.message.trim();
+        final isFallback = trimmedMessage.startsWith('Login failed with status code');
+        if (trimmedMessage.isNotEmpty && (!isFallback || (resolvedMessages.isEmpty && parsedFieldErrors.isEmpty))) {
+          resolvedMessages.add(trimmedMessage);
+        }
+        _error = resolvedMessages.isEmpty ? null : resolvedMessages.toSet().join('\n');
       });
+      _formKey.currentState?.validate();
     } catch (_) {
       setState(() {
         _error = 'An unexpected error occurred. Please try again later.';
+        _fieldErrors = {};
       });
     } finally {
       if (mounted) {
@@ -56,6 +79,55 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     }
+  }
+
+  Map<String, String> _mapFieldErrors(Map<String, List<String>> source) {
+    final aggregated = <String, List<String>>{};
+    source.forEach((key, messages) {
+      final cleanedMessages = messages
+          .map((message) => message.trim())
+          .where((message) => message.isNotEmpty)
+          .toList();
+      if (cleanedMessages.isEmpty) {
+        return;
+      }
+      final normalizedKey = key.toLowerCase();
+      if (normalizedKey.contains('user') || normalizedKey.contains('email')) {
+        aggregated.update(
+          'username',
+          (existing) => [...existing, ...cleanedMessages],
+          ifAbsent: () => List<String>.from(cleanedMessages),
+        );
+      } else if (normalizedKey.contains('password')) {
+        aggregated.update(
+          'password',
+          (existing) => [...existing, ...cleanedMessages],
+          ifAbsent: () => List<String>.from(cleanedMessages),
+        );
+      }
+    });
+
+    return aggregated.map((field, messages) {
+      final uniqueMessages = <String>{};
+      uniqueMessages.addAll(messages);
+      return MapEntry(field, uniqueMessages.join('\n'));
+    });
+  }
+
+  List<String> _extractGeneralMessages(Map<String, List<String>> source) {
+    final general = <String>{};
+    source.forEach((key, messages) {
+      final normalizedKey = key.toLowerCase();
+      if (normalizedKey.contains('user') || normalizedKey.contains('email') || normalizedKey.contains('password')) {
+        return;
+      }
+      general.addAll(
+        messages
+            .map((message) => message.trim())
+            .where((message) => message.isNotEmpty),
+      );
+    });
+    return general.toList();
   }
 
   @override
@@ -89,14 +161,27 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 32),
                   TextFormField(
                     controller: _usernameController,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
                     decoration: const InputDecoration(
                       labelText: 'Username',
                       border: OutlineInputBorder(),
                     ),
                     textInputAction: TextInputAction.next,
+                    onChanged: (_) {
+                      if (_fieldErrors.containsKey('username')) {
+                        setState(() {
+                          _fieldErrors.remove('username');
+                        });
+                        _formKey.currentState?.validate();
+                      }
+                    },
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Please enter your username.';
+                      }
+                      final fieldError = _fieldErrors['username'];
+                      if (fieldError != null && fieldError.isNotEmpty) {
+                        return fieldError;
                       }
                       return null;
                     },
@@ -104,15 +189,28 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _passwordController,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
                     decoration: const InputDecoration(
                       labelText: 'Password',
                       border: OutlineInputBorder(),
                     ),
                     obscureText: true,
                     onFieldSubmitted: (_) => _handleLogin(),
+                    onChanged: (_) {
+                      if (_fieldErrors.containsKey('password')) {
+                        setState(() {
+                          _fieldErrors.remove('password');
+                        });
+                        _formKey.currentState?.validate();
+                      }
+                    },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your password.';
+                      }
+                      final fieldError = _fieldErrors['password'];
+                      if (fieldError != null && fieldError.isNotEmpty) {
+                        return fieldError;
                       }
                       return null;
                     },
