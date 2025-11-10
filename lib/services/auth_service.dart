@@ -40,7 +40,7 @@ class AuthService {
 
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body) as Map<String, dynamic>?;
-      final token = decoded?['token'] as String?;
+      final token = _extractToken(decoded);
       if (token == null || token.isEmpty) {
         throw const AuthException('The server response did not include a token.');
       }
@@ -64,5 +64,41 @@ class AuthService {
   /// Clears persisted authentication state.
   Future<void> logout() async {
     await _sessionManager.clearAuthToken();
+  }
+
+  String? _extractToken(Map<String, dynamic>? decoded) {
+    if (decoded == null) {
+      return null;
+    }
+
+    final rawToken = decoded['token'];
+    if (rawToken is String && rawToken.isNotEmpty) {
+      return rawToken;
+    }
+
+    for (final entry in decoded.entries) {
+      final value = entry.value;
+      if (value is String && value.isNotEmpty && entry.key.toLowerCase() == 'token') {
+        return value;
+      }
+      if (value is Map<String, dynamic>) {
+        final nestedToken = _extractToken(value);
+        if (nestedToken != null && nestedToken.isNotEmpty) {
+          return nestedToken;
+        }
+      }
+      if (value is Iterable) {
+        for (final element in value) {
+          if (element is Map<String, dynamic>) {
+            final nestedToken = _extractToken(element);
+            if (nestedToken != null && nestedToken.isNotEmpty) {
+              return nestedToken;
+            }
+          }
+        }
+      }
+    }
+
+    return null;
   }
 }
