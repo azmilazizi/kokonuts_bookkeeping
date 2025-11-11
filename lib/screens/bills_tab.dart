@@ -287,16 +287,6 @@ class _BillColumnHeader extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           _TableHeaderCell(
-            label: 'Bill Number',
-            flex: _numberColumnFlex,
-            style: textStyle,
-          ),
-          _TableHeaderCell(
-            label: 'Bill Name',
-            flex: _nameColumnFlex,
-            style: textStyle,
-          ),
-          _TableHeaderCell(
             label: 'Total',
             flex: _totalColumnFlex,
             style: textStyle,
@@ -409,29 +399,6 @@ class _BillTileState extends State<_BillTile> {
               ),
             ),
             _TableDataCell(
-              flex: _numberColumnFlex,
-              child: Text(
-                widget.bill.billNumber,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: onSurface,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            _TableDataCell(
-              flex: _nameColumnFlex,
-              child: Text(
-                widget.bill.billName,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: onSurface.withOpacity(0.85),
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            _TableDataCell(
               flex: _totalColumnFlex,
               alignment: Alignment.centerRight,
               child: Text(
@@ -459,15 +426,6 @@ class _BillTileState extends State<_BillTile> {
                       child: const Icon(Icons.visibility_outlined),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Tooltip(
-                    message: 'View payment',
-                    child: OutlinedButton(
-                      onPressed: () {},
-                      style: actionButtonStyle,
-                      child: const Icon(Icons.payment),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -481,11 +439,9 @@ class _BillTileState extends State<_BillTile> {
 const int _vendorColumnFlex = 2;
 const int _dueDateColumnFlex = 1;
 const int _statusColumnFlex = 1;
-const int _numberColumnFlex = 1;
-const int _nameColumnFlex = 2;
 const int _totalColumnFlex = 1;
 const int _actionsColumnFlex = 1;
-const double _tableMinimumWidth = 880;
+const double _tableMinimumWidth = 760;
 const double _tableHeaderHeight = 56;
 
 class _ScrollableTableRow extends StatelessWidget {
