@@ -271,6 +271,22 @@ class _BillColumnHeader extends StatelessWidget {
       child: _ScrollableTableRow(
         children: [
           _TableHeaderCell(
+            label: 'Vendor',
+            flex: _vendorColumnFlex,
+            style: textStyle,
+          ),
+          _TableHeaderCell(
+            label: 'Due Date',
+            flex: _dueDateColumnFlex,
+            style: textStyle,
+          ),
+          _TableHeaderCell(
+            label: 'Status',
+            flex: _statusColumnFlex,
+            style: textStyle,
+            textAlign: TextAlign.center,
+          ),
+          _TableHeaderCell(
             label: 'Bill Number',
             flex: _numberColumnFlex,
             style: textStyle,
@@ -355,6 +371,44 @@ class _BillTileState extends State<_BillTile> {
         child: _ScrollableTableRow(
           children: [
             _TableDataCell(
+              flex: _vendorColumnFlex,
+              child: Text(
+                widget.bill.vendorName.isNotEmpty
+                    ? widget.bill.vendorName
+                    : '—',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: onSurface,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            _TableDataCell(
+              flex: _dueDateColumnFlex,
+              child: Text(
+                widget.bill.dueDateLabel ?? '—',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: onSurface.withOpacity(0.85),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            _TableDataCell(
+              flex: _statusColumnFlex,
+              alignment: Alignment.center,
+              child: Text(
+                widget.bill.statusLabel,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: onSurface.withOpacity(0.85),
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            _TableDataCell(
               flex: _numberColumnFlex,
               child: Text(
                 widget.bill.billNumber,
@@ -424,11 +478,14 @@ class _BillTileState extends State<_BillTile> {
   }
 }
 
+const int _vendorColumnFlex = 2;
+const int _dueDateColumnFlex = 1;
+const int _statusColumnFlex = 1;
 const int _numberColumnFlex = 1;
-const int _nameColumnFlex = 1;
+const int _nameColumnFlex = 2;
 const int _totalColumnFlex = 1;
 const int _actionsColumnFlex = 1;
-const double _tableMinimumWidth = 720;
+const double _tableMinimumWidth = 880;
 const double _tableHeaderHeight = 56;
 
 class _ScrollableTableRow extends StatelessWidget {

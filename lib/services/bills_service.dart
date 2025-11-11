@@ -9,8 +9,13 @@ class Bill {
     required this.billName,
     required this.total,
     required this.currencySymbol,
+    this.vendorId,
+    this.vendorName = '',
     this.billDate,
     this.rawBillDate,
+    this.dueDate,
+    this.rawDueDate,
+    this.status,
   });
 
   final int id;
@@ -18,8 +23,13 @@ class Bill {
   final String billName;
   final double total;
   final String currencySymbol;
+  final int? vendorId;
+  final String vendorName;
   final DateTime? billDate;
   final String? rawBillDate;
+  final DateTime? dueDate;
+  final String? rawDueDate;
+  final int? status;
 
   factory Bill.fromJson(Map<String, dynamic> json) {
     final currencySymbol = json['currency_symbol']?.toString();
@@ -27,6 +37,27 @@ class Bill {
     final resolvedCurrency = (currencySymbol == null || currencySymbol.isEmpty)
         ? (currencyName == null || currencyName.isEmpty ? '' : currencyName)
         : currencySymbol;
+
+    String vendorName = '';
+    final vendorNameField = json['vendor_name'];
+    if (vendorNameField is String && vendorNameField.trim().isNotEmpty) {
+      vendorName = vendorNameField.trim();
+    } else {
+      final vendorField = json['vendor'];
+      if (vendorField is Map<String, dynamic>) {
+        vendorName = _firstNonEmpty([
+              vendorField['vendor_name'],
+              vendorField['name'],
+              vendorField['company_name'],
+              vendorField['display_name'],
+            ])
+                ?.toString() ??
+            '';
+      } else if (vendorField is String && vendorField.trim().isNotEmpty) {
+        vendorName = vendorField.trim();
+      }
+    }
+    vendorName = vendorName.trim();
 
     return Bill(
       id: _parseInt(json['id']) ?? 0,
@@ -51,6 +82,8 @@ class Bill {
           ])) ??
           0,
       currencySymbol: resolvedCurrency,
+      vendorId: _parseInt(json['vendor_id']),
+      vendorName: vendorName,
       billDate: _parseDate(_firstNonEmpty([
         json['bill_date'],
         json['issue_date'],
@@ -64,6 +97,18 @@ class Bill {
         json['created_at'],
       ])
           ?.toString(),
+      dueDate: _parseDate(_firstNonEmpty([
+        json['due_date'],
+        json['payment_due'],
+        json['expected_payment_date'],
+      ])),
+      rawDueDate: _firstNonEmpty([
+        json['due_date'],
+        json['payment_due'],
+        json['expected_payment_date'],
+      ])
+          ?.toString(),
+      status: _parseInt(json['status']),
     );
   }
 
@@ -84,6 +129,51 @@ class Bill {
     }
     final trimmed = rawBillDate?.trim();
     return (trimmed != null && trimmed.isNotEmpty) ? trimmed : null;
+  }
+
+  String? get dueDateLabel {
+    if (dueDate != null) {
+      final day = dueDate!.day.toString().padLeft(2, '0');
+      final month = dueDate!.month.toString().padLeft(2, '0');
+      final year = dueDate!.year.toString();
+      return '$day-$month-$year';
+    }
+    final trimmed = rawDueDate?.trim();
+    return (trimmed != null && trimmed.isNotEmpty) ? trimmed : null;
+  }
+
+  String get statusLabel {
+    final value = status;
+    if (value == null) {
+      return '—';
+    }
+    switch (value) {
+      case 0:
+        return 'Unpaid';
+      case 1:
+        return 'Approved';
+      case 2:
+        return 'Paid';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  Bill copyWith({String? vendorName}) {
+    return Bill(
+      id: id,
+      billNumber: billNumber,
+      billName: billName,
+      total: total,
+      currencySymbol: currencySymbol,
+      vendorId: vendorId,
+      vendorName: (vendorName ?? this.vendorName).trim(),
+      billDate: billDate,
+      rawBillDate: rawBillDate,
+      dueDate: dueDate,
+      rawDueDate: rawDueDate,
+      status: status,
+    );
   }
 
   static dynamic _firstNonEmpty(List<dynamic> values) {
@@ -181,8 +271,10 @@ class BillsService {
   BillsService({http.Client? client}) : _client = client ?? http.Client();
 
   static const _baseUrl = 'https://crm.kokonuts.my/accounting/api/v1/bills';
+  static const _vendorBaseUrl = 'https://crm.kokonuts.my/api/v1/purchase/vendors';
 
   final http.Client _client;
+  final Map<int, String?> _vendorNameCache = <int, String?>{};
 
   Future<BillPage> fetchBills({
     required Map<String, String> headers,
@@ -215,15 +307,19 @@ class BillsService {
     final decoded = jsonDecode(response.body);
     final payload = _extractPayload(decoded);
     final bills = _parseBills(payload.items);
+    final enrichedBills = await _attachVendorNames(
+      bills,
+      headers: requestHeaders,
+    );
     final nextPage = _parseNextPage(
       decoded,
       paginationSource: payload.pagination,
       currentPage: page,
       perPage: perPage,
-      itemCount: bills.length,
+      itemCount: enrichedBills.length,
     );
 
-    return BillPage(bills: bills, nextPage: nextPage);
+    return BillPage(bills: enrichedBills, nextPage: nextPage);
   }
 
   List<Bill> _parseBills(List<dynamic> items) {
@@ -231,6 +327,117 @@ class BillsService {
         .whereType<Map<String, dynamic>>()
         .map(Bill.fromJson)
         .toList(growable: false);
+  }
+
+  Future<List<Bill>> _attachVendorNames(
+    List<Bill> bills, {
+    required Map<String, String> headers,
+  }) async {
+    if (bills.isEmpty) {
+      return bills;
+    }
+
+    final idsToFetch = <int>{};
+    for (final bill in bills) {
+      final vendorId = bill.vendorId;
+      if (vendorId != null && vendorId > 0 && bill.vendorName.trim().isNotEmpty) {
+        _vendorNameCache.putIfAbsent(vendorId, () => bill.vendorName.trim());
+        continue;
+      }
+      if (vendorId != null && vendorId > 0 && bill.vendorName.trim().isEmpty) {
+        if (!_vendorNameCache.containsKey(vendorId)) {
+          idsToFetch.add(vendorId);
+        }
+      }
+    }
+
+    for (final id in idsToFetch) {
+      _vendorNameCache[id] = await _fetchVendorName(id, headers);
+    }
+
+    return bills
+        .map((bill) {
+          final vendorId = bill.vendorId;
+          if (vendorId != null) {
+            final cached = _vendorNameCache[vendorId];
+            if (cached != null && cached.isNotEmpty) {
+              return bill.copyWith(vendorName: cached.trim());
+            }
+          }
+          return bill;
+        })
+        .toList(growable: false);
+  }
+
+  Future<String?> _fetchVendorName(
+    int vendorId,
+    Map<String, String> headers,
+  ) async {
+    final uri = Uri.parse('$_vendorBaseUrl/$vendorId');
+    final requestHeaders = <String, String>{
+      'Accept': 'application/json',
+      ...headers,
+    };
+
+    try {
+      final response = await _client.get(uri, headers: requestHeaders);
+      if (response.statusCode != 200) {
+        return null;
+      }
+      final decoded = jsonDecode(response.body);
+      final name = _extractVendorName(decoded);
+      return name;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _extractVendorName(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is String) {
+      final trimmed = value.trim();
+      return trimmed.isEmpty ? null : trimmed;
+    }
+    if (value is Map<String, dynamic>) {
+      final directCandidates = [
+        value['vendor_name'],
+        value['name'],
+        value['company_name'],
+        value['display_name'],
+        value['title'],
+      ];
+      for (final candidate in directCandidates) {
+        final resolved = _extractVendorName(candidate);
+        if (resolved != null) {
+          return resolved;
+        }
+      }
+      final nestedKeys = ['vendor', 'data', 'result', 'item'];
+      for (final key in nestedKeys) {
+        final nested = _extractVendorName(value[key]);
+        if (nested != null) {
+          return nested;
+        }
+      }
+      for (final entry in value.entries) {
+        final nested = _extractVendorName(entry.value);
+        if (nested != null) {
+          return nested;
+        }
+      }
+      return null;
+    }
+    if (value is List) {
+      for (final item in value) {
+        final resolved = _extractVendorName(item);
+        if (resolved != null) {
+          return resolved;
+        }
+      }
+    }
+    return null;
   }
 
   int? _parseNextPage(
