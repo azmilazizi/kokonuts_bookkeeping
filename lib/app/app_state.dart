@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:flutter/material.dart';
+
 import '../services/auth_service.dart';
 import '../services/session_manager.dart';
 
@@ -19,7 +21,7 @@ class AppState extends ChangeNotifier {
   bool _isLoggedIn = false;
   String? _authToken;
   String? _username;
-  ThemeMode _themeMode = ThemeMode.light;
+  ThemeMode _themeMode = ThemeMode.system;
 
   bool get isInitialized => _isInitialized;
   bool get isLoggedIn => _isLoggedIn;
@@ -65,6 +67,8 @@ class AppState extends ChangeNotifier {
     }
 
     final storedToken = await _sessionManager.getAuthToken();
+    final storedUsername = await _sessionManager.getCurrentUsername();
+
     if (storedToken != null && storedToken.isNotEmpty) {
       _authToken = storedToken;
       _isLoggedIn = true;
@@ -75,6 +79,14 @@ class AppState extends ChangeNotifier {
         if (storedTheme != null) {
           _themeMode = storedTheme;
         }
+      }
+    }
+
+    if (storedUsername != null && storedUsername.isNotEmpty) {
+      _username = storedUsername;
+      final storedTheme = await _sessionManager.getThemeModeForUser(storedUsername);
+      if (storedTheme != null) {
+        _themeMode = storedTheme;
       }
     }
 
@@ -93,6 +105,16 @@ class AppState extends ChangeNotifier {
       password: password,
     );
     _authToken = token;
+    _username = username.trim();
+    if (_username != null && _username!.isNotEmpty) {
+      await _sessionManager.saveCurrentUsername(_username!);
+      final storedTheme = await _sessionManager.getThemeModeForUser(_username!);
+      if (storedTheme != null) {
+        _themeMode = storedTheme;
+      } else {
+        _themeMode = ThemeMode.system;
+      }
+    }
     _isLoggedIn = true;
     _username = normalizedUsername;
     await _sessionManager.saveUsername(normalizedUsername);
@@ -106,9 +128,25 @@ class AppState extends ChangeNotifier {
     await _authService.logout();
     _authToken = null;
     _isLoggedIn = false;
+    if (_username != null) {
+      await _sessionManager.clearCurrentUsername();
+    }
     _username = null;
-    _themeMode = ThemeMode.light;
-    await _sessionManager.clearUsername();
+    _themeMode = ThemeMode.system;
+    notifyListeners();
+  }
+
+  /// Updates the preferred theme mode and persists it for the active user.
+  Future<void> updateThemeMode(ThemeMode mode) async {
+    if (_themeMode == mode) {
+      return;
+    }
+
+    _themeMode = mode;
+    final activeUser = _username;
+    if (activeUser != null && activeUser.isNotEmpty) {
+      await _sessionManager.saveThemeModeForUser(activeUser, mode);
+    }
     notifyListeners();
   }
 
