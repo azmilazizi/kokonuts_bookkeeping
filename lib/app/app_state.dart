@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 import 'package:flutter/material.dart';
 
@@ -7,9 +8,11 @@ import '../services/session_manager.dart';
 
 /// Stores global application state such as authentication status.
 class AppState extends ChangeNotifier {
-  AppState({required AuthService authService, required SessionManager sessionManager})
-      : _authService = authService,
-        _sessionManager = sessionManager;
+  AppState({
+    required AuthService authService,
+    required SessionManager sessionManager,
+  }) : _authService = authService,
+       _sessionManager = sessionManager;
 
   final AuthService _authService;
   final SessionManager _sessionManager;
@@ -69,6 +72,14 @@ class AppState extends ChangeNotifier {
     if (storedToken != null && storedToken.isNotEmpty) {
       _authToken = storedToken;
       _isLoggedIn = true;
+      final storedUsername = await _sessionManager.getUsername();
+      if (storedUsername != null && storedUsername.isNotEmpty) {
+        _username = storedUsername;
+        final storedTheme = await _sessionManager.getThemeMode(storedUsername);
+        if (storedTheme != null) {
+          _themeMode = storedTheme;
+        }
+      }
     }
 
     if (storedUsername != null && storedUsername.isNotEmpty) {
@@ -84,8 +95,15 @@ class AppState extends ChangeNotifier {
   }
 
   /// Attempts to log the user in using the provided credentials.
-  Future<void> login({required String username, required String password}) async {
-    final token = await _authService.login(username: username, password: password);
+  Future<void> login({
+    required String username,
+    required String password,
+  }) async {
+    final normalizedUsername = username.trim();
+    final token = await _authService.login(
+      username: normalizedUsername,
+      password: password,
+    );
     _authToken = token;
     _username = username.trim();
     if (_username != null && _username!.isNotEmpty) {
@@ -98,6 +116,10 @@ class AppState extends ChangeNotifier {
       }
     }
     _isLoggedIn = true;
+    _username = normalizedUsername;
+    await _sessionManager.saveUsername(normalizedUsername);
+    final storedTheme = await _sessionManager.getThemeMode(normalizedUsername);
+    _themeMode = storedTheme ?? ThemeMode.light;
     notifyListeners();
   }
 
@@ -126,5 +148,28 @@ class AppState extends ChangeNotifier {
       await _sessionManager.saveThemeModeForUser(activeUser, mode);
     }
     notifyListeners();
+  }
+
+  /// Updates the theme mode for the active user.
+  Future<void> updateThemeMode(ThemeMode mode) async {
+    if (_themeMode == mode) {
+      return;
+    }
+
+    _themeMode = mode;
+    notifyListeners();
+
+    final activeUsername = _username;
+    if (activeUsername != null) {
+      await _sessionManager.saveThemeMode(username: activeUsername, mode: mode);
+    }
+  }
+
+  /// Toggles between light and dark themes.
+  Future<void> toggleThemeMode() {
+    final nextMode = _themeMode == ThemeMode.dark
+        ? ThemeMode.light
+        : ThemeMode.dark;
+    return updateThemeMode(nextMode);
   }
 }

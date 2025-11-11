@@ -13,6 +13,7 @@ class HomeScreen extends StatelessWidget {
       icon: Icons.shopping_bag_outlined,
       builder: (_) => const PurchaseOrdersTab(),
     ),
+    const _HomeTab(title: 'Payments', icon: Icons.payments_outlined),
     const _HomeTab(title: 'Bills', icon: Icons.receipt_long_outlined),
     const _HomeTab(title: 'Accounts', icon: Icons.account_balance_outlined),
     const _HomeTab(title: 'Overview', icon: Icons.dashboard_outlined),
@@ -53,16 +54,10 @@ class HomeScreen extends StatelessWidget {
           color: theme.colorScheme.surface,
           child: TabBar(
             labelColor: theme.colorScheme.primary,
-            unselectedLabelColor:
-                theme.colorScheme.onSurface.withOpacity(0.7),
+            unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.7),
             indicatorColor: theme.colorScheme.primary,
             tabs: _tabs
-                .map(
-                  (tab) => Tab(
-                    icon: Icon(tab.icon),
-                    text: tab.title,
-                  ),
-                )
+                .map((tab) => Tab(icon: Icon(tab.icon), text: tab.title))
                 .toList(),
           ),
         ),
