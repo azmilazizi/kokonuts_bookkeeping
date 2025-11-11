@@ -277,7 +277,7 @@ class BillsService {
   final Map<int, String?> _vendorNameCache = <int, String?>{};
 
   Future<BillPage> fetchBills({
-    required Map<String, String> headers,
+    Map<String, String>? headers,
     int page = 1,
     int perPage = 20,
   }) async {
@@ -290,7 +290,7 @@ class BillsService {
 
     final requestHeaders = <String, String>{
       'Accept': 'application/json',
-      ...headers,
+      ...?headers,
     };
 
     late http.Response response;
@@ -307,10 +307,7 @@ class BillsService {
     final decoded = jsonDecode(response.body);
     final payload = _extractPayload(decoded);
     final bills = _parseBills(payload.items);
-    final enrichedBills = await _attachVendorNames(
-      bills,
-      headers: requestHeaders,
-    );
+    final enrichedBills = await _attachVendorNames(bills);
     final nextPage = _parseNextPage(
       decoded,
       paginationSource: payload.pagination,
@@ -329,10 +326,7 @@ class BillsService {
         .toList(growable: false);
   }
 
-  Future<List<Bill>> _attachVendorNames(
-    List<Bill> bills, {
-    required Map<String, String> headers,
-  }) async {
+  Future<List<Bill>> _attachVendorNames(List<Bill> bills) async {
     if (bills.isEmpty) {
       return bills;
     }
@@ -352,7 +346,7 @@ class BillsService {
     }
 
     for (final id in idsToFetch) {
-      _vendorNameCache[id] = await _fetchVendorName(id, headers);
+      _vendorNameCache[id] = await _fetchVendorName(id);
     }
 
     return bills
@@ -369,14 +363,10 @@ class BillsService {
         .toList(growable: false);
   }
 
-  Future<String?> _fetchVendorName(
-    int vendorId,
-    Map<String, String> headers,
-  ) async {
+  Future<String?> _fetchVendorName(int vendorId) async {
     final uri = Uri.parse('$_vendorBaseUrl/$vendorId');
     final requestHeaders = <String, String>{
       'Accept': 'application/json',
-      ...headers,
     };
 
     try {

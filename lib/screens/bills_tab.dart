@@ -13,7 +13,7 @@ class BillsTab extends StatefulWidget {
 }
 
 class _BillsTabState extends State<BillsTab> {
-  final _service = BillsService();
+  BillsService? _service;
   final _scrollController = ScrollController();
 
   final List<Bill> _bills = [];
@@ -22,12 +22,23 @@ class _BillsTabState extends State<BillsTab> {
   bool _hasMore = true;
   int _nextPage = 1;
   String? _errorMessage;
+  bool _serviceInitialized = false;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadMore());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_serviceInitialized) {
+      final appState = AppStateScope.of(context);
+      _service = BillsService(client: appState.authenticatedClient);
+      _serviceInitialized = true;
+    }
   }
 
   @override
@@ -72,10 +83,15 @@ class _BillsTabState extends State<BillsTab> {
       });
     }
 
-    final appState = AppStateScope.of(context);
+    final service = _service;
+    if (service == null) {
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
     try {
-      final headers = await appState.buildAuthHeaders();
-      final page = await _service.fetchBills(headers: headers, page: _nextPage);
+      final page = await service.fetchBills(page: _nextPage);
       if (!mounted) {
         return;
       }

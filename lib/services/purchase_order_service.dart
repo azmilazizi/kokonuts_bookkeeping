@@ -149,7 +149,7 @@ class PurchaseOrderService {
 
   /// Fetches a page of purchase orders from the API.
   Future<PurchaseOrderPage> fetchPurchaseOrders({
-    required Map<String, String> headers,
+    Map<String, String>? headers,
     int page = 1,
     int perPage = 20,
   }) async {
@@ -162,7 +162,7 @@ class PurchaseOrderService {
 
     final requestHeaders = <String, String>{
       'Accept': 'application/json',
-      ...headers,
+      ...?headers,
     };
 
     late http.Response response;

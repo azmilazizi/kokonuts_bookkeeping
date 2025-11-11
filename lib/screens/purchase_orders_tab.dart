@@ -13,7 +13,7 @@ class PurchaseOrdersTab extends StatefulWidget {
 }
 
 class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
-  final _service = PurchaseOrderService();
+  PurchaseOrderService? _service;
   final _scrollController = ScrollController();
 
   final List<PurchaseOrder> _orders = [];
@@ -22,12 +22,23 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   bool _hasMore = true;
   int _nextPage = 1;
   String? _errorMessage;
+  bool _serviceInitialized = false;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadMore());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_serviceInitialized) {
+      final appState = AppStateScope.of(context);
+      _service = PurchaseOrderService(client: appState.authenticatedClient);
+      _serviceInitialized = true;
+    }
   }
 
   @override
@@ -72,10 +83,15 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       });
     }
 
-    final appState = AppStateScope.of(context);
+    final service = _service;
+    if (service == null) {
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
     try {
-      final headers = await appState.buildAuthHeaders();
-      final page = await _service.fetchPurchaseOrders(headers: headers, page: _nextPage);
+      final page = await service.fetchPurchaseOrders(page: _nextPage);
       if (!mounted) {
         return;
       }
