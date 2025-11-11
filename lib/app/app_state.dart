@@ -6,9 +6,11 @@ import '../services/session_manager.dart';
 
 /// Stores global application state such as authentication status.
 class AppState extends ChangeNotifier {
-  AppState({required AuthService authService, required SessionManager sessionManager})
-      : _authService = authService,
-        _sessionManager = sessionManager;
+  AppState({
+    required AuthService authService,
+    required SessionManager sessionManager,
+  }) : _authService = authService,
+       _sessionManager = sessionManager;
 
   final AuthService _authService;
   final SessionManager _sessionManager;
@@ -24,37 +26,6 @@ class AppState extends ChangeNotifier {
   String? get authToken => _authToken;
   String? get username => _username;
   ThemeMode get themeMode => _themeMode;
-
-  /// Returns the active auth token, refreshing it from storage if needed.
-  Future<String?> getValidAuthToken() async {
-    if (_authToken != null && _authToken!.isNotEmpty) {
-      return _authToken;
-    }
-
-    final storedToken = await _sessionManager.getAuthToken();
-    if (storedToken != null && storedToken.isNotEmpty) {
-      _authToken = storedToken;
-      return _authToken;
-    }
-
-    return null;
-  }
-
-  /// Builds request headers that include the auth token when available.
-  Future<Map<String, String>> buildAuthHeaders({
-    Map<String, String>? headers,
-    String authorizationScheme = 'Token',
-  }) async {
-    final resolvedHeaders = <String, String>{...?headers};
-    final token = await getValidAuthToken();
-    if (token != null && token.isNotEmpty) {
-      final scheme = authorizationScheme.trim();
-      final value = scheme.isEmpty ? token : '$scheme $token';
-      resolvedHeaders.putIfAbsent('Authorization', () => value);
-      resolvedHeaders.putIfAbsent('authtoken', () => token);
-    }
-    return resolvedHeaders;
-  }
 
   /// Returns the active auth token, refreshing it from storage if needed.
   Future<String?> getValidAuthToken() async {
@@ -112,9 +83,15 @@ class AppState extends ChangeNotifier {
   }
 
   /// Attempts to log the user in using the provided credentials.
-  Future<void> login({required String username, required String password}) async {
+  Future<void> login({
+    required String username,
+    required String password,
+  }) async {
     final normalizedUsername = username.trim();
-    final token = await _authService.login(username: normalizedUsername, password: password);
+    final token = await _authService.login(
+      username: normalizedUsername,
+      password: password,
+    );
     _authToken = token;
     _isLoggedIn = true;
     _username = normalizedUsername;
@@ -152,7 +129,9 @@ class AppState extends ChangeNotifier {
 
   /// Toggles between light and dark themes.
   Future<void> toggleThemeMode() {
-    final nextMode = _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    final nextMode = _themeMode == ThemeMode.dark
+        ? ThemeMode.light
+        : ThemeMode.dark;
     return updateThemeMode(nextMode);
   }
 }
