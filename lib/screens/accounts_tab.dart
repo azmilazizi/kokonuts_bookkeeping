@@ -91,8 +91,18 @@ class _AccountsTabState extends State<AccountsTab> {
       return;
     }
 
+    final appState = AppStateScope.of(context);
+    final authtoken = appState.authToken;
+    final headers = <String, String>{};
+    if (authtoken != null && authtoken.trim().isNotEmpty) {
+      headers['authtoken'] = authtoken.trim();
+    }
+
     try {
-      final page = await service.fetchAccounts(page: _nextPage);
+      final page = await service.fetchAccounts(
+        page: _nextPage,
+        headers: headers.isEmpty ? null : headers,
+      );
       if (!mounted) {
         return;
       }

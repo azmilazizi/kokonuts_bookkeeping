@@ -42,14 +42,20 @@ class AuthenticatedHttpClient extends http.BaseClient {
     final payload = await _tokenProvider();
     if (payload != null) {
       final token = payload.authorizationToken.trim();
-      if (token.isNotEmpty) {
+      final existingAuthorization = request.headers['Authorization'];
+      final shouldInjectAuthorization =
+          existingAuthorization == null || existingAuthorization.trim().isEmpty;
+      if (shouldInjectAuthorization && token.isNotEmpty) {
         final authorizationValue = _authorizationBuilder(token).trim();
         if (authorizationValue.isNotEmpty) {
           request.headers['Authorization'] = authorizationValue;
         }
       }
 
-      if (payload.hasAuthtoken) {
+      final existingAuthtoken = request.headers['authtoken'];
+      final shouldInjectAuthtoken =
+          existingAuthtoken == null || existingAuthtoken.trim().isEmpty;
+      if (shouldInjectAuthtoken && payload.hasAuthtoken) {
         request.headers['authtoken'] = payload.authtoken.trim();
       }
     }
