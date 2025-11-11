@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
 import '../services/auth_service.dart';
 import '../services/authenticated_http_client.dart';
@@ -21,15 +20,12 @@ class AppState extends ChangeNotifier {
   bool _isInitialized = false;
   bool _isLoggedIn = false;
   String? _authToken;
-  String? _rawAuthToken;
   String? _username;
   ThemeMode _themeMode = ThemeMode.system;
-  http.Client? _authenticatedClient;
-  String _defaultAuthorizationScheme = 'Token';
 
   bool get isInitialized => _isInitialized;
   bool get isLoggedIn => _isLoggedIn;
-  String? get authToken => _rawAuthToken ?? _authToken;
+  String? get authToken => _authToken;
   String? get username => _username;
   ThemeMode get themeMode => _themeMode;
 
@@ -46,57 +42,6 @@ class AppState extends ChangeNotifier {
     }
 
     return null;
-  }
-
-  Future<AuthTokenPayload?> _getAuthTokenPayload() async {
-    final token = await getValidAuthToken();
-    if (token == null || token.isEmpty) {
-      return null;
-    }
-
-    final rawAuthtoken = (_rawAuthToken != null && _rawAuthToken!.isNotEmpty)
-        ? _rawAuthToken!
-        : token;
-    final authtokenValue = _extractAuthtokenValue(rawAuthtoken);
-
-    return AuthTokenPayload(
-      authorizationToken: token,
-      authtoken: authtokenValue,
-      rawAuthtoken: rawAuthtoken,
-    );
-  }
-
-  /// Provides an HTTP client that automatically injects auth headers for requests.
-  http.Client get authenticatedClient {
-    return _authenticatedClient ??= AuthenticatedHttpClient(
-      tokenProvider: _getAuthTokenPayload,
-      authorizationBuilder: (token) {
-        final scheme = _defaultAuthorizationScheme.trim();
-        return scheme.isEmpty ? token : '$scheme $token';
-      },
-    );
-  }
-
-  /// Builds request headers that include the auth token when available.
-  Future<Map<String, String>> buildAuthHeaders({
-    Map<String, String>? headers,
-    String? authorizationScheme,
-  }) async {
-    final resolvedHeaders = <String, String>{...?headers};
-    final payload = await _getAuthTokenPayload();
-    if (payload != null) {
-      final token = payload.authorizationToken;
-      final scheme = (authorizationScheme ?? _defaultAuthorizationScheme).trim();
-      final value = scheme.isEmpty ? token : '$scheme $token';
-      if (value.trim().isNotEmpty) {
-        resolvedHeaders['Authorization'] = value.trim();
-      }
-      final authtokenValue = payload.resolvedAuthtoken;
-      if (authtokenValue != null && authtokenValue.isNotEmpty) {
-        resolvedHeaders['authtoken'] = authtokenValue;
-      }
-    }
-    return resolvedHeaders;
   }
 
   /// Loads persisted session information.
@@ -149,14 +94,11 @@ class AppState extends ChangeNotifier {
     _authToken = null;
     _rawAuthToken = null;
     _isLoggedIn = false;
-    _authenticatedClient?.close();
-    _authenticatedClient = null;
     if (_username != null) {
       await _sessionManager.clearCurrentUsername();
     }
     _username = null;
     _themeMode = ThemeMode.system;
-    _defaultAuthorizationScheme = 'Token';
     notifyListeners();
   }
 
@@ -174,63 +116,13 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  @override
-  void dispose() {
-    _authenticatedClient?.close();
-    super.dispose();
-  }
-
   void _applyToken(String token) {
     final trimmed = token.trim();
     if (trimmed.isEmpty) {
       _authToken = null;
-      _rawAuthToken = null;
-      _defaultAuthorizationScheme = 'Token';
       return;
     }
 
-    _rawAuthToken = trimmed;
-    final spaceIndex = trimmed.indexOf(' ');
-    if (spaceIndex > 0) {
-      final scheme = trimmed.substring(0, spaceIndex).trim();
-      final credentials = trimmed.substring(spaceIndex + 1).trim();
-      if (credentials.isNotEmpty) {
-        _defaultAuthorizationScheme = scheme.isEmpty ? 'Token' : scheme;
-        _authToken = credentials;
-        return;
-      }
-    }
-
     _authToken = trimmed;
-    _defaultAuthorizationScheme = 'Token';
-  }
-
-  String _extractAuthtokenValue(String token) {
-    final trimmed = token.trim();
-    if (trimmed.isEmpty) {
-      return '';
-    }
-
-    final spaceIndex = trimmed.indexOf(' ');
-    if (spaceIndex <= 0) {
-      return trimmed;
-    }
-
-    final scheme = trimmed.substring(0, spaceIndex).trim();
-    final credentials = trimmed.substring(spaceIndex + 1).trim();
-    if (credentials.isEmpty) {
-      return trimmed;
-    }
-
-    final expectedScheme = _defaultAuthorizationScheme.trim();
-    if (expectedScheme.isEmpty) {
-      return credentials;
-    }
-
-    if (scheme.toLowerCase() == expectedScheme.toLowerCase()) {
-      return credentials;
-    }
-
-    return trimmed;
   }
 }
