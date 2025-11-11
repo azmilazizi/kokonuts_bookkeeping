@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import 'package:flutter/material.dart';
@@ -20,6 +22,7 @@ class AppState extends ChangeNotifier {
   bool _isInitialized = false;
   bool _isLoggedIn = false;
   String? _authToken;
+  String? _rawAuthToken;
   String? _username;
   ThemeMode _themeMode = ThemeMode.system;
 
@@ -27,6 +30,7 @@ class AppState extends ChangeNotifier {
   bool get isLoggedIn => _isLoggedIn;
   String? get authToken => _authToken;
   String? get username => _username;
+  String? get rawAuthToken => _rawAuthToken;
   ThemeMode get themeMode => _themeMode;
 
   /// Returns the active auth token, refreshing it from storage if needed.
@@ -74,6 +78,7 @@ class AppState extends ChangeNotifier {
   Future<void> login({required String username, required String password}) async {
     final token = await _authService.login(username: username, password: password);
     _applyToken(token);
+    unawaited(_sessionManager.saveAuthToken(token));
     _username = username.trim();
     if (_username != null && _username!.isNotEmpty) {
       await _sessionManager.saveCurrentUsername(_username!);
@@ -97,6 +102,7 @@ class AppState extends ChangeNotifier {
     if (_username != null) {
       await _sessionManager.clearCurrentUsername();
     }
+    await _sessionManager.clearAuthToken();
     _username = null;
     _themeMode = ThemeMode.system;
     notifyListeners();
@@ -120,9 +126,11 @@ class AppState extends ChangeNotifier {
     final trimmed = token.trim();
     if (trimmed.isEmpty) {
       _authToken = null;
+      _rawAuthToken = null;
       return;
     }
 
+    _rawAuthToken = token;
     _authToken = trimmed;
   }
 }
