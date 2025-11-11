@@ -92,11 +92,7 @@ class _AccountsTabState extends State<AccountsTab> {
     }
 
     final appState = AppStateScope.of(context);
-    final authtoken = appState.authToken;
-    final headers = <String, String>{};
-    if (authtoken != null && authtoken.trim().isNotEmpty) {
-      headers['authtoken'] = authtoken.trim();
-    }
+    final headers = await appState.buildAuthHeaders();
 
     try {
       final page = await service.fetchAccounts(
