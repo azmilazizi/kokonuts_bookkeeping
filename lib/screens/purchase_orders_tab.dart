@@ -120,6 +120,20 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       return _ErrorState(message: _errorMessage!, onRetry: () => _loadMore(reset: true));
     }
 
+    if (_orders.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
+          children: const [
+            _EmptyState(),
+          ],
+        ),
+      );
+    }
+
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView.separated(
@@ -263,6 +277,35 @@ class _LoadMoreError extends StatelessWidget {
             onPressed: () => onRetry(reset: false),
             icon: const Icon(Icons.refresh),
             label: const Text('Try again'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.inbox_outlined, size: 56, color: theme.colorScheme.primary),
+          const SizedBox(height: 16),
+          Text(
+            'No purchase orders yet',
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Pull down to refresh or create a new purchase order.',
+            style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            textAlign: TextAlign.center,
           ),
         ],
       ),

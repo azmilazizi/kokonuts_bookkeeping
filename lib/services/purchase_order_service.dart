@@ -20,12 +20,17 @@ class PurchaseOrder {
 
   /// Creates an instance of [PurchaseOrder] from a JSON map.
   factory PurchaseOrder.fromJson(Map<String, dynamic> json) {
+    final currencySymbol = json['currency_symbol']?.toString();
+    final currencyName = json['currency_name']?.toString();
+    final resolvedCurrency = (currencySymbol == null || currencySymbol.isEmpty)
+        ? (currencyName == null || currencyName.isEmpty ? '' : currencyName)
+        : currencySymbol;
     return PurchaseOrder(
       id: _parseInt(json['id']) ?? 0,
       orderNumber: json['pur_order_number']?.toString() ?? '',
       orderName: json['pur_order_name']?.toString() ?? '',
       total: _parseDouble(json['total']) ?? 0,
-      currencySymbol: json['currency_symbol']?.toString() ?? '',
+      currencySymbol: resolvedCurrency,
     );
   }
 
@@ -125,52 +130,37 @@ class PurchaseOrderService {
     }
 
     final decoded = jsonDecode(response.body);
-    final orders = _parseOrders(decoded);
-    final nextPage = _parseNextPage(decoded, currentPage: page, perPage: perPage, itemCount: orders.length);
+    final payload = _extractPayload(decoded);
+    final orders = _parseOrders(payload.items);
+    final nextPage = _parseNextPage(
+      decoded,
+      paginationSource: payload.pagination,
+      currentPage: page,
+      perPage: perPage,
+      itemCount: orders.length,
+    );
 
     return PurchaseOrderPage(orders: orders, nextPage: nextPage);
   }
 
-  List<PurchaseOrder> _parseOrders(dynamic decoded) {
-    final items = _extractList(decoded);
+  List<PurchaseOrder> _parseOrders(List<dynamic> items) {
     return items
         .whereType<Map<String, dynamic>>()
         .map(PurchaseOrder.fromJson)
         .toList(growable: false);
   }
 
-  List<dynamic> _extractList(dynamic decoded) {
-    if (decoded is List) {
-      return decoded;
-    }
-    if (decoded is Map<String, dynamic>) {
-      final candidates = [
-        decoded['data'],
-        decoded['results'],
-        decoded['items'],
-      ];
-      for (final candidate in candidates) {
-        if (candidate is List) {
-          return candidate;
-        }
-      }
-    }
-    return const [];
-  }
-
   int? _parseNextPage(
     dynamic decoded, {
+    Map<String, dynamic>? paginationSource,
     required int currentPage,
     required int perPage,
     required int itemCount,
   }) {
     int? nextPage;
-    if (decoded is Map<String, dynamic>) {
-      final meta = decoded['meta'];
-      if (meta is Map<String, dynamic>) {
-        nextPage ??= _resolveFromMeta(meta);
-      }
-      nextPage ??= _resolveFromMeta(decoded);
+    final pagination = paginationSource ?? _findPaginationMap(decoded);
+    if (pagination != null) {
+      nextPage ??= _resolveFromMeta(pagination);
     }
 
     nextPage ??= _resolveFromLinks(decoded);
@@ -183,6 +173,144 @@ class PurchaseOrderService {
       return currentPage + 1;
     }
 
+    return null;
+  }
+
+  _Payload _extractPayload(dynamic decoded) {
+    if (decoded is List) {
+      return _Payload(items: decoded);
+    }
+
+    if (decoded is Map<String, dynamic>) {
+      final prioritizedKeys = ['data', 'results', 'items'];
+
+      for (final key in prioritizedKeys) {
+        final value = decoded[key];
+        if (value is List) {
+          return _Payload(
+            items: value,
+            pagination: _firstNonNull([
+              _looksLikePagination(decoded) ? decoded : null,
+              _extractMetaMap(decoded),
+            ]),
+          );
+        }
+        if (value is Map<String, dynamic>) {
+          final nested = _extractPayload(value);
+          if (nested.items.isNotEmpty || nested.pagination != null) {
+            return _Payload(
+              items: nested.items,
+              pagination: nested.pagination ??
+                  _firstNonNull([
+                    _looksLikePagination(value) ? value : null,
+                    _looksLikePagination(decoded) ? decoded : null,
+                    _extractMetaMap(decoded),
+                  ]),
+            );
+          }
+        }
+      }
+
+      for (final entry in decoded.entries) {
+        final value = entry.value;
+        if (value is List) {
+          return _Payload(
+            items: value,
+            pagination: _firstNonNull([
+              _looksLikePagination(decoded) ? decoded : null,
+              _extractMetaMap(decoded),
+            ]),
+          );
+        }
+        if (value is Map<String, dynamic>) {
+          final nested = _extractPayload(value);
+          if (nested.items.isNotEmpty || nested.pagination != null) {
+            return _Payload(
+              items: nested.items,
+              pagination: nested.pagination ??
+                  _firstNonNull([
+                    _looksLikePagination(value) ? value : null,
+                    _looksLikePagination(decoded) ? decoded : null,
+                    _extractMetaMap(decoded),
+                  ]),
+            );
+          }
+        }
+      }
+
+      return _Payload(
+        items: const [],
+        pagination: _firstNonNull([
+          _looksLikePagination(decoded) ? decoded : null,
+          _extractMetaMap(decoded),
+        ]),
+      );
+    }
+
+    return const _Payload(items: []);
+  }
+
+  Map<String, dynamic>? _extractMetaMap(Map<String, dynamic> decoded) {
+    final meta = decoded['meta'];
+    if (meta is Map<String, dynamic>) {
+      return meta;
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _findPaginationMap(dynamic decoded) {
+    if (decoded is Map<String, dynamic>) {
+      if (_looksLikePagination(decoded)) {
+        return decoded;
+      }
+
+      final meta = decoded['meta'];
+      if (meta is Map<String, dynamic> && _looksLikePagination(meta)) {
+        return meta;
+      }
+
+      for (final value in decoded.values) {
+        final candidate = _findPaginationMap(value);
+        if (candidate != null) {
+          return candidate;
+        }
+      }
+    }
+    return null;
+  }
+
+  bool _looksLikePagination(Map<String, dynamic> map) {
+    return map.containsKey('current_page') ||
+        map.containsKey('last_page') ||
+        map.containsKey('next_page') ||
+        map.containsKey('next_page_url');
+  }
+
+  Map<String, dynamic>? _firstNonNull(List<Map<String, dynamic>?> candidates) {
+    for (final candidate in candidates) {
+      if (candidate != null) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  int? _resolveFromLinks(dynamic decoded) {
+    if (decoded is Map<String, dynamic>) {
+      final links = decoded['links'];
+      if (links is Map<String, dynamic>) {
+        final nextUrl = links['next'];
+        if (nextUrl is String) {
+          return _parsePageFromUrl(nextUrl);
+        }
+      }
+      for (final value in decoded.values) {
+        final nested = _resolveFromLinks(value);
+        if (nested != null) {
+          return nested;
+        }
+      }
+    }
     return null;
   }
 
@@ -214,19 +342,6 @@ class PurchaseOrderService {
     return null;
   }
 
-  int? _resolveFromLinks(dynamic decoded) {
-    if (decoded is Map<String, dynamic>) {
-      final links = decoded['links'];
-      if (links is Map<String, dynamic>) {
-        final nextUrl = links['next'];
-        if (nextUrl is String) {
-          return _parsePageFromUrl(nextUrl);
-        }
-      }
-    }
-    return null;
-  }
-
   int? _parsePageFromUrl(String url) {
     try {
       final uri = Uri.parse(url);
@@ -239,4 +354,11 @@ class PurchaseOrderService {
     }
     return null;
   }
+}
+
+class _Payload {
+  const _Payload({required this.items, this.pagination});
+
+  final List<dynamic> items;
+  final Map<String, dynamic>? pagination;
 }
