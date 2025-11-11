@@ -30,6 +30,17 @@ class HomeScreen extends StatelessWidget {
           automaticallyImplyLeading: false,
           actions: [
             IconButton(
+              onPressed: () => appState.toggleThemeMode(),
+              icon: Icon(
+                appState.themeMode == ThemeMode.dark
+                    ? Icons.dark_mode
+                    : Icons.light_mode,
+              ),
+              tooltip: appState.themeMode == ThemeMode.dark
+                  ? 'Switch to light mode'
+                  : 'Switch to dark mode',
+            ),
+            IconButton(
               onPressed: () => appState.logout(),
               icon: const Icon(Icons.logout),
               tooltip: 'Log out',
