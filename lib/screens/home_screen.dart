@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
+import 'accounts_tab.dart';
 import 'bills_tab.dart';
 import 'purchase_orders_tab.dart';
 
@@ -20,7 +21,11 @@ class HomeScreen extends StatelessWidget {
       icon: Icons.receipt_long_outlined,
       builder: (_) => const BillsTab(),
     ),
-    const _HomeTab(title: 'Accounts', icon: Icons.account_balance_outlined),
+    _HomeTab(
+      title: 'Accounts',
+      icon: Icons.account_balance_outlined,
+      builder: (_) => const AccountsTab(),
+    ),
     const _HomeTab(title: 'Overview', icon: Icons.dashboard_outlined),
   ];
 
