@@ -134,14 +134,18 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       );
     }
 
+    final entries = _buildEntries();
+
     return RefreshIndicator(
       onRefresh: _refresh,
-      child: ListView.separated(
+      child: ListView.builder(
         controller: _scrollController,
-        padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        itemCount: entries.length + (_showBottomIndicator ? 1 : 0),
         itemBuilder: (context, index) {
-          final isLoaderTile = index >= _orders.length;
-          if (isLoaderTile) {
+          final isBottomIndicator = index >= entries.length;
+          if (isBottomIndicator) {
             if (_errorMessage != null) {
               return _LoadMoreError(onRetry: _loadMore);
             }
@@ -151,16 +155,53 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
             );
           }
 
-          final order = _orders[index];
-          return _PurchaseOrderTile(order: order, theme: theme);
+          final entry = entries[index];
+          if (entry.isHeader) {
+            return _DateHeader(label: entry.dateLabel!);
+          }
+
+          return _PurchaseOrderTile(order: entry.order!, theme: theme);
         },
-        separatorBuilder: (context, index) => const SizedBox(height: 12),
-        itemCount: _orders.length + (_showBottomIndicator ? 1 : 0),
       ),
     );
   }
 
   bool get _showBottomIndicator => _isLoading || _errorMessage != null;
+
+  List<_PurchaseOrderListEntry> _buildEntries() {
+    final entries = <_PurchaseOrderListEntry>[];
+    String? lastLabel;
+
+    for (final order in _orders) {
+      final label = order.dateLabel;
+      if (label != null) {
+        if (label != lastLabel) {
+          entries.add(_PurchaseOrderListEntry.header(label));
+          lastLabel = label;
+        }
+      } else {
+        lastLabel = null;
+      }
+
+      entries.add(_PurchaseOrderListEntry.order(order));
+    }
+
+    return entries;
+  }
+}
+
+class _PurchaseOrderListEntry {
+  const _PurchaseOrderListEntry.header(this.dateLabel)
+      : order = null,
+        isHeader = true;
+
+  const _PurchaseOrderListEntry.order(this.order)
+      : dateLabel = null,
+        isHeader = false;
+
+  final PurchaseOrder? order;
+  final String? dateLabel;
+  final bool isHeader;
 }
 
 class _PurchaseOrderTile extends StatelessWidget {
@@ -171,17 +212,12 @@ class _PurchaseOrderTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surfaceVariant = theme.colorScheme.surfaceVariant;
     final onSurface = theme.colorScheme.onSurface;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: surfaceVariant.withOpacity(0.4),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Column(
@@ -192,7 +228,7 @@ class _PurchaseOrderTile extends StatelessWidget {
                   style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600, color: onSurface),
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 Text(
                   order.orderName,
                   style: theme.textTheme.bodyMedium?.copyWith(color: onSurface.withOpacity(0.8)),
@@ -202,7 +238,7 @@ class _PurchaseOrderTile extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
           Text(
             order.formattedTotal,
             style: theme.textTheme.titleMedium?.copyWith(
@@ -212,6 +248,25 @@ class _PurchaseOrderTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DateHeader extends StatelessWidget {
+  const _DateHeader({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+      child: Text(
+        label,
+        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+        textAlign: TextAlign.left,
       ),
     );
   }

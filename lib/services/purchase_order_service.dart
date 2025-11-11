@@ -10,6 +10,8 @@ class PurchaseOrder {
     required this.orderName,
     required this.total,
     required this.currencySymbol,
+    this.orderDate,
+    this.rawOrderDate,
   });
 
   final int id;
@@ -17,6 +19,8 @@ class PurchaseOrder {
   final String orderName;
   final double total;
   final String currencySymbol;
+  final DateTime? orderDate;
+  final String? rawOrderDate;
 
   /// Creates an instance of [PurchaseOrder] from a JSON map.
   factory PurchaseOrder.fromJson(Map<String, dynamic> json) {
@@ -31,6 +35,8 @@ class PurchaseOrder {
       orderName: json['pur_order_name']?.toString() ?? '',
       total: _parseDouble(json['total']) ?? 0,
       currencySymbol: resolvedCurrency,
+      orderDate: _parseDate(json['order_date']),
+      rawOrderDate: json['order_date']?.toString(),
     );
   }
 
@@ -41,6 +47,19 @@ class PurchaseOrder {
       return formatted;
     }
     return '$currencySymbol $formatted';
+  }
+
+  /// A human-friendly label for grouping and displaying the order date.
+  String? get dateLabel {
+    if (orderDate != null) {
+      final day = orderDate!.day.toString().padLeft(2, '0');
+      final month = orderDate!.month.toString().padLeft(2, '0');
+      final year = orderDate!.year.toString();
+      return '$day-$month-$year';
+    }
+
+    final trimmed = rawOrderDate?.trim();
+    return (trimmed != null && trimmed.isNotEmpty) ? trimmed : null;
   }
 
   static int? _parseInt(dynamic value) {
@@ -65,6 +84,36 @@ class PurchaseOrder {
     }
     if (value is String) {
       return double.tryParse(value);
+    }
+    return null;
+  }
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value is DateTime) {
+      return value;
+    }
+    if (value is String) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) {
+        return null;
+      }
+      try {
+        return DateTime.parse(trimmed);
+      } catch (_) {
+        final delimiterMatch = RegExp(r'[-/]').allMatches(trimmed).isNotEmpty;
+        final parts = delimiterMatch ? trimmed.split(RegExp(r'[-/]')) : null;
+        if (parts != null && parts.length == 3) {
+          final first = int.tryParse(parts[0]);
+          final second = int.tryParse(parts[1]);
+          final third = int.tryParse(parts[2]);
+          if (first != null && second != null && third != null) {
+            if (parts[0].length == 4) {
+              return DateTime(first, second, third);
+            }
+            return DateTime(third, second, first);
+          }
+        }
+      }
     }
     return null;
   }
