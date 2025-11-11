@@ -42,11 +42,9 @@ class HomeScreen extends StatelessWidget {
         body: TabBarView(
           children: _tabs
               .map(
-                (tab) => tab.builder?.call(context) ??
-                    _HomeTabPlaceholder(
-                      title: tab.title,
-                      icon: tab.icon,
-                    ),
+                (tab) =>
+                    tab.builder?.call(context) ??
+                    _HomeTabPlaceholder(title: tab.title, icon: tab.icon),
               )
               .toList(),
         ),
