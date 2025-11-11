@@ -214,7 +214,10 @@ class _PurchaseOrderTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final onSurface = theme.colorScheme.onSurface;
 
-    return Padding(
+    final tileColor = theme.colorScheme.surfaceVariant;
+
+    return Container(
+      color: tileColor,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
