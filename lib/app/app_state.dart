@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
+
 import 'package:flutter/material.dart';
+
 import '../services/auth_service.dart';
 import '../services/session_manager.dart';
 
@@ -73,9 +75,7 @@ class AppState extends ChangeNotifier {
 
     if (storedUsername != null && storedUsername.isNotEmpty) {
       _username = storedUsername;
-      final storedTheme = await _sessionManager.getThemeModeForUser(
-        storedUsername,
-      );
+      final storedTheme = await _sessionManager.getThemeModeForUser(storedUsername);
       if (storedTheme != null) {
         _themeMode = storedTheme;
       }

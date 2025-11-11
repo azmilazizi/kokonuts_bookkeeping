@@ -164,7 +164,11 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
             case _PurchaseOrderEntryType.columnHeader:
               return _PurchaseOrderColumnHeader(theme: theme);
             case _PurchaseOrderEntryType.order:
-              return _PurchaseOrderTile(order: entry.order!, theme: theme);
+              return _PurchaseOrderTile(
+                order: entry.order!,
+                theme: theme,
+                isFirstInSection: entry.isFirstInSection,
+              );
           }
         },
       ),
@@ -176,6 +180,7 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   List<_PurchaseOrderListEntry> _buildEntries() {
     final entries = <_PurchaseOrderListEntry>[];
     String? lastLabel;
+    var nextIsFirstInSection = true;
 
     for (final order in _orders) {
       final label = order.dateLabel;
@@ -184,12 +189,22 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
           entries.add(_PurchaseOrderListEntry.dateHeader(label));
           entries.add(_PurchaseOrderListEntry.columnHeader());
           lastLabel = label;
+          nextIsFirstInSection = true;
         }
       } else {
-        lastLabel = null;
+        if (lastLabel != null) {
+          lastLabel = null;
+          nextIsFirstInSection = true;
+        }
       }
 
-      entries.add(_PurchaseOrderListEntry.order(order));
+      entries.add(
+        _PurchaseOrderListEntry.order(
+          order,
+          isFirstInSection: nextIsFirstInSection,
+        ),
+      );
+      nextIsFirstInSection = false;
     }
 
     return entries;
@@ -203,6 +218,7 @@ class _PurchaseOrderListEntry {
     required this.type,
     this.order,
     this.dateLabel,
+    this.isFirstInSection = false,
   });
 
   factory _PurchaseOrderListEntry.dateHeader(String label) =>
@@ -214,15 +230,20 @@ class _PurchaseOrderListEntry {
   factory _PurchaseOrderListEntry.columnHeader() =>
       const _PurchaseOrderListEntry._(type: _PurchaseOrderEntryType.columnHeader);
 
-  factory _PurchaseOrderListEntry.order(PurchaseOrder order) =>
+  factory _PurchaseOrderListEntry.order(
+    PurchaseOrder order, {
+    required bool isFirstInSection,
+  }) =>
       _PurchaseOrderListEntry._(
         type: _PurchaseOrderEntryType.order,
         order: order,
+        isFirstInSection: isFirstInSection,
       );
 
   final _PurchaseOrderEntryType type;
   final PurchaseOrder? order;
   final String? dateLabel;
+  final bool isFirstInSection;
 }
 
 class _PurchaseOrderColumnHeader extends StatelessWidget {
@@ -243,7 +264,7 @@ class _PurchaseOrderColumnHeader extends StatelessWidget {
         color: theme.colorScheme.surface,
         border: Border(
           top: BorderSide(color: borderColor, width: 1),
-          bottom: BorderSide(color: borderColor, width: 1),
+          bottom: BorderSide.none,
         ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -278,10 +299,15 @@ class _PurchaseOrderColumnHeader extends StatelessWidget {
 }
 
 class _PurchaseOrderTile extends StatefulWidget {
-  const _PurchaseOrderTile({required this.order, required this.theme});
+  const _PurchaseOrderTile({
+    required this.order,
+    required this.theme,
+    required this.isFirstInSection,
+  });
 
   final PurchaseOrder order;
   final ThemeData theme;
+  final bool isFirstInSection;
 
   @override
   State<_PurchaseOrderTile> createState() => _PurchaseOrderTileState();
@@ -319,6 +345,9 @@ class _PurchaseOrderTileState extends State<_PurchaseOrderTile> {
         decoration: BoxDecoration(
           color: _hovering ? hoverColor : baseColor,
           border: Border(
+            top: widget.isFirstInSection
+                ? BorderSide(color: borderColor, width: 1)
+                : BorderSide.none,
             bottom: BorderSide(color: borderColor, width: 1),
           ),
         ),

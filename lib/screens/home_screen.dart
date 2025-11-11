@@ -13,7 +13,6 @@ class HomeScreen extends StatelessWidget {
       icon: Icons.shopping_bag_outlined,
       builder: (_) => const PurchaseOrdersTab(),
     ),
-    const _HomeTab(title: 'Payments', icon: Icons.payments_outlined),
     const _HomeTab(title: 'Bills', icon: Icons.receipt_long_outlined),
     const _HomeTab(title: 'Accounts', icon: Icons.account_balance_outlined),
     const _HomeTab(title: 'Overview', icon: Icons.dashboard_outlined),
@@ -42,9 +41,11 @@ class HomeScreen extends StatelessWidget {
         body: TabBarView(
           children: _tabs
               .map(
-                (tab) =>
-                    tab.builder?.call(context) ??
-                    _HomeTabPlaceholder(title: tab.title, icon: tab.icon),
+                (tab) => tab.builder?.call(context) ??
+                    _HomeTabPlaceholder(
+                      title: tab.title,
+                      icon: tab.icon,
+                    ),
               )
               .toList(),
         ),
