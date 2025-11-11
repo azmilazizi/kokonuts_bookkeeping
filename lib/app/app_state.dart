@@ -20,6 +20,36 @@ class AppState extends ChangeNotifier {
   bool get isLoggedIn => _isLoggedIn;
   String? get authToken => _authToken;
 
+  /// Returns the active auth token, refreshing it from storage if needed.
+  Future<String?> getValidAuthToken() async {
+    if (_authToken != null && _authToken!.isNotEmpty) {
+      return _authToken;
+    }
+
+    final storedToken = await _sessionManager.getAuthToken();
+    if (storedToken != null && storedToken.isNotEmpty) {
+      _authToken = storedToken;
+      return _authToken;
+    }
+
+    return null;
+  }
+
+  /// Builds request headers that include the auth token when available.
+  Future<Map<String, String>> buildAuthHeaders({
+    Map<String, String>? headers,
+    String authorizationScheme = 'Token',
+  }) async {
+    final resolvedHeaders = <String, String>{...?headers};
+    final token = await getValidAuthToken();
+    if (token != null && token.isNotEmpty) {
+      final scheme = authorizationScheme.trim();
+      final value = scheme.isEmpty ? token : '$scheme $token';
+      resolvedHeaders.putIfAbsent('Authorization', () => value);
+    }
+    return resolvedHeaders;
+  }
+
   /// Loads persisted session information.
   Future<void> initialize() async {
     if (_isInitialized) {
