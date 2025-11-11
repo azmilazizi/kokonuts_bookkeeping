@@ -6,9 +6,11 @@ import '../services/session_manager.dart';
 
 /// Stores global application state such as authentication status.
 class AppState extends ChangeNotifier {
-  AppState({required AuthService authService, required SessionManager sessionManager})
-      : _authService = authService,
-        _sessionManager = sessionManager;
+  AppState({
+    required AuthService authService,
+    required SessionManager sessionManager,
+  }) : _authService = authService,
+       _sessionManager = sessionManager;
 
   final AuthService _authService;
   final SessionManager _sessionManager;

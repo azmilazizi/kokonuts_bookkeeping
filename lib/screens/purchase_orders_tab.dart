@@ -156,11 +156,14 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
           }
 
           final entry = entries[index];
-          if (entry.isHeader) {
-            return _DateHeader(label: entry.dateLabel!);
+          switch (entry.type) {
+            case _PurchaseOrderEntryType.dateHeader:
+              return _DateHeader(label: entry.dateLabel!);
+            case _PurchaseOrderEntryType.columnHeader:
+              return _PurchaseOrderColumnHeader(theme: theme);
+            case _PurchaseOrderEntryType.order:
+              return _PurchaseOrderTile(order: entry.order!, theme: theme);
           }
-
-          return _PurchaseOrderTile(order: entry.order!, theme: theme);
         },
       ),
     );
@@ -176,7 +179,8 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       final label = order.dateLabel;
       if (label != null) {
         if (label != lastLabel) {
-          entries.add(_PurchaseOrderListEntry.header(label));
+          entries.add(_PurchaseOrderListEntry.dateHeader(label));
+          entries.add(_PurchaseOrderListEntry.columnHeader());
           lastLabel = label;
         }
       } else {
@@ -190,64 +194,265 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   }
 }
 
+enum _PurchaseOrderEntryType { dateHeader, columnHeader, order }
+
 class _PurchaseOrderListEntry {
-  const _PurchaseOrderListEntry.header(this.dateLabel)
-      : order = null,
-        isHeader = true;
+  const _PurchaseOrderListEntry._({
+    required this.type,
+    this.order,
+    this.dateLabel,
+  });
 
-  const _PurchaseOrderListEntry.order(this.order)
-      : dateLabel = null,
-        isHeader = false;
+  factory _PurchaseOrderListEntry.dateHeader(String label) =>
+      _PurchaseOrderListEntry._(
+        type: _PurchaseOrderEntryType.dateHeader,
+        dateLabel: label,
+      );
 
+  factory _PurchaseOrderListEntry.columnHeader() =>
+      const _PurchaseOrderListEntry._(type: _PurchaseOrderEntryType.columnHeader);
+
+  factory _PurchaseOrderListEntry.order(PurchaseOrder order) =>
+      _PurchaseOrderListEntry._(
+        type: _PurchaseOrderEntryType.order,
+        order: order,
+      );
+
+  final _PurchaseOrderEntryType type;
   final PurchaseOrder? order;
   final String? dateLabel;
-  final bool isHeader;
 }
 
-class _PurchaseOrderTile extends StatelessWidget {
+class _PurchaseOrderColumnHeader extends StatelessWidget {
+  const _PurchaseOrderColumnHeader({required this.theme});
+
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = theme.colorScheme.outline.withOpacity(0.4);
+    final textStyle = theme.textTheme.labelLarge?.copyWith(
+      fontWeight: FontWeight.w600,
+      color: theme.colorScheme.onSurface,
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          top: BorderSide(color: borderColor, width: 1),
+          bottom: BorderSide(color: borderColor, width: 1),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: _ScrollableTableRow(
+        children: [
+          _TableHeaderCell(
+            label: 'Order Number',
+            width: _orderNumberColumnWidth,
+            style: textStyle,
+          ),
+          _TableHeaderCell(
+            label: 'Order Name',
+            width: _orderNameColumnWidth,
+            style: textStyle,
+          ),
+          _TableHeaderCell(
+            label: 'Total',
+            width: _totalColumnWidth,
+            style: textStyle,
+            textAlign: TextAlign.right,
+          ),
+          _TableHeaderCell(
+            label: 'Actions',
+            width: _actionsColumnWidth,
+            style: textStyle,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PurchaseOrderTile extends StatefulWidget {
   const _PurchaseOrderTile({required this.order, required this.theme});
 
   final PurchaseOrder order;
   final ThemeData theme;
 
   @override
+  State<_PurchaseOrderTile> createState() => _PurchaseOrderTileState();
+}
+
+class _PurchaseOrderTileState extends State<_PurchaseOrderTile> {
+  bool _hovering = false;
+
+  @override
   Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final baseColor = Color.lerp(
+      theme.colorScheme.surfaceVariant,
+      theme.colorScheme.surface,
+      0.7,
+    )!;
+    final hoverColor = Color.alphaBlend(
+      theme.colorScheme.primary.withOpacity(0.04),
+      baseColor,
+    );
+    final borderColor = theme.colorScheme.outline.withOpacity(0.6);
+
     final onSurface = theme.colorScheme.onSurface;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: _hovering ? hoverColor : baseColor,
+          border: Border(
+            top: BorderSide(color: borderColor, width: 1),
+            bottom: BorderSide(color: borderColor, width: 1),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: _ScrollableTableRow(
+          children: [
+            _TableDataCell(
+              width: _orderNumberColumnWidth,
+              child: Text(
+                widget.order.orderNumber,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: onSurface,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            _TableDataCell(
+              width: _orderNameColumnWidth,
+              child: Text(
+                widget.order.orderName,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: onSurface.withOpacity(0.85),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            _TableDataCell(
+              width: _totalColumnWidth,
+              alignment: Alignment.centerRight,
+              child: Text(
+                widget.order.formattedTotal,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.error,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            _TableDataCell(
+              width: _actionsColumnWidth,
+              alignment: Alignment.center,
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.visibility_outlined),
+                    label: const Text('View Detail'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.payment),
+                    label: const Text('View Payment'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+const double _orderNumberColumnWidth = 180;
+const double _orderNameColumnWidth = 260;
+const double _totalColumnWidth = 140;
+const double _actionsColumnWidth = 320;
+
+class _ScrollableTableRow extends StatelessWidget {
+  const _ScrollableTableRow({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  order.orderNumber,
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600, color: onSurface),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  order.orderName,
-                  style: theme.textTheme.bodyMedium?.copyWith(color: onSurface.withOpacity(0.8)),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            order.formattedTotal,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.error,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
+          ...children,
         ],
+      ),
+    );
+  }
+}
+
+class _TableHeaderCell extends StatelessWidget {
+  const _TableHeaderCell({
+    required this.label,
+    required this.width,
+    this.style,
+    this.textAlign = TextAlign.left,
+  });
+
+  final String label;
+  final double width;
+  final TextStyle? style;
+  final TextAlign textAlign;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Text(
+        label,
+        style: style,
+        textAlign: textAlign,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+class _TableDataCell extends StatelessWidget {
+  const _TableDataCell({
+    required this.child,
+    required this.width,
+    this.alignment = Alignment.centerLeft,
+  });
+
+  final Widget child;
+  final double width;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Align(
+        alignment: alignment,
+        child: child,
       ),
     );
   }
