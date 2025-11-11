@@ -412,10 +412,21 @@ class _BillRowState extends State<_BillRow> {
             Expanded(
               flex: _columnFlex[4],
               child: Center(
-                child: IconButton(
-                  icon: const Icon(Icons.visibility_outlined),
-                  tooltip: 'View details',
-                  onPressed: () {},
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.visibility_outlined),
+                      tooltip: 'View details',
+                      onPressed: () {},
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.payments_outlined),
+                      tooltip: 'View payments',
+                      onPressed: () {},
+                    ),
+                  ],
                 ),
               ),
             ),
