@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 
+import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
+import 'purchase_orders_tab.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  static const _tabs = [
-    _HomeTab(title: 'Purchase Orders', icon: Icons.shopping_bag_outlined),
-    _HomeTab(title: 'Bills', icon: Icons.receipt_long_outlined),
-    _HomeTab(title: 'Accounts', icon: Icons.account_balance_outlined),
-    _HomeTab(title: 'Overview', icon: Icons.dashboard_outlined),
+  static final _tabs = [
+    _HomeTab(
+      title: 'Purchase Orders',
+      icon: Icons.shopping_bag_outlined,
+      builder: (_) => const PurchaseOrdersTab(),
+    ),
+    const _HomeTab(title: 'Bills', icon: Icons.receipt_long_outlined),
+    const _HomeTab(title: 'Accounts', icon: Icons.account_balance_outlined),
+    const _HomeTab(title: 'Overview', icon: Icons.dashboard_outlined),
   ];
 
   @override
@@ -24,6 +30,7 @@ class HomeScreen extends StatelessWidget {
           title: null,
           automaticallyImplyLeading: false,
           actions: [
+            _ThemeModeButton(appState: appState),
             IconButton(
               onPressed: () => appState.logout(),
               icon: const Icon(Icons.logout),
@@ -33,10 +40,13 @@ class HomeScreen extends StatelessWidget {
         ),
         body: TabBarView(
           children: _tabs
-              .map((tab) => _HomeTabContent(
-                    title: tab.title,
-                    icon: tab.icon,
-                  ))
+              .map(
+                (tab) => tab.builder?.call(context) ??
+                    _HomeTabPlaceholder(
+                      title: tab.title,
+                      icon: tab.icon,
+                    ),
+              )
               .toList(),
         ),
         bottomNavigationBar: Material(
@@ -61,15 +71,68 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
+class _ThemeModeButton extends StatelessWidget {
+  const _ThemeModeButton({required this.appState});
+
+  final AppState appState;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentMode = appState.themeMode;
+    IconData icon;
+    String tooltip;
+
+    switch (currentMode) {
+      case ThemeMode.dark:
+        icon = Icons.dark_mode_outlined;
+        tooltip = 'Dark mode';
+        break;
+      case ThemeMode.light:
+        icon = Icons.light_mode_outlined;
+        tooltip = 'Light mode';
+        break;
+      case ThemeMode.system:
+        icon = Icons.brightness_auto_outlined;
+        tooltip = 'System theme';
+        break;
+    }
+
+    return PopupMenuButton<ThemeMode>(
+      tooltip: 'Theme preferences',
+      icon: Icon(icon),
+      initialValue: currentMode,
+      onSelected: appState.updateThemeMode,
+      itemBuilder: (context) => [
+        CheckedPopupMenuItem(
+          value: ThemeMode.light,
+          checked: currentMode == ThemeMode.light,
+          child: const Text('Light'),
+        ),
+        CheckedPopupMenuItem(
+          value: ThemeMode.dark,
+          checked: currentMode == ThemeMode.dark,
+          child: const Text('Dark'),
+        ),
+        CheckedPopupMenuItem(
+          value: ThemeMode.system,
+          checked: currentMode == ThemeMode.system,
+          child: const Text('System'),
+        ),
+      ],
+    );
+  }
+}
+
 class _HomeTab {
-  const _HomeTab({required this.title, required this.icon});
+  const _HomeTab({required this.title, required this.icon, this.builder});
 
   final String title;
   final IconData icon;
+  final WidgetBuilder? builder;
 }
 
-class _HomeTabContent extends StatelessWidget {
-  const _HomeTabContent({required this.title, required this.icon});
+class _HomeTabPlaceholder extends StatelessWidget {
+  const _HomeTabPlaceholder({required this.title, required this.icon});
 
   final String title;
   final IconData icon;
