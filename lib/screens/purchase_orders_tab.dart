@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../app/app_state_scope.dart';
@@ -249,23 +251,23 @@ class _PurchaseOrderColumnHeader extends StatelessWidget {
         children: [
           _TableHeaderCell(
             label: 'Order Number',
-            width: _orderNumberColumnWidth,
+            flex: _orderNumberColumnFlex,
             style: textStyle,
           ),
           _TableHeaderCell(
             label: 'Order Name',
-            width: _orderNameColumnWidth,
+            flex: _orderNameColumnFlex,
             style: textStyle,
           ),
           _TableHeaderCell(
             label: 'Total',
-            width: _totalColumnWidth,
+            flex: _totalColumnFlex,
             style: textStyle,
             textAlign: TextAlign.right,
           ),
           _TableHeaderCell(
             label: 'Actions',
-            width: _actionsColumnWidth,
+            flex: _actionsColumnFlex,
             style: textStyle,
             textAlign: TextAlign.center,
           ),
@@ -303,6 +305,11 @@ class _PurchaseOrderTileState extends State<_PurchaseOrderTile> {
     final borderColor = theme.colorScheme.outline.withOpacity(0.6);
 
     final onSurface = theme.colorScheme.onSurface;
+    final actionButtonStyle = OutlinedButton.styleFrom(
+      minimumSize: const Size(40, 40),
+      padding: const EdgeInsets.all(8),
+      visualDensity: VisualDensity.compact,
+    );
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
@@ -312,7 +319,6 @@ class _PurchaseOrderTileState extends State<_PurchaseOrderTile> {
         decoration: BoxDecoration(
           color: _hovering ? hoverColor : baseColor,
           border: Border(
-            top: BorderSide(color: borderColor, width: 1),
             bottom: BorderSide(color: borderColor, width: 1),
           ),
         ),
@@ -320,7 +326,7 @@ class _PurchaseOrderTileState extends State<_PurchaseOrderTile> {
         child: _ScrollableTableRow(
           children: [
             _TableDataCell(
-              width: _orderNumberColumnWidth,
+              flex: _orderNumberColumnFlex,
               child: Text(
                 widget.order.orderNumber,
                 style: theme.textTheme.bodyLarge?.copyWith(
@@ -332,7 +338,7 @@ class _PurchaseOrderTileState extends State<_PurchaseOrderTile> {
               ),
             ),
             _TableDataCell(
-              width: _orderNameColumnWidth,
+              flex: _orderNameColumnFlex,
               child: Text(
                 widget.order.orderName,
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -343,7 +349,7 @@ class _PurchaseOrderTileState extends State<_PurchaseOrderTile> {
               ),
             ),
             _TableDataCell(
-              width: _totalColumnWidth,
+              flex: _totalColumnFlex,
               alignment: Alignment.centerRight,
               child: Text(
                 widget.order.formattedTotal,
@@ -356,22 +362,28 @@ class _PurchaseOrderTileState extends State<_PurchaseOrderTile> {
               ),
             ),
             _TableDataCell(
-              width: _actionsColumnWidth,
+              flex: _actionsColumnFlex,
               alignment: Alignment.center,
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.visibility_outlined),
-                    label: const Text('View Detail'),
+                  Tooltip(
+                    message: 'View detail',
+                    child: OutlinedButton(
+                      onPressed: () {},
+                      style: actionButtonStyle,
+                      child: const Icon(Icons.visibility_outlined),
+                    ),
                   ),
-                  OutlinedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.payment),
-                    label: const Text('View Payment'),
+                  const SizedBox(width: 12),
+                  Tooltip(
+                    message: 'View payment',
+                    child: OutlinedButton(
+                      onPressed: () {},
+                      style: actionButtonStyle,
+                      child: const Icon(Icons.payment),
+                    ),
                   ),
                 ],
               ),
@@ -383,10 +395,11 @@ class _PurchaseOrderTileState extends State<_PurchaseOrderTile> {
   }
 }
 
-const double _orderNumberColumnWidth = 180;
-const double _orderNameColumnWidth = 260;
-const double _totalColumnWidth = 140;
-const double _actionsColumnWidth = 320;
+const int _orderNumberColumnFlex = 1;
+const int _orderNameColumnFlex = 1;
+const int _totalColumnFlex = 1;
+const int _actionsColumnFlex = 1;
+const double _tableMinimumWidth = 720;
 
 class _ScrollableTableRow extends StatelessWidget {
   const _ScrollableTableRow({required this.children});
@@ -395,14 +408,22 @@ class _ScrollableTableRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          ...children,
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tableWidth = constraints.maxWidth.isFinite
+            ? math.max(constraints.maxWidth, _tableMinimumWidth)
+            : _tableMinimumWidth;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: tableWidth),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: children,
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -410,26 +431,32 @@ class _ScrollableTableRow extends StatelessWidget {
 class _TableHeaderCell extends StatelessWidget {
   const _TableHeaderCell({
     required this.label,
-    required this.width,
+    required this.flex,
     this.style,
     this.textAlign = TextAlign.left,
   });
 
   final String label;
-  final double width;
+  final int flex;
   final TextStyle? style;
   final TextAlign textAlign;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      child: Text(
-        label,
-        style: style,
-        textAlign: textAlign,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+    return Expanded(
+      flex: flex,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Align(
+          alignment: _alignmentForTextAlign(textAlign),
+          child: Text(
+            label,
+            style: style,
+            textAlign: textAlign,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ),
     );
   }
@@ -438,23 +465,42 @@ class _TableHeaderCell extends StatelessWidget {
 class _TableDataCell extends StatelessWidget {
   const _TableDataCell({
     required this.child,
-    required this.width,
+    required this.flex,
     this.alignment = Alignment.centerLeft,
   });
 
   final Widget child;
-  final double width;
+  final int flex;
   final Alignment alignment;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      child: Align(
-        alignment: alignment,
-        child: child,
+    return Expanded(
+      flex: flex,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Align(
+          alignment: alignment,
+          child: child,
+        ),
       ),
     );
+  }
+}
+
+Alignment _alignmentForTextAlign(TextAlign textAlign) {
+  switch (textAlign) {
+    case TextAlign.center:
+      return Alignment.center;
+    case TextAlign.right:
+      return Alignment.centerRight;
+    case TextAlign.left:
+    case TextAlign.start:
+      return Alignment.centerLeft;
+    case TextAlign.end:
+      return Alignment.centerRight;
+    case TextAlign.justify:
+      return Alignment.centerLeft;
   }
 }
 
