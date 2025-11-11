@@ -9,6 +9,7 @@ class AuthTokenPayload {
   const AuthTokenPayload({
     required this.authorizationToken,
     required this.authtoken,
+    required this.rawAuthtoken,
   });
 
   /// The credential portion that should be passed to the Authorization header
@@ -18,8 +19,27 @@ class AuthTokenPayload {
   /// The value that should be applied to the `authtoken` header.
   final String authtoken;
 
+  /// The raw authtoken value exactly as it was provided by the backend.
+  final String rawAuthtoken;
+
   bool get hasAuthorizationToken => authorizationToken.trim().isNotEmpty;
-  bool get hasAuthtoken => authtoken.trim().isNotEmpty;
+
+  bool get hasAuthtoken =>
+      authtoken.trim().isNotEmpty || rawAuthtoken.trim().isNotEmpty;
+
+  /// Returns the header-ready authtoken value, preferring the raw token when
+  /// available to match backend expectations precisely.
+  String? get resolvedAuthtoken {
+    final rawValue = rawAuthtoken.trim();
+    if (rawValue.isNotEmpty) {
+      return rawValue;
+    }
+    final normalizedValue = authtoken.trim();
+    if (normalizedValue.isNotEmpty) {
+      return normalizedValue;
+    }
+    return null;
+  }
 }
 
 /// An HTTP client that injects authentication headers into each request.
@@ -56,7 +76,10 @@ class AuthenticatedHttpClient extends http.BaseClient {
       final shouldInjectAuthtoken =
           existingAuthtoken == null || existingAuthtoken.trim().isEmpty;
       if (shouldInjectAuthtoken && payload.hasAuthtoken) {
-        request.headers['authtoken'] = payload.authtoken.trim();
+        final authtokenValue = payload.resolvedAuthtoken;
+        if (authtokenValue != null && authtokenValue.isNotEmpty) {
+          request.headers['authtoken'] = authtokenValue;
+        }
       }
     }
     return _innerClient.send(request);

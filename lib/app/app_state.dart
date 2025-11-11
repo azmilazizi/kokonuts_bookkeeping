@@ -62,6 +62,7 @@ class AppState extends ChangeNotifier {
     return AuthTokenPayload(
       authorizationToken: token,
       authtoken: authtokenValue,
+      rawAuthtoken: rawAuthtoken,
     );
   }
 
@@ -90,8 +91,8 @@ class AppState extends ChangeNotifier {
       if (value.trim().isNotEmpty) {
         resolvedHeaders['Authorization'] = value.trim();
       }
-      final authtokenValue = payload.authtoken.trim();
-      if (authtokenValue.isNotEmpty) {
+      final authtokenValue = payload.resolvedAuthtoken;
+      if (authtokenValue != null && authtokenValue.isNotEmpty) {
         resolvedHeaders['authtoken'] = authtokenValue;
       }
     }
