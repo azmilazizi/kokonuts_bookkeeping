@@ -287,8 +287,17 @@ class _BillsTabState extends State<BillsTab> {
             .toLowerCase()
             .compareTo(_vendorLabel(b).toLowerCase());
       case BillsSortColumn.dueDate:
-        final left = a.dueDate?.millisecondsSinceEpoch ?? -0x7fffffffffffffff;
-        final right = b.dueDate?.millisecondsSinceEpoch ?? -0x7fffffffffffffff;
+        final left = a.dueDate;
+        final right = b.dueDate;
+        if (left == null && right == null) {
+          return 0;
+        }
+        if (left == null) {
+          return -1;
+        }
+        if (right == null) {
+          return 1;
+        }
         return left.compareTo(right);
       case BillsSortColumn.status:
         return a.status.code.compareTo(b.status.code);

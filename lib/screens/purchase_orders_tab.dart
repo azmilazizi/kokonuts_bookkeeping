@@ -254,12 +254,18 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       case PurchaseOrderSortColumn.vendor:
         return a.vendorName.toLowerCase().compareTo(b.vendorName.toLowerCase());
       case PurchaseOrderSortColumn.orderDate:
-        final left = a.orderDate?.millisecondsSinceEpoch ?? -0x7fffffffffffffff;
-        final right = b.orderDate?.millisecondsSinceEpoch ?? -0x7fffffffffffffff;
-        if (left == right) {
+        final left = a.orderDate;
+        final right = b.orderDate;
+        if (left == null && right == null) {
           return 0;
         }
-        return left < right ? -1 : 1;
+        if (left == null) {
+          return -1;
+        }
+        if (right == null) {
+          return 1;
+        }
+        return left.compareTo(right);
       case PurchaseOrderSortColumn.paymentProgress:
         final left = _paymentProgressValue(a);
         final right = _paymentProgressValue(b);
