@@ -7,9 +7,11 @@ import '../services/session_manager.dart';
 
 /// Stores global application state such as authentication status.
 class AppState extends ChangeNotifier {
-  AppState({required AuthService authService, required SessionManager sessionManager})
-      : _authService = authService,
-        _sessionManager = sessionManager;
+  AppState({
+    required AuthService authService,
+    required SessionManager sessionManager,
+  }) : _authService = authService,
+       _sessionManager = sessionManager;
 
   final AuthService _authService;
   final SessionManager _sessionManager;
@@ -84,8 +86,14 @@ class AppState extends ChangeNotifier {
   }
 
   /// Attempts to log the user in using the provided credentials.
-  Future<void> login({required String username, required String password}) async {
-    final token = await _authService.login(username: username, password: password);
+  Future<void> login({
+    required String username,
+    required String password,
+  }) async {
+    final token = await _authService.login(
+      username: username,
+      password: password,
+    );
     _authToken = token;
     _username = username.trim();
     if (_username != null && _username!.isNotEmpty) {
@@ -126,5 +134,13 @@ class AppState extends ChangeNotifier {
       await _sessionManager.saveThemeModeForUser(activeUser, mode);
     }
     notifyListeners();
+  }
+
+  /// Toggles between light and dark themes.
+  Future<void> toggleThemeMode() {
+    final nextMode = _themeMode == ThemeMode.dark
+        ? ThemeMode.light
+        : ThemeMode.dark;
+    return updateThemeMode(nextMode);
   }
 }
