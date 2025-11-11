@@ -342,6 +342,7 @@ class _BillTileState extends State<_BillTile> {
       padding: const EdgeInsets.all(8),
       visualDensity: VisualDensity.compact,
     );
+    final statusAppearance = _resolveStatusAppearance(theme);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
@@ -388,14 +389,22 @@ class _BillTileState extends State<_BillTile> {
             _TableDataCell(
               flex: _statusColumnFlex,
               alignment: Alignment.center,
-              child: Text(
-                widget.bill.statusLabel,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: onSurface.withOpacity(0.85),
-                  fontWeight: FontWeight.w500,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: statusAppearance.backgroundColor,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: statusAppearance.borderColor, width: 1),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                child: Text(
+                  statusAppearance.label,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: statusAppearance.foregroundColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
             _TableDataCell(
@@ -434,6 +443,52 @@ class _BillTileState extends State<_BillTile> {
       ),
     );
   }
+
+  _StatusAppearance _resolveStatusAppearance(ThemeData theme) {
+    final status = widget.bill.status;
+    final label = widget.bill.statusLabel;
+
+    Color baseColor;
+    switch (status) {
+      case 0:
+        baseColor = theme.colorScheme.error;
+        break;
+      case 1:
+        baseColor = const Color(0xFFF57F17); // Amber 700
+        break;
+      case 2:
+        baseColor = const Color(0xFF2E7D32); // Green 800
+        break;
+      default:
+        baseColor = theme.colorScheme.outline;
+        break;
+    }
+
+    final isDark = theme.brightness == Brightness.dark;
+    final background = baseColor.withOpacity(isDark ? 0.28 : 0.16);
+    final border = baseColor.withOpacity(isDark ? 0.7 : 0.35);
+
+    return _StatusAppearance(
+      label: label,
+      foregroundColor: baseColor,
+      backgroundColor: background,
+      borderColor: border,
+    );
+  }
+}
+
+class _StatusAppearance {
+  const _StatusAppearance({
+    required this.label,
+    required this.foregroundColor,
+    required this.backgroundColor,
+    required this.borderColor,
+  });
+
+  final String label;
+  final Color foregroundColor;
+  final Color backgroundColor;
+  final Color borderColor;
 }
 
 const int _vendorColumnFlex = 2;

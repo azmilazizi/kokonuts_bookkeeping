@@ -151,7 +151,7 @@ class Bill {
       case 0:
         return 'Unpaid';
       case 1:
-        return 'Approved';
+        return 'Not Approved';
       case 2:
         return 'Paid';
       default:
