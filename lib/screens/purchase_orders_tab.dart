@@ -287,6 +287,7 @@ class _PurchaseOrdersHeader extends StatelessWidget {
       child: Row(
         children: [
           _HeaderCell('Order Number', flex: _columnFlex[0], theme: theme),
+          const SizedBox(width: 12),
           _HeaderCell('Order Name', flex: _columnFlex[1], theme: theme),
           _HeaderCell('Vendor', flex: _columnFlex[2], theme: theme),
           _HeaderCell('Order Date',
@@ -352,6 +353,7 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
         child: Row(
           children: [
             _DataCell(widget.order.number, flex: _columnFlex[0]),
+            const SizedBox(width: 12),
             _DataCell(widget.order.name, flex: _columnFlex[1]),
             _DataCell(widget.order.vendorName, flex: _columnFlex[2]),
             _DataCell(
@@ -379,9 +381,9 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
             ),
             Expanded(
               flex: _columnFlex[6],
-              child: Align(
-                alignment: Alignment.centerRight,
+              child: Center(
                 child: Wrap(
+                  alignment: WrapAlignment.center,
                   spacing: 8,
                   children: [
                     IconButton(
