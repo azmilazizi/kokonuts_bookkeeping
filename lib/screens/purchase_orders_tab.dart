@@ -140,37 +140,42 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
 
     return RefreshIndicator(
       onRefresh: _refresh,
-      child: ListView.builder(
+      child: CustomScrollView(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.zero,
-        itemCount: entries.length + (_showBottomIndicator ? 1 : 0),
-        itemBuilder: (context, index) {
-          final isBottomIndicator = index >= entries.length;
-          if (isBottomIndicator) {
-            if (_errorMessage != null) {
-              return _LoadMoreError(onRetry: _loadMore);
-            }
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: CircularProgressIndicator()),
-            );
-          }
-
-          final entry = entries[index];
-          switch (entry.type) {
-            case _PurchaseOrderEntryType.dateHeader:
-              return _DateHeader(label: entry.dateLabel!);
-            case _PurchaseOrderEntryType.columnHeader:
-              return _PurchaseOrderColumnHeader(theme: theme);
-            case _PurchaseOrderEntryType.order:
-              return _PurchaseOrderTile(
-                order: entry.order!,
-                theme: theme,
-                isFirstInSection: entry.isFirstInSection,
-              );
-          }
-        },
+        slivers: [
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _StickyTableHeaderDelegate(theme: theme),
+          ),
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final entry = entries[index];
+                switch (entry.type) {
+                  case _PurchaseOrderEntryType.dateHeader:
+                    return _DateHeader(label: entry.dateLabel!);
+                  case _PurchaseOrderEntryType.order:
+                    return _PurchaseOrderTile(
+                      order: entry.order!,
+                      theme: theme,
+                      isFirstInSection: entry.isFirstInSection,
+                    );
+                }
+              },
+              childCount: entries.length,
+            ),
+          ),
+          if (_showBottomIndicator)
+            SliverToBoxAdapter(
+              child: _errorMessage != null
+                  ? _LoadMoreError(onRetry: _loadMore)
+                  : const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+            ),
+        ],
       ),
     );
   }
@@ -187,7 +192,6 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       if (label != null) {
         if (label != lastLabel) {
           entries.add(_PurchaseOrderListEntry.dateHeader(label));
-          entries.add(_PurchaseOrderListEntry.columnHeader());
           lastLabel = label;
           nextIsFirstInSection = true;
         }
@@ -211,7 +215,7 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   }
 }
 
-enum _PurchaseOrderEntryType { dateHeader, columnHeader, order }
+enum _PurchaseOrderEntryType { dateHeader, order }
 
 class _PurchaseOrderListEntry {
   const _PurchaseOrderListEntry._({
@@ -226,9 +230,6 @@ class _PurchaseOrderListEntry {
         type: _PurchaseOrderEntryType.dateHeader,
         dateLabel: label,
       );
-
-  factory _PurchaseOrderListEntry.columnHeader() =>
-      const _PurchaseOrderListEntry._(type: _PurchaseOrderEntryType.columnHeader);
 
   factory _PurchaseOrderListEntry.order(
     PurchaseOrder order, {
@@ -429,6 +430,7 @@ const int _orderNameColumnFlex = 1;
 const int _totalColumnFlex = 1;
 const int _actionsColumnFlex = 1;
 const double _tableMinimumWidth = 720;
+const double _tableHeaderHeight = 56;
 
 class _ScrollableTableRow extends StatelessWidget {
   const _ScrollableTableRow({required this.children});
@@ -454,6 +456,45 @@ class _ScrollableTableRow extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+class _StickyTableHeaderDelegate extends SliverPersistentHeaderDelegate {
+  _StickyTableHeaderDelegate({required this.theme});
+
+  final ThemeData theme;
+
+  @override
+  double get minExtent => _tableHeaderHeight;
+
+  @override
+  double get maxExtent => _tableHeaderHeight;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final shadowColor = theme.colorScheme.shadow.withOpacity(overlapsContent ? 0.12 : 0.0);
+    return SizedBox.expand(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          boxShadow: shadowColor.opacity > 0
+              ? [
+                  BoxShadow(
+                    color: shadowColor,
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : const [],
+        ),
+        child: _PurchaseOrderColumnHeader(theme: theme),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _StickyTableHeaderDelegate oldDelegate) {
+    return oldDelegate.theme != theme;
   }
 }
 
