@@ -182,28 +182,40 @@ class PurchaseOrder {
     required this.name,
     required this.vendorName,
     required this.orderDate,
-    required this.total,
+    required this.totalAmount,
+    required this.totalLabel,
     required this.currencySymbol,
   });
 
   factory PurchaseOrder.fromJson(Map<String, dynamic> json) {
     final totalValue = json['total'];
+    final totalAmount = _parseDouble(totalValue);
     final currency = json['currency_symbol'] ?? json['currency'];
+    final vendorData = json['vendor'];
+    String? resolvedVendor;
+    if (vendorData is Map<String, dynamic>) {
+      resolvedVendor = _stringValue(vendorData['name']);
+    }
     return PurchaseOrder(
       id: _stringValue(json['id']) ?? '',
-      number: _stringValue(json['pur_order_number']) ??
+      number: _stringValue(json['number']) ??
+          _stringValue(json['pur_order_number']) ??
           _stringValue(json['order_number']) ??
           '—',
       name: _stringValue(json['pur_order_name']) ??
           _stringValue(json['name']) ??
           '—',
-      vendorName: _stringValue(json['vendor_name']) ?? '—',
+      vendorName: resolvedVendor ??
+          _stringValue(json['vendor_name']) ??
+          '—',
       orderDate: _parseDateString(
         _stringValue(json['order_date']) ??
             _stringValue(json['created_at']) ??
             '',
       ),
-      total: _formatAmount(totalValue),
+      totalAmount: totalAmount,
+      totalLabel:
+          totalAmount != null ? totalAmount.toStringAsFixed(2) : _formatAmount(totalValue),
       currencySymbol: _stringValue(currency) ?? '',
     );
   }
@@ -213,7 +225,8 @@ class PurchaseOrder {
   final String name;
   final String vendorName;
   final DateTime? orderDate;
-  final String total;
+  final double? totalAmount;
+  final String totalLabel;
   final String currencySymbol;
 
   String get formattedDate {
@@ -222,14 +235,6 @@ class PurchaseOrder {
       return '—';
     }
     return '${_monthNames[date.month - 1]} ${date.day.toString().padLeft(2, '0')}, ${date.year}';
-  }
-
-  String get formattedTotal {
-    final symbol = currencySymbol.trim();
-    if (symbol.isNotEmpty) {
-      return '$symbol $total';
-    }
-    return total;
   }
 
   static String? _stringValue(dynamic value) {
@@ -341,6 +346,20 @@ String _formatAmount(dynamic value) {
     return parsed.toStringAsFixed(2);
   }
   return stringValue;
+}
+
+double? _parseDouble(dynamic value) {
+  if (value is num) {
+    return value.toDouble();
+  }
+  if (value is String) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    return double.tryParse(trimmed);
+  }
+  return null;
 }
 
 const _monthNames = <String>[

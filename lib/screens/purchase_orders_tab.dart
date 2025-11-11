@@ -276,7 +276,7 @@ class _PurchaseOrdersHeader extends StatelessWidget {
 
   final ThemeData theme;
 
-  static const _columnFlex = [3, 4, 3, 3, 2];
+  static const _columnFlex = [3, 4, 3, 3, 3, 2, 2];
 
   @override
   Widget build(BuildContext context) {
@@ -290,7 +290,9 @@ class _PurchaseOrdersHeader extends StatelessWidget {
           _HeaderCell('Order Name', flex: _columnFlex[1], theme: theme),
           _HeaderCell('Vendor', flex: _columnFlex[2], theme: theme),
           _HeaderCell('Order Date', flex: _columnFlex[3], theme: theme),
-          _HeaderCell('Total', flex: _columnFlex[4], theme: theme, textAlign: TextAlign.end),
+          _HeaderCell('Payment Progress', flex: _columnFlex[4], theme: theme),
+          _HeaderCell('Total', flex: _columnFlex[5], theme: theme, textAlign: TextAlign.end),
+          _HeaderCell('Actions', flex: _columnFlex[6], theme: theme, textAlign: TextAlign.end),
         ],
       ),
     );
@@ -315,13 +317,21 @@ class _PurchaseOrderRow extends StatefulWidget {
 class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
   bool _hovering = false;
 
-  static const _columnFlex = [3, 4, 3, 3, 2];
+  static const _columnFlex = [3, 4, 3, 3, 3, 2, 2];
 
   @override
   Widget build(BuildContext context) {
     final borderColor = widget.theme.dividerColor.withOpacity(0.6);
     final baseBackground = widget.theme.colorScheme.surfaceVariant.withOpacity(0.25);
     final hoverBackground = widget.theme.colorScheme.surfaceVariant.withOpacity(0.45);
+
+    final totalAmount = widget.order.totalAmount;
+    final totalLabel = widget.order.totalLabel;
+    final paidAmount = 0.0;
+    const paidLabel = '0';
+    final paymentProgress = '$paidLabel/$totalLabel';
+    final isComplete =
+        totalAmount != null && totalAmount > 0 && paidAmount >= totalAmount;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
@@ -343,12 +353,41 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
             _DataCell(widget.order.vendorName, flex: _columnFlex[2]),
             _DataCell(widget.order.formattedDate, flex: _columnFlex[3]),
             _DataCell(
-              widget.order.formattedTotal,
+              paymentProgress,
               flex: _columnFlex[4],
+              style: isComplete
+                  ? widget.theme.textTheme.bodyMedium
+                      ?.copyWith(color: widget.theme.colorScheme.error)
+                  : null,
+            ),
+            _DataCell(
+              totalLabel,
+              flex: _columnFlex[5],
               textAlign: TextAlign.end,
               style: widget.theme.textTheme.bodyMedium?.copyWith(
                 color: widget.theme.colorScheme.error,
                 fontWeight: FontWeight.w600,
+              ),
+            ),
+            Expanded(
+              flex: _columnFlex[6],
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.visibility_outlined),
+                      tooltip: 'View details',
+                      onPressed: () {},
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.payments_outlined),
+                      tooltip: 'View payments',
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
