@@ -46,6 +46,7 @@ class AppState extends ChangeNotifier {
       final scheme = authorizationScheme.trim();
       final value = scheme.isEmpty ? token : '$scheme $token';
       resolvedHeaders.putIfAbsent('Authorization', () => value);
+      resolvedHeaders.putIfAbsent('authtoken', () => token);
     }
     return resolvedHeaders;
   }

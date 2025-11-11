@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 
 import '../app/app_state_scope.dart';
+import 'purchase_orders_tab.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  static const _tabs = [
-    _HomeTab(title: 'Purchase Orders', icon: Icons.shopping_bag_outlined),
-    _HomeTab(title: 'Bills', icon: Icons.receipt_long_outlined),
-    _HomeTab(title: 'Accounts', icon: Icons.account_balance_outlined),
-    _HomeTab(title: 'Overview', icon: Icons.dashboard_outlined),
+  static final _tabs = [
+    _HomeTab(
+      title: 'Purchase Orders',
+      icon: Icons.shopping_bag_outlined,
+      builder: (_) => const PurchaseOrdersTab(),
+    ),
+    const _HomeTab(title: 'Bills', icon: Icons.receipt_long_outlined),
+    const _HomeTab(title: 'Accounts', icon: Icons.account_balance_outlined),
+    const _HomeTab(title: 'Overview', icon: Icons.dashboard_outlined),
   ];
 
   @override
@@ -33,10 +38,13 @@ class HomeScreen extends StatelessWidget {
         ),
         body: TabBarView(
           children: _tabs
-              .map((tab) => _HomeTabContent(
-                    title: tab.title,
-                    icon: tab.icon,
-                  ))
+              .map(
+                (tab) => tab.builder?.call(context) ??
+                    _HomeTabPlaceholder(
+                      title: tab.title,
+                      icon: tab.icon,
+                    ),
+              )
               .toList(),
         ),
         bottomNavigationBar: Material(
@@ -62,14 +70,15 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _HomeTab {
-  const _HomeTab({required this.title, required this.icon});
+  const _HomeTab({required this.title, required this.icon, this.builder});
 
   final String title;
   final IconData icon;
+  final WidgetBuilder? builder;
 }
 
-class _HomeTabContent extends StatelessWidget {
-  const _HomeTabContent({required this.title, required this.icon});
+class _HomeTabPlaceholder extends StatelessWidget {
+  const _HomeTabPlaceholder({required this.title, required this.icon});
 
   final String title;
   final IconData icon;
