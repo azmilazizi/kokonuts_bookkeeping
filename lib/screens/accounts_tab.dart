@@ -13,9 +13,12 @@ class AccountsTab extends StatefulWidget {
 class _AccountsTabState extends State<AccountsTab> {
   final _service = AccountsService();
   final _scrollController = ScrollController();
+  final _horizontalController = ScrollController();
   final _accounts = <Account>[];
+  final _accountNamesById = <String, String>{};
 
   static const _perPage = 20;
+  static const double _minTableWidth = 900;
 
   bool _isLoading = false;
   bool _hasMore = true;
@@ -35,6 +38,7 @@ class _AccountsTabState extends State<AccountsTab> {
   void dispose() {
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
+    _horizontalController.dispose();
     super.dispose();
   }
 
@@ -108,12 +112,22 @@ class _AccountsTabState extends State<AccountsTab> {
           _accounts
             ..clear()
             ..addAll(result.accounts);
+          _accountNamesById.clear();
         } else {
           _accounts.addAll(result.accounts);
         }
-        _accounts.sort(
-          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-        );
+
+        _mergeAccountNames(result.namesById);
+
+        final uniqueAccounts = <String, Account>{
+          for (final account in _accounts) account.id: account,
+        };
+        _accounts
+          ..clear()
+          ..addAll(uniqueAccounts.values)
+          ..sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          );
         _error = null;
         _hasMore = result.hasMore;
         _nextPage = result.hasMore ? pageToLoad + 1 : pageToLoad;
@@ -149,29 +163,72 @@ class _AccountsTabState extends State<AccountsTab> {
 
     return RefreshIndicator(
       onRefresh: () => _fetchPage(reset: true),
-      child: ListView.builder(
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: _accounts.length + 2,
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return _AccountsHeader(theme: theme);
-          }
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : _minTableWidth;
+          final tableWidth = maxWidth < _minTableWidth ? _minTableWidth : maxWidth;
 
-          final dataIndex = index - 1;
-          if (dataIndex < _accounts.length) {
-            final account = _accounts[dataIndex];
-            return _AccountsRow(
-              account: account,
-              theme: theme,
-              showTopBorder: dataIndex == 0,
-            );
-          }
+          return Scrollbar(
+            controller: _horizontalController,
+            thumbVisibility: true,
+            notificationPredicate: (notification) =>
+                notification.metrics.axis == Axis.horizontal,
+            child: SingleChildScrollView(
+              controller: _horizontalController,
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: tableWidth,
+                child: ListView.builder(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  itemCount: _accounts.length + 2,
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return _AccountsHeader(theme: theme);
+                    }
 
-          return _buildFooter(theme);
+                    final dataIndex = index - 1;
+                    if (dataIndex < _accounts.length) {
+                      final account = _accounts[dataIndex];
+                      return _AccountsRow(
+                        account: account,
+                        theme: theme,
+                        showTopBorder: dataIndex == 0,
+                        parentName: _resolveParentName(account),
+                      );
+                    }
+
+                    return _buildFooter(theme);
+                  },
+                ),
+              ),
+            ),
+          );
         },
       ),
     );
+  }
+
+  String _resolveParentName(Account account) {
+    final parentId = account.parentAccountId;
+    if (parentId == null) {
+      return '—';
+    }
+    final trimmed = parentId.trim();
+    if (trimmed.isEmpty || trimmed == '0') {
+      return '—';
+    }
+    return _accountNamesById[trimmed] ?? '—';
+  }
+
+  void _mergeAccountNames(Map<String, String> names) {
+    for (final entry in names.entries) {
+      final key = entry.key.trim();
+      if (key.isEmpty) {
+        continue;
+      }
+      _accountNamesById[key] = entry.value;
+    }
   }
 
   Widget _buildFooter(ThemeData theme) {
@@ -302,11 +359,13 @@ class _AccountsRow extends StatelessWidget {
     required this.account,
     required this.theme,
     required this.showTopBorder,
+    required this.parentName,
   });
 
   final Account account;
   final ThemeData theme;
   final bool showTopBorder;
+  final String parentName;
 
   static const _columnFlex = [4, 3, 3, 3, 2];
 
@@ -326,8 +385,12 @@ class _AccountsRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Row(
         children: [
-          _DataCell(account.name, flex: _columnFlex[0]),
-          _DataCell(account.parentAccount ?? '—', flex: _columnFlex[1]),
+          _DataCell(
+            account.name,
+            flex: _columnFlex[0],
+            indent: account.hasParent ? 24 : 0,
+          ),
+          _DataCell(parentName, flex: _columnFlex[1]),
           _DataCell(account.typeName ?? '—', flex: _columnFlex[2]),
           _DataCell(account.detailTypeName ?? '—', flex: _columnFlex[3]),
           _DataCell(account.balance, flex: _columnFlex[4], textAlign: TextAlign.end),
@@ -338,20 +401,29 @@ class _AccountsRow extends StatelessWidget {
 }
 
 class _DataCell extends StatelessWidget {
-  const _DataCell(this.value, {required this.flex, this.textAlign});
+  const _DataCell(
+    this.value, {
+    required this.flex,
+    this.textAlign,
+    this.indent = 0,
+  });
 
   final String value;
   final int flex;
   final TextAlign? textAlign;
+  final double indent;
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       flex: flex,
-      child: Text(
-        value,
-        textAlign: textAlign ?? TextAlign.start,
-        overflow: TextOverflow.ellipsis,
+      child: Padding(
+        padding: EdgeInsets.only(left: indent),
+        child: Text(
+          value,
+          textAlign: textAlign ?? TextAlign.start,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
     );
   }

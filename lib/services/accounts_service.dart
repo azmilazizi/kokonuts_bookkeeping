@@ -39,16 +39,26 @@ class AccountsService {
     }
 
     final rawList = _extractAccountsList(decoded);
-    final accounts = rawList
+    final allAccounts = rawList
         .whereType<Map<String, dynamic>>()
         .map(Account.fromJson)
-        .where((account) => account.isActive)
-        .toList()
+        .toList();
+
+    final accounts = allAccounts.where((account) => account.isActive).toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     final pagination = _resolvePagination(decoded, currentPage: page, perPage: perPage);
 
-    return AccountsPage(accounts: accounts, hasMore: pagination.hasMore);
+    final namesById = <String, String>{
+      for (final account in allAccounts)
+        if (account.id.trim().isNotEmpty) account.id.trim(): account.name,
+    };
+
+    return AccountsPage(
+      accounts: accounts,
+      hasMore: pagination.hasMore,
+      namesById: namesById,
+    );
   }
 
   List<dynamic> _extractAccountsList(dynamic decoded) {
@@ -159,10 +169,15 @@ class AccountsService {
 }
 
 class AccountsPage {
-  AccountsPage({required this.accounts, required this.hasMore});
+  AccountsPage({
+    required this.accounts,
+    required this.hasMore,
+    required this.namesById,
+  });
 
   final List<Account> accounts;
   final bool hasMore;
+  final Map<String, String> namesById;
 }
 
 class PaginationInfo {
@@ -175,7 +190,7 @@ class Account {
   const Account({
     required this.id,
     required this.name,
-    required this.parentAccount,
+    required this.parentAccountId,
     required this.typeName,
     required this.detailTypeName,
     required this.balance,
@@ -186,9 +201,9 @@ class Account {
     final balance = json['balance'];
     final activeValue = _stringValue(json['active']);
     return Account(
-      id: (json['id'] ?? '').toString(),
+      id: (_stringValue(json['id']) ?? '').trim(),
       name: _stringValue(json['name']) ?? (json['id'] ?? 'Account').toString(),
-      parentAccount: _stringValue(json['parent_account']),
+      parentAccountId: _stringValue(json['parent_account']),
       typeName: _stringValue(json['account_type_name']) ?? _stringValue(json['account_type']),
       detailTypeName:
           _stringValue(json['detail_type_name']) ?? _stringValue(json['account_detail_type_name']),
@@ -199,11 +214,22 @@ class Account {
 
   final String id;
   final String name;
-  final String? parentAccount;
+  final String? parentAccountId;
   final String? typeName;
   final String? detailTypeName;
   final String balance;
   final bool isActive;
+
+  bool get hasParent {
+    if (parentAccountId == null) {
+      return false;
+    }
+    final trimmed = parentAccountId!.trim();
+    if (trimmed.isEmpty) {
+      return false;
+    }
+    return trimmed != '0';
+  }
 
   static String? _stringValue(dynamic value) {
     if (value == null) {
