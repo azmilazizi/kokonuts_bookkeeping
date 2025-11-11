@@ -1,6 +1,10 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
 import '../services/auth_service.dart';
+import '../services/authenticated_http_client.dart';
 import '../services/session_manager.dart';
 
 /// Stores global application state such as authentication status.
@@ -15,10 +19,16 @@ class AppState extends ChangeNotifier {
   bool _isInitialized = false;
   bool _isLoggedIn = false;
   String? _authToken;
+  String? _username;
+  ThemeMode _themeMode = ThemeMode.system;
+  http.Client? _authenticatedClient;
+  String _defaultAuthorizationScheme = 'Token';
 
   bool get isInitialized => _isInitialized;
   bool get isLoggedIn => _isLoggedIn;
   String? get authToken => _authToken;
+  String? get username => _username;
+  ThemeMode get themeMode => _themeMode;
 
   /// Returns the active auth token, refreshing it from storage if needed.
   Future<String?> getValidAuthToken() async {
@@ -35,17 +45,29 @@ class AppState extends ChangeNotifier {
     return null;
   }
 
+  /// Provides an HTTP client that automatically injects auth headers for requests.
+  http.Client get authenticatedClient {
+    return _authenticatedClient ??= AuthenticatedHttpClient(
+      tokenProvider: getValidAuthToken,
+      authorizationBuilder: (token) {
+        final scheme = _defaultAuthorizationScheme.trim();
+        return scheme.isEmpty ? token : '$scheme $token';
+      },
+    );
+  }
+
   /// Builds request headers that include the auth token when available.
   Future<Map<String, String>> buildAuthHeaders({
     Map<String, String>? headers,
-    String authorizationScheme = 'Token',
+    String? authorizationScheme,
   }) async {
     final resolvedHeaders = <String, String>{...?headers};
     final token = await getValidAuthToken();
     if (token != null && token.isNotEmpty) {
-      final scheme = authorizationScheme.trim();
+      final scheme = (authorizationScheme ?? _defaultAuthorizationScheme).trim();
       final value = scheme.isEmpty ? token : '$scheme $token';
-      resolvedHeaders.putIfAbsent('Authorization', () => value);
+      resolvedHeaders['Authorization'] = value;
+      resolvedHeaders['authtoken'] = token;
     }
     return resolvedHeaders;
   }
@@ -57,9 +79,19 @@ class AppState extends ChangeNotifier {
     }
 
     final storedToken = await _sessionManager.getAuthToken();
+    final storedUsername = await _sessionManager.getCurrentUsername();
+
     if (storedToken != null && storedToken.isNotEmpty) {
       _authToken = storedToken;
       _isLoggedIn = true;
+    }
+
+    if (storedUsername != null && storedUsername.isNotEmpty) {
+      _username = storedUsername;
+      final storedTheme = await _sessionManager.getThemeModeForUser(storedUsername);
+      if (storedTheme != null) {
+        _themeMode = storedTheme;
+      }
     }
 
     _isInitialized = true;
@@ -70,6 +102,17 @@ class AppState extends ChangeNotifier {
   Future<void> login({required String username, required String password}) async {
     final token = await _authService.login(username: username, password: password);
     _authToken = token;
+    _username = username.trim();
+    _defaultAuthorizationScheme = 'Token';
+    if (_username != null && _username!.isNotEmpty) {
+      await _sessionManager.saveCurrentUsername(_username!);
+      final storedTheme = await _sessionManager.getThemeModeForUser(_username!);
+      if (storedTheme != null) {
+        _themeMode = storedTheme;
+      } else {
+        _themeMode = ThemeMode.system;
+      }
+    }
     _isLoggedIn = true;
     notifyListeners();
   }
@@ -79,6 +122,33 @@ class AppState extends ChangeNotifier {
     await _authService.logout();
     _authToken = null;
     _isLoggedIn = false;
+    _authenticatedClient?.close();
+    _authenticatedClient = null;
+    if (_username != null) {
+      await _sessionManager.clearCurrentUsername();
+    }
+    _username = null;
+    _themeMode = ThemeMode.system;
     notifyListeners();
+  }
+
+  /// Updates the preferred theme mode and persists it for the active user.
+  Future<void> updateThemeMode(ThemeMode mode) async {
+    if (_themeMode == mode) {
+      return;
+    }
+
+    _themeMode = mode;
+    final activeUser = _username;
+    if (activeUser != null && activeUser.isNotEmpty) {
+      await _sessionManager.saveThemeModeForUser(activeUser, mode);
+    }
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _authenticatedClient?.close();
+    super.dispose();
   }
 }
