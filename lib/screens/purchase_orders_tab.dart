@@ -2,6 +2,16 @@ import 'package:flutter/material.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/purchase_orders_service.dart';
+import '../widgets/sortable_header_cell.dart';
+
+enum PurchaseOrderSortColumn {
+  number,
+  name,
+  vendor,
+  orderDate,
+  paymentProgress,
+  total,
+}
 
 class PurchaseOrdersTab extends StatefulWidget {
   const PurchaseOrdersTab({super.key});
@@ -15,6 +25,9 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   final _scrollController = ScrollController();
   final _horizontalController = ScrollController();
   final _orders = <PurchaseOrder>[];
+
+  PurchaseOrderSortColumn _sortColumn = PurchaseOrderSortColumn.number;
+  bool _sortAscending = true;
 
   static const _perPage = 20;
   static const double _minTableWidth = 900;
@@ -114,6 +127,7 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
         } else {
           _orders.addAll(result.orders);
         }
+        _applySorting();
         _error = null;
         _hasMore = result.hasMore;
         _nextPage = result.hasMore ? pageToLoad + 1 : pageToLoad;
@@ -171,7 +185,12 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                   itemCount: _orders.length + 2,
                   itemBuilder: (context, index) {
                     if (index == 0) {
-                      return _PurchaseOrdersHeader(theme: theme);
+                      return _PurchaseOrdersHeader(
+                        theme: theme,
+                        sortColumn: _sortColumn,
+                        sortAscending: _sortAscending,
+                        onSort: _handleSort,
+                      );
                     }
 
                     final dataIndex = index - 1;
@@ -193,6 +212,78 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
         },
       ),
     );
+  }
+
+  void _handleSort(PurchaseOrderSortColumn column) {
+    setState(() {
+      if (_sortColumn == column) {
+        _sortAscending = !_sortAscending;
+      } else {
+        _sortColumn = column;
+        _sortAscending = true;
+      }
+      _applySorting();
+    });
+  }
+
+  void _applySorting() {
+    _orders.sort(_compareOrders);
+  }
+
+  int _compareOrders(PurchaseOrder a, PurchaseOrder b) {
+    final primary = _rawCompareOrders(a, b);
+    if (primary != 0) {
+      return _sortAscending ? primary : -primary;
+    }
+
+    final numberCompare = a.number.toLowerCase().compareTo(b.number.toLowerCase());
+    if (numberCompare != 0) {
+      return _sortAscending ? numberCompare : -numberCompare;
+    }
+
+    final idCompare = a.id.toLowerCase().compareTo(b.id.toLowerCase());
+    return _sortAscending ? idCompare : -idCompare;
+  }
+
+  int _rawCompareOrders(PurchaseOrder a, PurchaseOrder b) {
+    switch (_sortColumn) {
+      case PurchaseOrderSortColumn.number:
+        return a.number.toLowerCase().compareTo(b.number.toLowerCase());
+      case PurchaseOrderSortColumn.name:
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      case PurchaseOrderSortColumn.vendor:
+        return a.vendorName.toLowerCase().compareTo(b.vendorName.toLowerCase());
+      case PurchaseOrderSortColumn.orderDate:
+        final left = a.orderDate?.millisecondsSinceEpoch ?? -0x7fffffffffffffff;
+        final right = b.orderDate?.millisecondsSinceEpoch ?? -0x7fffffffffffffff;
+        if (left == right) {
+          return 0;
+        }
+        return left < right ? -1 : 1;
+      case PurchaseOrderSortColumn.paymentProgress:
+        final left = _paymentProgressValue(a);
+        final right = _paymentProgressValue(b);
+        if (left == right) {
+          return 0;
+        }
+        return left < right ? -1 : 1;
+      case PurchaseOrderSortColumn.total:
+        final left = a.totalAmount ?? 0;
+        final right = b.totalAmount ?? 0;
+        if (left == right) {
+          return 0;
+        }
+        return left < right ? -1 : 1;
+    }
+  }
+
+  double _paymentProgressValue(PurchaseOrder order) {
+    final total = order.totalAmount ?? 0;
+    if (total <= 0) {
+      return 0;
+    }
+    const paidAmount = 0.0;
+    return paidAmount / total;
   }
 
   Widget _buildFooter(ThemeData theme) {
@@ -272,9 +363,17 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
 }
 
 class _PurchaseOrdersHeader extends StatelessWidget {
-  const _PurchaseOrdersHeader({required this.theme});
+  const _PurchaseOrdersHeader({
+    required this.theme,
+    required this.sortColumn,
+    required this.sortAscending,
+    required this.onSort,
+  });
 
   final ThemeData theme;
+  final PurchaseOrderSortColumn sortColumn;
+  final bool sortAscending;
+  final ValueChanged<PurchaseOrderSortColumn> onSort;
 
   static const _columnFlex = [3, 4, 3, 3, 3, 2, 2];
 
@@ -286,17 +385,65 @@ class _PurchaseOrdersHeader extends StatelessWidget {
       color: surface,
       child: Row(
         children: [
-          _HeaderCell('Order Number', flex: _columnFlex[0], theme: theme),
+          SortableHeaderCell(
+            label: 'Order Number',
+            flex: _columnFlex[0],
+            theme: theme,
+            isActive: sortColumn == PurchaseOrderSortColumn.number,
+            ascending: sortAscending,
+            onTap: () => onSort(PurchaseOrderSortColumn.number),
+          ),
           const SizedBox(width: 12),
-          _HeaderCell('Order Name', flex: _columnFlex[1], theme: theme),
-          _HeaderCell('Vendor', flex: _columnFlex[2], theme: theme),
-          _HeaderCell('Order Date',
-              flex: _columnFlex[3], theme: theme, textAlign: TextAlign.center),
-          _HeaderCell('Payment Progress',
-              flex: _columnFlex[4], theme: theme, textAlign: TextAlign.center),
-          _HeaderCell('Total', flex: _columnFlex[5], theme: theme, textAlign: TextAlign.end),
-          _HeaderCell('Actions',
-              flex: _columnFlex[6], theme: theme, textAlign: TextAlign.center),
+          SortableHeaderCell(
+            label: 'Order Name',
+            flex: _columnFlex[1],
+            theme: theme,
+            isActive: sortColumn == PurchaseOrderSortColumn.name,
+            ascending: sortAscending,
+            onTap: () => onSort(PurchaseOrderSortColumn.name),
+          ),
+          SortableHeaderCell(
+            label: 'Vendor',
+            flex: _columnFlex[2],
+            theme: theme,
+            isActive: sortColumn == PurchaseOrderSortColumn.vendor,
+            ascending: sortAscending,
+            onTap: () => onSort(PurchaseOrderSortColumn.vendor),
+          ),
+          SortableHeaderCell(
+            label: 'Order Date',
+            flex: _columnFlex[3],
+            theme: theme,
+            textAlign: TextAlign.center,
+            isActive: sortColumn == PurchaseOrderSortColumn.orderDate,
+            ascending: sortAscending,
+            onTap: () => onSort(PurchaseOrderSortColumn.orderDate),
+          ),
+          SortableHeaderCell(
+            label: 'Payment Progress',
+            flex: _columnFlex[4],
+            theme: theme,
+            textAlign: TextAlign.center,
+            isActive: sortColumn == PurchaseOrderSortColumn.paymentProgress,
+            ascending: sortAscending,
+            onTap: () => onSort(PurchaseOrderSortColumn.paymentProgress),
+          ),
+          SortableHeaderCell(
+            label: 'Total',
+            flex: _columnFlex[5],
+            theme: theme,
+            textAlign: TextAlign.end,
+            isActive: sortColumn == PurchaseOrderSortColumn.total,
+            ascending: sortAscending,
+            onTap: () => onSort(PurchaseOrderSortColumn.total),
+          ),
+          SortableHeaderCell(
+            label: 'Actions',
+            flex: _columnFlex[6],
+            theme: theme,
+            textAlign: TextAlign.center,
+            ascending: sortAscending,
+          ),
         ],
       ),
     );
@@ -402,27 +549,6 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _HeaderCell extends StatelessWidget {
-  const _HeaderCell(this.label, {required this.flex, required this.theme, this.textAlign});
-
-  final String label;
-  final int flex;
-  final ThemeData theme;
-  final TextAlign? textAlign;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      flex: flex,
-      child: Text(
-        label,
-        textAlign: textAlign ?? TextAlign.start,
-        style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
     );
   }

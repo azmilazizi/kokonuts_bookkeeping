@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/bills_service.dart';
+import '../widgets/sortable_header_cell.dart';
+
+enum BillsSortColumn { vendor, dueDate, status, total }
 
 class BillsTab extends StatefulWidget {
   const BillsTab({super.key});
@@ -18,6 +21,9 @@ class _BillsTabState extends State<BillsTab> {
   final _horizontalController = ScrollController();
   final _bills = <Bill>[];
   final _vendorNames = <String, String?>{};
+
+  BillsSortColumn _sortColumn = BillsSortColumn.vendor;
+  bool _sortAscending = true;
 
   static const _perPage = 20;
   static const double _minTableWidth = 720;
@@ -117,6 +123,7 @@ class _BillsTabState extends State<BillsTab> {
         } else {
           _bills.addAll(result.bills);
         }
+        _applySorting();
         _error = null;
         _hasMore = result.hasMore;
         _nextPage = result.hasMore ? pageToLoad + 1 : pageToLoad;
@@ -172,6 +179,9 @@ class _BillsTabState extends State<BillsTab> {
       }
       setState(() {
         _vendorNames[vendorId] = name ?? 'Unknown vendor';
+        if (_sortColumn == BillsSortColumn.vendor) {
+          _applySorting();
+        }
       });
     } catch (error) {
       if (!mounted) {
@@ -179,6 +189,9 @@ class _BillsTabState extends State<BillsTab> {
       }
       setState(() {
         _vendorNames[vendorId] = 'Unknown vendor';
+        if (_sortColumn == BillsSortColumn.vendor) {
+          _applySorting();
+        }
       });
     }
   }
@@ -211,17 +224,20 @@ class _BillsTabState extends State<BillsTab> {
                   itemCount: _bills.length + 2,
                   itemBuilder: (context, index) {
                     if (index == 0) {
-                      return _BillsHeader(theme: theme);
+                      return _BillsHeader(
+                        theme: theme,
+                        sortColumn: _sortColumn,
+                        sortAscending: _sortAscending,
+                        onSort: _handleSort,
+                      );
                     }
 
                     final dataIndex = index - 1;
                     if (dataIndex < _bills.length) {
                       final bill = _bills[dataIndex];
-                      final vendorName =
-                          _vendorNames[bill.vendorId] ?? 'Loading vendor…';
                       return _BillRow(
                         bill: bill,
-                        vendorName: vendorName,
+                        vendorName: _vendorLabel(bill),
                         theme: theme,
                         showTopBorder: dataIndex == 0,
                       );
@@ -236,6 +252,55 @@ class _BillsTabState extends State<BillsTab> {
         },
       ),
     );
+  }
+
+  void _handleSort(BillsSortColumn column) {
+    setState(() {
+      if (_sortColumn == column) {
+        _sortAscending = !_sortAscending;
+      } else {
+        _sortColumn = column;
+        _sortAscending = true;
+      }
+      _applySorting();
+    });
+  }
+
+  void _applySorting() {
+    _bills.sort(_compareBills);
+  }
+
+  int _compareBills(Bill a, Bill b) {
+    final primary = _rawCompareBills(a, b);
+    if (primary != 0) {
+      return _sortAscending ? primary : -primary;
+    }
+
+    final idCompare = a.id.toLowerCase().compareTo(b.id.toLowerCase());
+    return _sortAscending ? idCompare : -idCompare;
+  }
+
+  int _rawCompareBills(Bill a, Bill b) {
+    switch (_sortColumn) {
+      case BillsSortColumn.vendor:
+        return _vendorLabel(a)
+            .toLowerCase()
+            .compareTo(_vendorLabel(b).toLowerCase());
+      case BillsSortColumn.dueDate:
+        final left = a.dueDate?.millisecondsSinceEpoch ?? -0x7fffffffffffffff;
+        final right = b.dueDate?.millisecondsSinceEpoch ?? -0x7fffffffffffffff;
+        return left.compareTo(right);
+      case BillsSortColumn.status:
+        return a.status.code.compareTo(b.status.code);
+      case BillsSortColumn.total:
+        final left = a.totalAmount ?? 0;
+        final right = b.totalAmount ?? 0;
+        return left.compareTo(right);
+    }
+  }
+
+  String _vendorLabel(Bill bill) {
+    return _vendorNames[bill.vendorId] ?? 'Loading vendor…';
   }
 
   Widget _buildFooter(ThemeData theme) {
@@ -315,9 +380,17 @@ class _BillsTabState extends State<BillsTab> {
 }
 
 class _BillsHeader extends StatelessWidget {
-  const _BillsHeader({required this.theme});
+  const _BillsHeader({
+    required this.theme,
+    required this.sortColumn,
+    required this.sortAscending,
+    required this.onSort,
+  });
 
   final ThemeData theme;
+  final BillsSortColumn sortColumn;
+  final bool sortAscending;
+  final ValueChanged<BillsSortColumn> onSort;
 
   static const _columnFlex = [4, 3, 3, 2, 2];
 
@@ -329,15 +402,48 @@ class _BillsHeader extends StatelessWidget {
       color: surface,
       child: Row(
         children: [
-          _HeaderCell('Vendor', flex: _columnFlex[0], theme: theme),
-          _HeaderCell('Due Date',
-              flex: _columnFlex[1], theme: theme, textAlign: TextAlign.center),
-          _HeaderCell('Status',
-              flex: _columnFlex[2], theme: theme, textAlign: TextAlign.center),
-          _HeaderCell('Total',
-              flex: _columnFlex[3], theme: theme, textAlign: TextAlign.end),
-          _HeaderCell('Actions',
-              flex: _columnFlex[4], theme: theme, textAlign: TextAlign.center),
+          SortableHeaderCell(
+            label: 'Vendor',
+            flex: _columnFlex[0],
+            theme: theme,
+            isActive: sortColumn == BillsSortColumn.vendor,
+            ascending: sortAscending,
+            onTap: () => onSort(BillsSortColumn.vendor),
+          ),
+          SortableHeaderCell(
+            label: 'Due Date',
+            flex: _columnFlex[1],
+            theme: theme,
+            textAlign: TextAlign.center,
+            isActive: sortColumn == BillsSortColumn.dueDate,
+            ascending: sortAscending,
+            onTap: () => onSort(BillsSortColumn.dueDate),
+          ),
+          SortableHeaderCell(
+            label: 'Status',
+            flex: _columnFlex[2],
+            theme: theme,
+            textAlign: TextAlign.center,
+            isActive: sortColumn == BillsSortColumn.status,
+            ascending: sortAscending,
+            onTap: () => onSort(BillsSortColumn.status),
+          ),
+          SortableHeaderCell(
+            label: 'Total',
+            flex: _columnFlex[3],
+            theme: theme,
+            textAlign: TextAlign.end,
+            isActive: sortColumn == BillsSortColumn.total,
+            ascending: sortAscending,
+            onTap: () => onSort(BillsSortColumn.total),
+          ),
+          SortableHeaderCell(
+            label: 'Actions',
+            flex: _columnFlex[4],
+            theme: theme,
+            textAlign: TextAlign.center,
+            ascending: sortAscending,
+          ),
         ],
       ),
     );
@@ -474,27 +580,6 @@ class _StatusPill extends StatelessWidget {
           color: foreground,
           fontWeight: FontWeight.w600,
         ),
-      ),
-    );
-  }
-}
-
-class _HeaderCell extends StatelessWidget {
-  const _HeaderCell(this.label, {required this.flex, required this.theme, this.textAlign});
-
-  final String label;
-  final int flex;
-  final ThemeData theme;
-  final TextAlign? textAlign;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      flex: flex,
-      child: Text(
-        label,
-        textAlign: textAlign ?? TextAlign.start,
-        style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
     );
   }

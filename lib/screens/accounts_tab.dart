@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/accounts_service.dart';
+import '../widgets/sortable_header_cell.dart';
+
+enum AccountsSortColumn { name, parent, type, detailType, balance }
 
 class AccountsTab extends StatefulWidget {
   const AccountsTab({super.key});
@@ -17,6 +20,9 @@ class _AccountsTabState extends State<AccountsTab> {
   final _displayAccounts = <_AccountDisplay>[];
   final _accountsById = <String, Account>{};
   final _accountNamesById = <String, String>{};
+
+  AccountsSortColumn _sortColumn = AccountsSortColumn.name;
+  bool _sortAscending = true;
 
   static const _perPage = 20;
   static const double _minTableWidth = 900;
@@ -125,10 +131,7 @@ class _AccountsTabState extends State<AccountsTab> {
         }
 
         _mergeAccountNames(result.namesById);
-
-        _displayAccounts
-          ..clear()
-          ..addAll(_buildDisplayAccounts(_accountsById.values));
+        _rebuildDisplayAccounts();
         _error = null;
         _hasMore = result.hasMore;
         _nextPage = result.hasMore ? pageToLoad + 1 : pageToLoad;
@@ -185,7 +188,12 @@ class _AccountsTabState extends State<AccountsTab> {
                   itemCount: _displayAccounts.length + 2,
                   itemBuilder: (context, index) {
                     if (index == 0) {
-                      return _AccountsHeader(theme: theme);
+                      return _AccountsHeader(
+                        theme: theme,
+                        sortColumn: _sortColumn,
+                        sortAscending: _sortAscending,
+                        onSort: _handleSort,
+                      );
                     }
 
                     final dataIndex = index - 1;
@@ -212,6 +220,18 @@ class _AccountsTabState extends State<AccountsTab> {
     );
   }
 
+  void _handleSort(AccountsSortColumn column) {
+    setState(() {
+      if (_sortColumn == column) {
+        _sortAscending = !_sortAscending;
+      } else {
+        _sortColumn = column;
+        _sortAscending = true;
+      }
+      _rebuildDisplayAccounts();
+    });
+  }
+
   String _resolveParentName(Account account) {
     final parentId = account.parentAccountId;
     if (parentId == null) {
@@ -234,9 +254,14 @@ class _AccountsTabState extends State<AccountsTab> {
     return '$name::$parent';
   }
 
+  void _rebuildDisplayAccounts() {
+    _displayAccounts
+      ..clear()
+      ..addAll(_buildDisplayAccounts(_accountsById.values));
+  }
+
   List<_AccountDisplay> _buildDisplayAccounts(Iterable<Account> accounts) {
-    final compare = (Account a, Account b) =>
-        a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    final compare = (Account a, Account b) => _compareAccounts(a, b);
 
     final byId = <String, Account>{
       for (final account in accounts)
@@ -312,6 +337,52 @@ class _AccountsTabState extends State<AccountsTab> {
     }
 
     return ordered;
+  }
+
+  int _compareAccounts(Account a, Account b) {
+    final result = _rawCompareAccounts(a, b);
+    if (result != 0) {
+      return _sortAscending ? result : -result;
+    }
+
+    final nameCompare = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    if (nameCompare != 0) {
+      return _sortAscending ? nameCompare : -nameCompare;
+    }
+
+    final idCompare = a.id.toLowerCase().compareTo(b.id.toLowerCase());
+    return _sortAscending ? idCompare : -idCompare;
+  }
+
+  int _rawCompareAccounts(Account a, Account b) {
+    switch (_sortColumn) {
+      case AccountsSortColumn.name:
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      case AccountsSortColumn.parent:
+        return _resolveParentName(a)
+            .toLowerCase()
+            .compareTo(_resolveParentName(b).toLowerCase());
+      case AccountsSortColumn.type:
+        return (a.typeName ?? '—')
+            .toLowerCase()
+            .compareTo((b.typeName ?? '—').toLowerCase());
+      case AccountsSortColumn.detailType:
+        return (a.detailTypeName ?? '—')
+            .toLowerCase()
+            .compareTo((b.detailTypeName ?? '—').toLowerCase());
+      case AccountsSortColumn.balance:
+        final left = _balanceValue(a);
+        final right = _balanceValue(b);
+        if (left == right) {
+          return 0;
+        }
+        return left < right ? -1 : 1;
+    }
+  }
+
+  double _balanceValue(Account account) {
+    final normalized = account.balance.replaceAll(',', '').trim();
+    return double.tryParse(normalized) ?? 0;
   }
 
   void _mergeAccountNames(Map<String, String> names) {
@@ -401,9 +472,17 @@ class _AccountsTabState extends State<AccountsTab> {
 }
 
 class _AccountsHeader extends StatelessWidget {
-  const _AccountsHeader({required this.theme});
+  const _AccountsHeader({
+    required this.theme,
+    required this.sortColumn,
+    required this.sortAscending,
+    required this.onSort,
+  });
 
   final ThemeData theme;
+  final AccountsSortColumn sortColumn;
+  final bool sortAscending;
+  final ValueChanged<AccountsSortColumn> onSort;
 
   static const _columnFlex = [4, 3, 3, 3, 2];
 
@@ -415,33 +494,48 @@ class _AccountsHeader extends StatelessWidget {
       color: surface,
       child: Row(
         children: [
-          _HeaderCell('Name', flex: _columnFlex[0], theme: theme),
-          _HeaderCell('Parent Account', flex: _columnFlex[1], theme: theme),
-          _HeaderCell('Type', flex: _columnFlex[2], theme: theme),
-          _HeaderCell('Detail Type', flex: _columnFlex[3], theme: theme),
-          _HeaderCell('Primary Balance', flex: _columnFlex[4], theme: theme, textAlign: TextAlign.end),
+          SortableHeaderCell(
+            label: 'Name',
+            flex: _columnFlex[0],
+            theme: theme,
+            isActive: sortColumn == AccountsSortColumn.name,
+            ascending: sortAscending,
+            onTap: () => onSort(AccountsSortColumn.name),
+          ),
+          SortableHeaderCell(
+            label: 'Parent Account',
+            flex: _columnFlex[1],
+            theme: theme,
+            isActive: sortColumn == AccountsSortColumn.parent,
+            ascending: sortAscending,
+            onTap: () => onSort(AccountsSortColumn.parent),
+          ),
+          SortableHeaderCell(
+            label: 'Type',
+            flex: _columnFlex[2],
+            theme: theme,
+            isActive: sortColumn == AccountsSortColumn.type,
+            ascending: sortAscending,
+            onTap: () => onSort(AccountsSortColumn.type),
+          ),
+          SortableHeaderCell(
+            label: 'Detail Type',
+            flex: _columnFlex[3],
+            theme: theme,
+            isActive: sortColumn == AccountsSortColumn.detailType,
+            ascending: sortAscending,
+            onTap: () => onSort(AccountsSortColumn.detailType),
+          ),
+          SortableHeaderCell(
+            label: 'Primary Balance',
+            flex: _columnFlex[4],
+            theme: theme,
+            textAlign: TextAlign.end,
+            isActive: sortColumn == AccountsSortColumn.balance,
+            ascending: sortAscending,
+            onTap: () => onSort(AccountsSortColumn.balance),
+          ),
         ],
-      ),
-    );
-  }
-}
-
-class _HeaderCell extends StatelessWidget {
-  const _HeaderCell(this.label, {required this.flex, required this.theme, this.textAlign});
-
-  final String label;
-  final int flex;
-  final ThemeData theme;
-  final TextAlign? textAlign;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      flex: flex,
-      child: Text(
-        label,
-        textAlign: textAlign ?? TextAlign.start,
-        style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
     );
   }
