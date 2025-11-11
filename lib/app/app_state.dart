@@ -54,9 +54,10 @@ class AppState extends ChangeNotifier {
       return null;
     }
 
-    final authtokenValue = (_rawAuthToken != null && _rawAuthToken!.isNotEmpty)
+    final rawAuthtoken = (_rawAuthToken != null && _rawAuthToken!.isNotEmpty)
         ? _rawAuthToken!
         : token;
+    final authtokenValue = _extractAuthtokenValue(rawAuthtoken);
 
     return AuthTokenPayload(
       authorizationToken: token,
@@ -201,5 +202,34 @@ class AppState extends ChangeNotifier {
 
     _authToken = trimmed;
     _defaultAuthorizationScheme = 'Token';
+  }
+
+  String _extractAuthtokenValue(String token) {
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+
+    final spaceIndex = trimmed.indexOf(' ');
+    if (spaceIndex <= 0) {
+      return trimmed;
+    }
+
+    final scheme = trimmed.substring(0, spaceIndex).trim();
+    final credentials = trimmed.substring(spaceIndex + 1).trim();
+    if (credentials.isEmpty) {
+      return trimmed;
+    }
+
+    final expectedScheme = _defaultAuthorizationScheme.trim();
+    if (expectedScheme.isEmpty) {
+      return credentials;
+    }
+
+    if (scheme.toLowerCase() == expectedScheme.toLowerCase()) {
+      return credentials;
+    }
+
+    return trimmed;
   }
 }
