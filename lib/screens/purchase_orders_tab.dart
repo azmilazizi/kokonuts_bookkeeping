@@ -444,8 +444,8 @@ class _ScrollableTableRow extends StatelessWidget {
             : _tableMinimumWidth;
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: tableWidth),
+          child: SizedBox(
+            width: tableWidth,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: children,
