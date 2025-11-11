@@ -289,10 +289,13 @@ class _PurchaseOrdersHeader extends StatelessWidget {
           _HeaderCell('Order Number', flex: _columnFlex[0], theme: theme),
           _HeaderCell('Order Name', flex: _columnFlex[1], theme: theme),
           _HeaderCell('Vendor', flex: _columnFlex[2], theme: theme),
-          _HeaderCell('Order Date', flex: _columnFlex[3], theme: theme),
-          _HeaderCell('Payment Progress', flex: _columnFlex[4], theme: theme),
+          _HeaderCell('Order Date',
+              flex: _columnFlex[3], theme: theme, textAlign: TextAlign.center),
+          _HeaderCell('Payment Progress',
+              flex: _columnFlex[4], theme: theme, textAlign: TextAlign.center),
           _HeaderCell('Total', flex: _columnFlex[5], theme: theme, textAlign: TextAlign.end),
-          _HeaderCell('Actions', flex: _columnFlex[6], theme: theme, textAlign: TextAlign.end),
+          _HeaderCell('Actions',
+              flex: _columnFlex[6], theme: theme, textAlign: TextAlign.center),
         ],
       ),
     );
@@ -351,10 +354,15 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
             _DataCell(widget.order.number, flex: _columnFlex[0]),
             _DataCell(widget.order.name, flex: _columnFlex[1]),
             _DataCell(widget.order.vendorName, flex: _columnFlex[2]),
-            _DataCell(widget.order.formattedDate, flex: _columnFlex[3]),
+            _DataCell(
+              widget.order.formattedDate,
+              flex: _columnFlex[3],
+              textAlign: TextAlign.center,
+            ),
             _DataCell(
               paymentProgress,
               flex: _columnFlex[4],
+              textAlign: TextAlign.center,
               style: isComplete
                   ? widget.theme.textTheme.bodyMedium
                       ?.copyWith(color: widget.theme.colorScheme.error)
