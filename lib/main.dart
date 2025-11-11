@@ -9,6 +9,7 @@ import 'screens/login_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/auth_service.dart';
 import 'services/session_manager.dart';
+import 'theme/color_schemes.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,9 +49,14 @@ class _KokonutsBookkeepingAppState extends State<KokonutsBookkeepingApp> {
             title: 'Kokonuts Bookkeeping',
             debugShowCheckedModeBanner: false,
             theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+              colorScheme: lightColorScheme,
               useMaterial3: true,
             ),
+            darkTheme: ThemeData(
+              colorScheme: darkColorScheme,
+              useMaterial3: true,
+            ),
+            themeMode: _appState.themeMode,
             home: _buildHome(),
           );
         },
