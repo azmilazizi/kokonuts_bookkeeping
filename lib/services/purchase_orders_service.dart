@@ -234,7 +234,10 @@ class PurchaseOrder {
     if (date == null) {
       return '—';
     }
-    return '${_monthNames[date.month - 1]} ${date.day.toString().padLeft(2, '0')}, ${date.year}';
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString().padLeft(4, '0');
+    return '$day-$month-$year';
   }
 
   static String? _stringValue(dynamic value) {
@@ -362,17 +365,3 @@ double? _parseDouble(dynamic value) {
   return null;
 }
 
-const _monthNames = <String>[
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
