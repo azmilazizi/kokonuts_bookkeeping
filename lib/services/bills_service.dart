@@ -233,15 +233,6 @@ class BillsService {
     return null;
   }
 
-  static String? _stringValue(dynamic value) {
-    if (value == null) {
-      return null;
-    }
-    if (value is String) {
-      return value;
-    }
-    return value.toString();
-  }
 }
 
 class BillsPage {
@@ -358,6 +349,16 @@ class Bill {
       return null;
     }
   }
+}
+
+String? _stringValue(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is String) {
+    return value;
+  }
+  return value.toString();
 }
 
 class BillStatus {
