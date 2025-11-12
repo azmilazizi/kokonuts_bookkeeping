@@ -8,13 +8,15 @@ class TabPageHeader extends StatelessWidget {
   const TabPageHeader({
     super.key,
     required this.title,
-    this.padding = const EdgeInsets.fromLTRB(24, 24, 24, 12),
-    this.logoSize = 36,
+    this.padding = const EdgeInsets.fromLTRB(16, 12, 16, 8),
+    this.logoSize = 28,
+    this.titleStyle,
   });
 
   final String title;
   final EdgeInsetsGeometry padding;
   final double logoSize;
+  final TextStyle? titleStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -36,9 +38,10 @@ class TabPageHeader extends StatelessWidget {
               const SizedBox(width: 12),
               Text(
                 title,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: titleStyle ??
+                    theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
               ),
             ],
           ),
@@ -197,4 +200,45 @@ class _ThemeModeOption {
 
   final ThemeMode mode;
   final String label;
+}
+
+class TabPageHeaderDelegate extends SliverPersistentHeaderDelegate {
+  const TabPageHeaderDelegate({
+    required this.title,
+    this.backgroundColor,
+  });
+
+  final String title;
+  final Color? backgroundColor;
+
+  static const double _height = 64;
+
+  @override
+  double get minExtent => _height;
+
+  @override
+  double get maxExtent => _height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final theme = Theme.of(context);
+    return Material(
+      color: backgroundColor ?? theme.colorScheme.surface,
+      elevation: overlapsContent ? 2 : 0,
+      shadowColor: theme.shadowColor.withOpacity(0.15),
+      child: TabPageHeader(
+        title: title,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        logoSize: 28,
+        titleStyle: theme.textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant TabPageHeaderDelegate oldDelegate) {
+    return title != oldDelegate.title || backgroundColor != oldDelegate.backgroundColor;
+  }
 }

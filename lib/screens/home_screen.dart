@@ -52,21 +52,21 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final AppState scopedAppState = AppStateScope.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('Kokonuts Bookkeeping'),
-      ),
-      body: TabBarView(
-        controller: _controller,
-        children: _tabs
-            .map(
-              (tab) => tab.builder?.call(context, scopedAppState) ??
-                  _HomeTabPlaceholder(
-                    title: tab.title,
-                    icon: tab.icon,
-                  ),
-            )
-            .toList(growable: false),
+      body: SafeArea(
+        top: true,
+        bottom: false,
+        child: TabBarView(
+          controller: _controller,
+          children: _tabs
+              .map(
+                (tab) => tab.builder?.call(context, scopedAppState) ??
+                    _HomeTabPlaceholder(
+                      title: tab.title,
+                      icon: tab.icon,
+                    ),
+              )
+              .toList(growable: false),
+        ),
       ),
       bottomNavigationBar: Material(
         color: theme.colorScheme.surface,

@@ -223,8 +223,9 @@ class _BillsTabState extends State<BillsTab> {
                   controller: _scrollController,
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
-                    const SliverToBoxAdapter(
-                      child: TabPageHeader(title: 'Bills'),
+                    const SliverPersistentHeader(
+                      pinned: true,
+                      delegate: TabPageHeaderDelegate(title: 'Bills'),
                     ),
                     SliverPersistentHeader(
                       pinned: true,
@@ -427,7 +428,7 @@ class _BillsHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: Row(
         children: [
           SortableHeaderCell(
@@ -501,7 +502,7 @@ class _BillsHeaderDelegate extends SliverPersistentHeaderDelegate {
   final bool sortAscending;
   final ValueChanged<BillsSortColumn> onSort;
 
-  static const double _height = 64;
+  static const double _height = 52;
 
   @override
   double get minExtent => _height;
@@ -577,7 +578,7 @@ class _BillRowState extends State<_BillRow> {
             bottom: BorderSide(color: borderColor),
           ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
         child: Row(
           children: [
             _DataCell(widget.vendorName, flex: _columnFlex[0]),
