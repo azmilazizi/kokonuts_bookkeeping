@@ -427,7 +427,7 @@ class _BillsHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       child: Row(
         children: [
           SortableHeaderCell(
@@ -576,7 +576,7 @@ class _BillRowState extends State<_BillRow> {
             bottom: BorderSide(color: borderColor),
           ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         child: Row(
           children: [
             _DataCell(widget.vendorName, flex: _columnFlex[0]),
@@ -661,7 +661,7 @@ class _StatusPill extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(999),

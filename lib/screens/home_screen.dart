@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../app/app_state.dart';
-import '../app/app_state_scope.dart';
 import 'accounts_tab.dart';
 import 'bills_tab.dart';
 import 'purchase_orders_tab.dart';
@@ -51,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text(username?.isNotEmpty == true ? 'Welcome, $username' : 'Kokonuts Bookkeeping'),
+        title: const Text('Kokonuts Bookkeeping'),
       ),
       body: TabBarView(
         controller: _controller,

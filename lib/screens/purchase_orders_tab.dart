@@ -394,7 +394,7 @@ class _PurchaseOrdersHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       child: Row(
         children: [
           SortableHeaderCell(
@@ -557,7 +557,7 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
             bottom: BorderSide(color: borderColor),
           ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         child: Row(
           children: [
             _DataCell(widget.order.number, flex: _columnFlex[0]),
