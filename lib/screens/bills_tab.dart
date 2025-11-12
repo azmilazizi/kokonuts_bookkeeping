@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../app/app_state_scope.dart';
 import '../services/bills_service.dart';
 import '../widgets/sortable_header_cell.dart';
+import '../widgets/tab_page_header.dart';
 
 enum BillsSortColumn { vendor, billDate, dueDate, status, total }
 
@@ -218,33 +219,40 @@ class _BillsTabState extends State<BillsTab> {
               scrollDirection: Axis.horizontal,
               child: SizedBox(
                 width: tableWidth,
-                child: ListView.builder(
+                child: CustomScrollView(
                   controller: _scrollController,
                   physics: const AlwaysScrollableScrollPhysics(),
-                  itemCount: _bills.length + 2,
-                  itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return _BillsHeader(
+                  slivers: [
+                    const SliverToBoxAdapter(
+                      child: TabPageHeader(title: 'Bills'),
+                    ),
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _BillsHeaderDelegate(
                         theme: theme,
                         sortColumn: _sortColumn,
                         sortAscending: _sortAscending,
                         onSort: _handleSort,
-                      );
-                    }
-
-                    final dataIndex = index - 1;
-                    if (dataIndex < _bills.length) {
-                      final bill = _bills[dataIndex];
-                      return _BillRow(
-                        bill: bill,
-                        vendorName: _vendorLabel(bill),
-                        theme: theme,
-                        showTopBorder: dataIndex == 0,
-                      );
-                    }
-
-                    return _buildFooter(theme);
-                  },
+                      ),
+                    ),
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final bill = _bills[index];
+                          return _BillRow(
+                            bill: bill,
+                            vendorName: _vendorLabel(bill),
+                            theme: theme,
+                            showTopBorder: index == 0,
+                          );
+                        },
+                        childCount: _bills.length,
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: _buildFooter(theme),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -418,10 +426,8 @@ class _BillsHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surface = theme.colorScheme.surfaceVariant.withOpacity(0.6);
-    return Container(
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      color: surface,
       child: Row(
         children: [
           SortableHeaderCell(
@@ -478,6 +484,55 @@ class _BillsHeader extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _BillsHeaderDelegate extends SliverPersistentHeaderDelegate {
+  _BillsHeaderDelegate({
+    required this.theme,
+    required this.sortColumn,
+    required this.sortAscending,
+    required this.onSort,
+  });
+
+  final ThemeData theme;
+  final BillsSortColumn sortColumn;
+  final bool sortAscending;
+  final ValueChanged<BillsSortColumn> onSort;
+
+  static const double _height = 64;
+
+  @override
+  double get minExtent => _height;
+
+  @override
+  double get maxExtent => _height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final background = theme.colorScheme.surfaceVariant.withOpacity(0.6);
+    return Material(
+      color: background,
+      elevation: overlapsContent ? 2 : 0,
+      shadowColor: theme.shadowColor.withOpacity(0.2),
+      child: _BillsHeader(
+        theme: theme,
+        sortColumn: sortColumn,
+        sortAscending: sortAscending,
+        onSort: onSort,
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _BillsHeaderDelegate oldDelegate) {
+    return sortColumn != oldDelegate.sortColumn ||
+        sortAscending != oldDelegate.sortAscending ||
+        theme != oldDelegate.theme;
   }
 }
 

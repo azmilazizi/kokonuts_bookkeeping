@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app/app_state_scope.dart';
 import '../services/purchase_orders_service.dart';
 import '../widgets/sortable_header_cell.dart';
+import '../widgets/tab_page_header.dart';
 
 enum PurchaseOrderSortColumn {
   number,
@@ -179,32 +180,39 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
               scrollDirection: Axis.horizontal,
               child: SizedBox(
                 width: tableWidth,
-                child: ListView.builder(
+                child: CustomScrollView(
                   controller: _scrollController,
                   physics: const AlwaysScrollableScrollPhysics(),
-                  itemCount: _orders.length + 2,
-                  itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return _PurchaseOrdersHeader(
+                  slivers: [
+                    const SliverToBoxAdapter(
+                      child: TabPageHeader(title: 'Purchase Orders'),
+                    ),
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _PurchaseOrdersHeaderDelegate(
                         theme: theme,
                         sortColumn: _sortColumn,
                         sortAscending: _sortAscending,
                         onSort: _handleSort,
-                      );
-                    }
-
-                    final dataIndex = index - 1;
-                    if (dataIndex < _orders.length) {
-                      final order = _orders[dataIndex];
-                      return _PurchaseOrderRow(
-                        order: order,
-                        theme: theme,
-                        showTopBorder: dataIndex == 0,
-                      );
-                    }
-
-                    return _buildFooter(theme);
-                  },
+                      ),
+                    ),
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final order = _orders[index];
+                          return _PurchaseOrderRow(
+                            order: order,
+                            theme: theme,
+                            showTopBorder: index == 0,
+                          );
+                        },
+                        childCount: _orders.length,
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: _buildFooter(theme),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -385,10 +393,8 @@ class _PurchaseOrdersHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surface = theme.colorScheme.surfaceVariant.withOpacity(0.6);
-    return Container(
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      color: surface,
       child: Row(
         children: [
           SortableHeaderCell(
@@ -453,6 +459,55 @@ class _PurchaseOrdersHeader extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _PurchaseOrdersHeaderDelegate extends SliverPersistentHeaderDelegate {
+  _PurchaseOrdersHeaderDelegate({
+    required this.theme,
+    required this.sortColumn,
+    required this.sortAscending,
+    required this.onSort,
+  });
+
+  final ThemeData theme;
+  final PurchaseOrderSortColumn sortColumn;
+  final bool sortAscending;
+  final ValueChanged<PurchaseOrderSortColumn> onSort;
+
+  static const double _height = 64;
+
+  @override
+  double get minExtent => _height;
+
+  @override
+  double get maxExtent => _height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final background = theme.colorScheme.surfaceVariant.withOpacity(0.6);
+    return Material(
+      color: background,
+      elevation: overlapsContent ? 2 : 0,
+      shadowColor: theme.shadowColor.withOpacity(0.2),
+      child: _PurchaseOrdersHeader(
+        theme: theme,
+        sortColumn: sortColumn,
+        sortAscending: sortAscending,
+        onSort: onSort,
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _PurchaseOrdersHeaderDelegate oldDelegate) {
+    return sortColumn != oldDelegate.sortColumn ||
+        sortAscending != oldDelegate.sortAscending ||
+        theme != oldDelegate.theme;
   }
 }
 

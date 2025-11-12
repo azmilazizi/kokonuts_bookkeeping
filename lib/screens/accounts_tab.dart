@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app/app_state_scope.dart';
 import '../services/accounts_service.dart';
 import '../widgets/sortable_header_cell.dart';
+import '../widgets/tab_page_header.dart';
 
 enum AccountsSortColumn { name, parent, type, detailType, balance }
 
@@ -182,35 +183,42 @@ class _AccountsTabState extends State<AccountsTab> {
               scrollDirection: Axis.horizontal,
               child: SizedBox(
                 width: tableWidth,
-                child: ListView.builder(
+                child: CustomScrollView(
                   controller: _scrollController,
                   physics: const AlwaysScrollableScrollPhysics(),
-                  itemCount: _displayAccounts.length + 2,
-                  itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return _AccountsHeader(
+                  slivers: [
+                    const SliverToBoxAdapter(
+                      child: TabPageHeader(title: 'Accounts'),
+                    ),
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _AccountsHeaderDelegate(
                         theme: theme,
                         sortColumn: _sortColumn,
                         sortAscending: _sortAscending,
                         onSort: _handleSort,
-                      );
-                    }
-
-                    final dataIndex = index - 1;
-                    if (dataIndex < _displayAccounts.length) {
-                      final entry = _displayAccounts[dataIndex];
-                      final account = entry.account;
-                      return _AccountsRow(
-                        account: account,
-                        theme: theme,
-                        showTopBorder: dataIndex == 0,
-                        parentName: _resolveParentName(account),
-                        indent: entry.depth * 24.0,
-                      );
-                    }
-
-                    return _buildFooter(theme);
-                  },
+                      ),
+                    ),
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final entry = _displayAccounts[index];
+                          final account = entry.account;
+                          return _AccountsRow(
+                            account: account,
+                            theme: theme,
+                            showTopBorder: index == 0,
+                            parentName: _resolveParentName(account),
+                            indent: entry.depth * 24.0,
+                          );
+                        },
+                        childCount: _displayAccounts.length,
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: _buildFooter(theme),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -488,10 +496,8 @@ class _AccountsHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surface = theme.colorScheme.surfaceVariant.withOpacity(0.6);
-    return Container(
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      color: surface,
       child: Row(
         children: [
           SortableHeaderCell(
@@ -586,6 +592,55 @@ class _AccountsRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _AccountsHeaderDelegate extends SliverPersistentHeaderDelegate {
+  _AccountsHeaderDelegate({
+    required this.theme,
+    required this.sortColumn,
+    required this.sortAscending,
+    required this.onSort,
+  });
+
+  final ThemeData theme;
+  final AccountsSortColumn sortColumn;
+  final bool sortAscending;
+  final ValueChanged<AccountsSortColumn> onSort;
+
+  static const double _height = 64;
+
+  @override
+  double get minExtent => _height;
+
+  @override
+  double get maxExtent => _height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final background = theme.colorScheme.surfaceVariant.withOpacity(0.6);
+    return Material(
+      color: background,
+      elevation: overlapsContent ? 2 : 0,
+      shadowColor: theme.shadowColor.withOpacity(0.2),
+      child: _AccountsHeader(
+        theme: theme,
+        sortColumn: sortColumn,
+        sortAscending: sortAscending,
+        onSort: onSort,
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _AccountsHeaderDelegate oldDelegate) {
+    return sortColumn != oldDelegate.sortColumn ||
+        sortAscending != oldDelegate.sortAscending ||
+        theme != oldDelegate.theme;
   }
 }
 
