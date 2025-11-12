@@ -222,16 +222,18 @@ class TabPageHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     final theme = Theme.of(context);
-    return Material(
-      color: backgroundColor ?? theme.colorScheme.surface,
-      elevation: overlapsContent ? 2 : 0,
-      shadowColor: theme.shadowColor.withOpacity(0.15),
-      child: TabPageHeader(
-        title: title,
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-        logoSize: 28,
-        titleStyle: theme.textTheme.titleSmall?.copyWith(
-          fontWeight: FontWeight.w600,
+    return SizedBox.expand(
+      child: Material(
+        color: backgroundColor ?? theme.colorScheme.surface,
+        elevation: overlapsContent ? 2 : 0,
+        shadowColor: theme.shadowColor.withOpacity(0.15),
+        child: TabPageHeader(
+          title: title,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          logoSize: 28,
+          titleStyle: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );

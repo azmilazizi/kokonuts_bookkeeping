@@ -624,15 +624,17 @@ class _AccountsHeaderDelegate extends SliverPersistentHeaderDelegate {
     bool overlapsContent,
   ) {
     final background = theme.colorScheme.surfaceVariant.withOpacity(0.6);
-    return Material(
-      color: background,
-      elevation: overlapsContent ? 2 : 0,
-      shadowColor: theme.shadowColor.withOpacity(0.2),
-      child: _AccountsHeader(
-        theme: theme,
-        sortColumn: sortColumn,
-        sortAscending: sortAscending,
-        onSort: onSort,
+    return SizedBox.expand(
+      child: Material(
+        color: background,
+        elevation: overlapsContent ? 2 : 0,
+        shadowColor: theme.shadowColor.withOpacity(0.2),
+        child: _AccountsHeader(
+          theme: theme,
+          sortColumn: sortColumn,
+          sortAscending: sortAscending,
+          onSort: onSort,
+        ),
       ),
     );
   }
