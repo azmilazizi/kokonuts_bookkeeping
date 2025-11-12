@@ -1,20 +1,34 @@
 import 'package:flutter/material.dart';
 
-import '../app/app_state_scope.dart';
+import 'accounts_tab.dart';
+import 'bills_tab.dart';
+import 'purchase_orders_tab.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  static const _tabs = [
-    _HomeTab(title: 'Purchase Orders', icon: Icons.shopping_bag_outlined),
-    _HomeTab(title: 'Bills', icon: Icons.receipt_long_outlined),
-    _HomeTab(title: 'Accounts', icon: Icons.account_balance_outlined),
-    _HomeTab(title: 'Overview', icon: Icons.dashboard_outlined),
+  static final _tabs = [
+    _HomeTab(
+      title: 'Purchase Orders',
+      icon: Icons.shopping_bag_outlined,
+      builder: (_) => const PurchaseOrdersTab(),
+    ),
+    const _HomeTab(title: 'Payments', icon: Icons.payments_outlined),
+    _HomeTab(
+      title: 'Bills',
+      icon: Icons.receipt_long_outlined,
+      builder: (_) => const BillsTab(),
+    ),
+    _HomeTab(
+      title: 'Accounts',
+      icon: Icons.account_balance_outlined,
+      builder: (_) => const AccountsTab(),
+    ),
+    const _HomeTab(title: 'Overview', icon: Icons.dashboard_outlined),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final appState = AppStateScope.of(context);
     final theme = Theme.of(context);
 
     return DefaultTabController(
@@ -23,20 +37,16 @@ class HomeScreen extends StatelessWidget {
         appBar: AppBar(
           title: null,
           automaticallyImplyLeading: false,
-          actions: [
-            IconButton(
-              onPressed: () => appState.logout(),
-              icon: const Icon(Icons.logout),
-              tooltip: 'Log out',
-            ),
-          ],
         ),
         body: TabBarView(
           children: _tabs
-              .map((tab) => _HomeTabContent(
-                    title: tab.title,
-                    icon: tab.icon,
-                  ))
+              .map(
+                (tab) => tab.builder?.call(context) ??
+                    _HomeTabPlaceholder(
+                      title: tab.title,
+                      icon: tab.icon,
+                    ),
+              )
               .toList(),
         ),
         bottomNavigationBar: Material(
@@ -50,7 +60,6 @@ class HomeScreen extends StatelessWidget {
                 .map(
                   (tab) => Tab(
                     icon: Icon(tab.icon),
-                    text: tab.title,
                   ),
                 )
                 .toList(),
@@ -62,14 +71,15 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _HomeTab {
-  const _HomeTab({required this.title, required this.icon});
+  const _HomeTab({required this.title, required this.icon, this.builder});
 
   final String title;
   final IconData icon;
+  final WidgetBuilder? builder;
 }
 
-class _HomeTabContent extends StatelessWidget {
-  const _HomeTabContent({required this.title, required this.icon});
+class _HomeTabPlaceholder extends StatelessWidget {
+  const _HomeTabPlaceholder({required this.title, required this.icon});
 
   final String title;
   final IconData icon;
