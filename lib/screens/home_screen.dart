@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../app/app_state.dart';
+import '../app/app_state_scope.dart';
+
 import 'accounts_tab.dart';
 import 'bills_tab.dart';
 import 'purchase_orders_tab.dart';
@@ -18,18 +21,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _HomeTab(
       title: 'Purchase Orders',
       icon: Icons.shopping_bag_outlined,
-      builder: (_) => const PurchaseOrdersTab(),
+      builder: (_, __) => const PurchaseOrdersTab(),
     ),
     const _HomeTab(title: 'Payments', icon: Icons.payments_outlined),
     _HomeTab(
       title: 'Bills',
       icon: Icons.receipt_long_outlined,
-      builder: (_) => const BillsTab(),
+      builder: (_, __) => const BillsTab(),
     ),
     _HomeTab(
       title: 'Accounts',
       icon: Icons.account_balance_outlined,
-      builder: (_) => const AccountsTab(),
+      builder: (_, __) => const AccountsTab(),
     ),
     const _HomeTab(title: 'Overview', icon: Icons.dashboard_outlined),
   ];
@@ -46,6 +49,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final AppState appState = AppStateScope.of(context);
     final username = appState.username;
 
+    final appState = AppStateScope.of(context);
+
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -55,7 +60,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         controller: _controller,
         children: _tabs
             .map(
-              (tab) => tab.builder?.call(context) ??
+              (tab) => tab.builder?.call(context, appState) ??
                   _HomeTabPlaceholder(
                     title: tab.title,
                     icon: tab.icon,
@@ -142,7 +147,7 @@ class _HomeTab {
 
   final String title;
   final IconData icon;
-  final WidgetBuilder? builder;
+  final Widget Function(BuildContext context, AppState appState)? builder;
 }
 
 class _HomeTabPlaceholder extends StatelessWidget {
