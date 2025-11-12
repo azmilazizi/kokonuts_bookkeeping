@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
 
-typedef _ThemeModeLabel = ({IconData icon, String tooltip});
-
 /// Displays the application logo next to a page title.
 class TabPageHeader extends StatelessWidget {
   const TabPageHeader({
@@ -77,11 +75,20 @@ class TabPageHeader extends StatelessWidget {
 _ThemeModeLabel _themeModeLabel(ThemeMode mode) {
   switch (mode) {
     case ThemeMode.dark:
-      return (icon: Icons.dark_mode_outlined, tooltip: 'Dark mode');
+      return const _ThemeModeLabel(
+        icon: Icons.dark_mode_outlined,
+        tooltip: 'Dark mode',
+      );
     case ThemeMode.light:
-      return (icon: Icons.light_mode_outlined, tooltip: 'Light mode');
+      return const _ThemeModeLabel(
+        icon: Icons.light_mode_outlined,
+        tooltip: 'Light mode',
+      );
     case ThemeMode.system:
-      return (icon: Icons.brightness_auto_outlined, tooltip: 'System theme');
+      return const _ThemeModeLabel(
+        icon: Icons.brightness_auto_outlined,
+        tooltip: 'System theme',
+      );
   }
 }
 
@@ -90,10 +97,10 @@ Future<void> _selectTheme(BuildContext context, AppState appState) async {
     context: context,
     builder: (context) {
       final theme = Theme.of(context);
-      final options = const [
-        (mode: ThemeMode.light, label: 'Light'),
-        (mode: ThemeMode.dark, label: 'Dark'),
-        (mode: ThemeMode.system, label: 'System'),
+      const options = <_ThemeModeOption>[
+        _ThemeModeOption(mode: ThemeMode.light, label: 'Light'),
+        _ThemeModeOption(mode: ThemeMode.dark, label: 'Dark'),
+        _ThemeModeOption(mode: ThemeMode.system, label: 'System'),
       ];
 
       return AlertDialog(
@@ -176,4 +183,18 @@ class _HeaderMenuButton extends StatelessWidget {
       },
     );
   }
+}
+
+class _ThemeModeLabel {
+  const _ThemeModeLabel({required this.icon, required this.tooltip});
+
+  final IconData icon;
+  final String tooltip;
+}
+
+class _ThemeModeOption {
+  const _ThemeModeOption({required this.mode, required this.label});
+
+  final ThemeMode mode;
+  final String label;
 }
