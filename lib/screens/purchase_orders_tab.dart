@@ -184,9 +184,12 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                   controller: _scrollController,
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
-                    const SliverPersistentHeader(
+                    SliverPersistentHeader(
                       pinned: true,
-                      delegate: TabPageHeaderDelegate(title: 'Purchase Orders'),
+                      delegate: TabPageHeaderDelegate(
+                        title: 'Purchase Orders',
+                        horizontalController: _horizontalController,
+                      ),
                     ),
                     SliverPersistentHeader(
                       pinned: true,

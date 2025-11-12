@@ -187,9 +187,12 @@ class _AccountsTabState extends State<AccountsTab> {
                   controller: _scrollController,
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
-                    const SliverPersistentHeader(
+                    SliverPersistentHeader(
                       pinned: true,
-                      delegate: TabPageHeaderDelegate(title: 'Accounts'),
+                      delegate: TabPageHeaderDelegate(
+                        title: 'Accounts',
+                        horizontalController: _horizontalController,
+                      ),
                     ),
                     SliverPersistentHeader(
                       pinned: true,

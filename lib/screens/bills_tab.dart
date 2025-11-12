@@ -223,9 +223,12 @@ class _BillsTabState extends State<BillsTab> {
                   controller: _scrollController,
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
-                    const SliverPersistentHeader(
+                    SliverPersistentHeader(
                       pinned: true,
-                      delegate: TabPageHeaderDelegate(title: 'Bills'),
+                      delegate: TabPageHeaderDelegate(
+                        title: 'Bills',
+                        horizontalController: _horizontalController,
+                      ),
                     ),
                     SliverPersistentHeader(
                       pinned: true,

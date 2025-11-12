@@ -206,10 +206,12 @@ class TabPageHeaderDelegate extends SliverPersistentHeaderDelegate {
   const TabPageHeaderDelegate({
     required this.title,
     this.backgroundColor,
+    this.horizontalController,
   });
 
   final String title;
   final Color? backgroundColor;
+  final ScrollController? horizontalController;
 
   static const double _height = 64;
 
@@ -221,26 +223,63 @@ class TabPageHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    final theme = Theme.of(context);
-    return SizedBox.expand(
-      child: Material(
-        color: backgroundColor ?? theme.colorScheme.surface,
-        elevation: overlapsContent ? 2 : 0,
-        shadowColor: theme.shadowColor.withOpacity(0.15),
-        child: TabPageHeader(
-          title: title,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          logoSize: 28,
-          titleStyle: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
+    final controller = horizontalController;
+
+    if (controller == null) {
+      return ClipRect(
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: MediaQuery.sizeOf(context).width,
+            height: maxExtent,
+            child: _buildHeaderContent(context, overlapsContent),
           ),
         ),
+      );
+    }
+
+    return ClipRect(
+      child: AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) {
+          final offset = controller.hasClients ? controller.offset : 0.0;
+          return Align(
+            alignment: Alignment.centerLeft,
+            child: Transform.translate(
+              offset: Offset(offset, 0),
+              child: SizedBox(
+                width: MediaQuery.sizeOf(context).width,
+                height: maxExtent,
+                child: _buildHeaderContent(context, overlapsContent),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 
   @override
   bool shouldRebuild(covariant TabPageHeaderDelegate oldDelegate) {
-    return title != oldDelegate.title || backgroundColor != oldDelegate.backgroundColor;
+    return title != oldDelegate.title ||
+        backgroundColor != oldDelegate.backgroundColor ||
+        horizontalController != oldDelegate.horizontalController;
+  }
+
+  Widget _buildHeaderContent(BuildContext context, bool overlapsContent) {
+    final theme = Theme.of(context);
+    return Material(
+      color: backgroundColor ?? theme.colorScheme.surface,
+      elevation: overlapsContent ? 2 : 0,
+      shadowColor: theme.shadowColor.withOpacity(0.15),
+      child: TabPageHeader(
+        title: title,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        logoSize: 28,
+        titleStyle: theme.textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
   }
 }
