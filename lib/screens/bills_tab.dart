@@ -422,7 +422,7 @@ class _BillsHeader extends StatelessWidget {
   final bool sortAscending;
   final ValueChanged<BillsSortColumn> onSort;
 
-  static const _columnFlex = [4, 3, 3, 3, 2, 2];
+  static const _columnFlex = [4, 3, 3, 3, 2, 3];
 
   @override
   Widget build(BuildContext context) {
@@ -474,6 +474,7 @@ class _BillsHeader extends StatelessWidget {
             ascending: sortAscending,
             onTap: () => onSort(BillsSortColumn.total),
           ),
+          const SizedBox(width: 12),
           SortableHeaderCell(
             label: 'Actions',
             flex: _columnFlex[5],
@@ -556,7 +557,7 @@ class _BillRow extends StatefulWidget {
 class _BillRowState extends State<_BillRow> {
   bool _hovering = false;
 
-  static const _columnFlex = [4, 3, 3, 3, 2, 2];
+  static const _columnFlex = [4, 3, 3, 3, 2, 3];
 
   @override
   Widget build(BuildContext context) {
@@ -606,6 +607,7 @@ class _BillRowState extends State<_BillRow> {
                 fontWeight: FontWeight.w600,
               ),
             ),
+            const SizedBox(width: 12),
             Expanded(
               flex: _columnFlex[5],
               child: Center(

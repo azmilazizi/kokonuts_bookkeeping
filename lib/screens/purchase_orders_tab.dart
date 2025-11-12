@@ -389,7 +389,7 @@ class _PurchaseOrdersHeader extends StatelessWidget {
   final bool sortAscending;
   final ValueChanged<PurchaseOrderSortColumn> onSort;
 
-  static const _columnFlex = [3, 4, 3, 3, 3, 2, 2];
+  static const _columnFlex = [3, 4, 3, 3, 3, 2, 3];
 
   @override
   Widget build(BuildContext context) {
@@ -449,6 +449,7 @@ class _PurchaseOrdersHeader extends StatelessWidget {
             ascending: sortAscending,
             onTap: () => onSort(PurchaseOrderSortColumn.total),
           ),
+          const SizedBox(width: 12),
           SortableHeaderCell(
             label: 'Actions',
             flex: _columnFlex[6],
@@ -529,7 +530,7 @@ class _PurchaseOrderRow extends StatefulWidget {
 class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
   bool _hovering = false;
 
-  static const _columnFlex = [3, 4, 3, 3, 3, 2, 2];
+  static const _columnFlex = [3, 4, 3, 3, 3, 2, 3];
 
   @override
   Widget build(BuildContext context) {
@@ -587,6 +588,7 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
                 fontWeight: FontWeight.w600,
               ),
             ),
+            const SizedBox(width: 12),
             Expanded(
               flex: _columnFlex[6],
               child: Center(
