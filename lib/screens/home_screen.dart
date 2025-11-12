@@ -64,8 +64,7 @@ class HomeScreen extends StatelessWidget {
           color: theme.colorScheme.surface,
           child: TabBar(
             labelColor: theme.colorScheme.primary,
-            unselectedLabelColor:
-                theme.colorScheme.onSurface.withOpacity(0.7),
+            unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.7),
             indicatorColor: theme.colorScheme.primary,
             tabs: _tabs
                 .map(
