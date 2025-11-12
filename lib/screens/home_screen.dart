@@ -53,8 +53,7 @@ class HomeScreen extends StatelessWidget {
           color: theme.colorScheme.surface,
           child: TabBar(
             labelColor: theme.colorScheme.primary,
-            unselectedLabelColor:
-                theme.colorScheme.onSurface.withOpacity(0.7),
+            unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.7),
             indicatorColor: theme.colorScheme.primary,
             tabs: _tabs
                 .map(
@@ -66,6 +65,58 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ThemeModeButton extends StatelessWidget {
+  const _ThemeModeButton({required this.appState});
+
+  final AppState appState;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentMode = appState.themeMode;
+    IconData icon;
+    String tooltip;
+
+    switch (currentMode) {
+      case ThemeMode.dark:
+        icon = Icons.dark_mode_outlined;
+        tooltip = 'Dark mode';
+        break;
+      case ThemeMode.light:
+        icon = Icons.light_mode_outlined;
+        tooltip = 'Light mode';
+        break;
+      case ThemeMode.system:
+        icon = Icons.brightness_auto_outlined;
+        tooltip = 'System theme';
+        break;
+    }
+
+    return PopupMenuButton<ThemeMode>(
+      tooltip: 'Theme preferences',
+      icon: Icon(icon),
+      initialValue: currentMode,
+      onSelected: appState.updateThemeMode,
+      itemBuilder: (context) => [
+        CheckedPopupMenuItem(
+          value: ThemeMode.light,
+          checked: currentMode == ThemeMode.light,
+          child: const Text('Light'),
+        ),
+        CheckedPopupMenuItem(
+          value: ThemeMode.dark,
+          checked: currentMode == ThemeMode.dark,
+          child: const Text('Dark'),
+        ),
+        CheckedPopupMenuItem(
+          value: ThemeMode.system,
+          checked: currentMode == ThemeMode.system,
+          child: const Text('System'),
+        ),
+      ],
     );
   }
 }
