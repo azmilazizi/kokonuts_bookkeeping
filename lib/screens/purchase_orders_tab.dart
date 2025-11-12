@@ -26,8 +26,8 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   final _horizontalController = ScrollController();
   final _orders = <PurchaseOrder>[];
 
-  PurchaseOrderSortColumn _sortColumn = PurchaseOrderSortColumn.number;
-  bool _sortAscending = true;
+  PurchaseOrderSortColumn _sortColumn = PurchaseOrderSortColumn.orderDate;
+  bool _sortAscending = false;
 
   static const _perPage = 20;
   static const double _minTableWidth = 900;

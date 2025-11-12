@@ -261,6 +261,7 @@ class Bill {
   const Bill({
     required this.id,
     required this.vendorId,
+    required this.billDate,
     required this.dueDate,
     required this.status,
     required this.totalAmount,
@@ -273,6 +274,7 @@ class Bill {
     return Bill(
       id: _stringValue(json['id']) ?? '',
       vendorId: _stringValue(json['vendor_id']) ?? '',
+      billDate: _parseDate(_stringValue(json['date'])),
       dueDate: _parseDate(_stringValue(json['due_date'])) ?? _parseDate(_stringValue(json['date'])),
       status: BillStatus.fromCode(_parseInt(statusValue)),
       totalAmount: _parseDouble(totalValue),
@@ -282,10 +284,22 @@ class Bill {
 
   final String id;
   final String vendorId;
+  final DateTime? billDate;
   final DateTime? dueDate;
   final BillStatus status;
   final double? totalAmount;
   final String currencySymbol;
+
+  String get formattedDate {
+    final date = billDate;
+    if (date == null) {
+      return '-';
+    }
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString().padLeft(4, '0');
+    return '$day-$month-$year';
+  }
 
   String get formattedDueDate {
     final date = dueDate;

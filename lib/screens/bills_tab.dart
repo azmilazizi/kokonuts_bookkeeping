@@ -6,7 +6,7 @@ import '../app/app_state_scope.dart';
 import '../services/bills_service.dart';
 import '../widgets/sortable_header_cell.dart';
 
-enum BillsSortColumn { vendor, dueDate, status, total }
+enum BillsSortColumn { vendor, billDate, dueDate, status, total }
 
 class BillsTab extends StatefulWidget {
   const BillsTab({super.key});
@@ -22,8 +22,8 @@ class _BillsTabState extends State<BillsTab> {
   final _bills = <Bill>[];
   final _vendorNames = <String, String?>{};
 
-  BillsSortColumn _sortColumn = BillsSortColumn.vendor;
-  bool _sortAscending = true;
+  BillsSortColumn _sortColumn = BillsSortColumn.billDate;
+  bool _sortAscending = false;
 
   static const _perPage = 20;
   static const double _minTableWidth = 720;
@@ -286,6 +286,19 @@ class _BillsTabState extends State<BillsTab> {
         return _vendorLabel(a)
             .toLowerCase()
             .compareTo(_vendorLabel(b).toLowerCase());
+      case BillsSortColumn.billDate:
+        final leftDate = a.billDate;
+        final rightDate = b.billDate;
+        if (leftDate == null && rightDate == null) {
+          return 0;
+        }
+        if (leftDate == null) {
+          return -1;
+        }
+        if (rightDate == null) {
+          return 1;
+        }
+        return leftDate.compareTo(rightDate);
       case BillsSortColumn.dueDate:
         final left = a.dueDate;
         final right = b.dueDate;
@@ -401,7 +414,7 @@ class _BillsHeader extends StatelessWidget {
   final bool sortAscending;
   final ValueChanged<BillsSortColumn> onSort;
 
-  static const _columnFlex = [4, 3, 3, 2, 2];
+  static const _columnFlex = [4, 3, 3, 3, 2, 2];
 
   @override
   Widget build(BuildContext context) {
@@ -420,8 +433,17 @@ class _BillsHeader extends StatelessWidget {
             onTap: () => onSort(BillsSortColumn.vendor),
           ),
           SortableHeaderCell(
-            label: 'Due Date',
+            label: 'Date',
             flex: _columnFlex[1],
+            theme: theme,
+            textAlign: TextAlign.center,
+            isActive: sortColumn == BillsSortColumn.billDate,
+            ascending: sortAscending,
+            onTap: () => onSort(BillsSortColumn.billDate),
+          ),
+          SortableHeaderCell(
+            label: 'Due Date',
+            flex: _columnFlex[2],
             theme: theme,
             textAlign: TextAlign.center,
             isActive: sortColumn == BillsSortColumn.dueDate,
@@ -430,7 +452,7 @@ class _BillsHeader extends StatelessWidget {
           ),
           SortableHeaderCell(
             label: 'Status',
-            flex: _columnFlex[2],
+            flex: _columnFlex[3],
             theme: theme,
             textAlign: TextAlign.center,
             isActive: sortColumn == BillsSortColumn.status,
@@ -439,7 +461,7 @@ class _BillsHeader extends StatelessWidget {
           ),
           SortableHeaderCell(
             label: 'Total',
-            flex: _columnFlex[3],
+            flex: _columnFlex[4],
             theme: theme,
             textAlign: TextAlign.end,
             isActive: sortColumn == BillsSortColumn.total,
@@ -448,7 +470,7 @@ class _BillsHeader extends StatelessWidget {
           ),
           SortableHeaderCell(
             label: 'Actions',
-            flex: _columnFlex[4],
+            flex: _columnFlex[5],
             theme: theme,
             textAlign: TextAlign.center,
             ascending: sortAscending,
@@ -479,7 +501,7 @@ class _BillRow extends StatefulWidget {
 class _BillRowState extends State<_BillRow> {
   bool _hovering = false;
 
-  static const _columnFlex = [4, 3, 3, 2, 2];
+  static const _columnFlex = [4, 3, 3, 3, 2, 2];
 
   @override
   Widget build(BuildContext context) {
@@ -504,12 +526,17 @@ class _BillRowState extends State<_BillRow> {
           children: [
             _DataCell(widget.vendorName, flex: _columnFlex[0]),
             _DataCell(
-              widget.bill.formattedDueDate,
+              widget.bill.formattedDate,
               flex: _columnFlex[1],
               textAlign: TextAlign.center,
             ),
-            Expanded(
+            _DataCell(
+              widget.bill.formattedDueDate,
               flex: _columnFlex[2],
+              textAlign: TextAlign.center,
+            ),
+            Expanded(
+              flex: _columnFlex[3],
               child: Align(
                 alignment: Alignment.center,
                 child: _StatusPill(status: widget.bill.status, theme: widget.theme),
@@ -517,7 +544,7 @@ class _BillRowState extends State<_BillRow> {
             ),
             _DataCell(
               widget.bill.totalLabel,
-              flex: _columnFlex[3],
+              flex: _columnFlex[4],
               textAlign: TextAlign.end,
               style: widget.theme.textTheme.bodyMedium?.copyWith(
                 color: widget.theme.colorScheme.error,
@@ -525,7 +552,7 @@ class _BillRowState extends State<_BillRow> {
               ),
             ),
             Expanded(
-              flex: _columnFlex[4],
+              flex: _columnFlex[5],
               child: Center(
                 child: Wrap(
                   alignment: WrapAlignment.center,
