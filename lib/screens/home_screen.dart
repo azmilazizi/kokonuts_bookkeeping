@@ -49,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final AppState appState = AppStateScope.of(context);
     final username = appState.username;
 
-    final appState = AppStateScope.of(context);
+    final AppState scopedAppState = AppStateScope.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -60,7 +60,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         controller: _controller,
         children: _tabs
             .map(
-              (tab) => tab.builder?.call(context, appState) ??
+              (tab) => tab.builder?.call(context, scopedAppState) ??
                   _HomeTabPlaceholder(
                     title: tab.title,
                     icon: tab.icon,
