@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../app/app_state.dart';
-import '../app/app_state_scope.dart';
 import 'accounts_tab.dart';
 import 'bills_tab.dart';
 import 'purchase_orders_tab.dart';
@@ -31,7 +29,6 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final appState = AppStateScope.of(context);
     final theme = Theme.of(context);
 
     return DefaultTabController(
@@ -40,14 +37,6 @@ class HomeScreen extends StatelessWidget {
         appBar: AppBar(
           title: null,
           automaticallyImplyLeading: false,
-          actions: [
-            _ThemeModeButton(appState: appState),
-            IconButton(
-              onPressed: () => appState.logout(),
-              icon: const Icon(Icons.logout),
-              tooltip: 'Log out',
-            ),
-          ],
         ),
         body: TabBarView(
           children: _tabs

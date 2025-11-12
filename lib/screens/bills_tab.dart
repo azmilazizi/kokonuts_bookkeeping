@@ -609,15 +609,16 @@ class _BillRowState extends State<_BillRow> {
             Expanded(
               flex: _columnFlex[5],
               child: Center(
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 8,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     IconButton(
                       icon: const Icon(Icons.visibility_outlined),
                       tooltip: 'View details',
                       onPressed: () {},
                     ),
+                    const SizedBox(width: 8),
                     IconButton(
                       icon: const Icon(Icons.payments_outlined),
                       tooltip: 'View payments',
