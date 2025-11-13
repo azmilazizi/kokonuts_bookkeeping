@@ -360,7 +360,8 @@ class _BillsTabState extends State<BillsTab> {
       return true;
     }
     final status = bill.status.label.toLowerCase();
-    if (status.contains(query) || bill.status.code.toLowerCase().contains(query)) {
+    final statusCode = bill.status.code.toString().toLowerCase();
+    if (status.contains(query) || statusCode.contains(query)) {
       return true;
     }
     final total = bill.totalAmount?.toStringAsFixed(2) ?? bill.totalLabel;
