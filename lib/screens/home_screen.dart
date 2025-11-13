@@ -16,7 +16,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
-  late final TabController _controller = TabController(length: _tabs.length, vsync: this);
+  late final TabController _controller = TabController(length: _tabs.length, vsync: this)
+    ..addListener(_handleTabSelection);
 
   static final List<_HomeTab> _tabs = [
     _HomeTab(
@@ -44,8 +45,50 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   void dispose() {
+    _controller.removeListener(_handleTabSelection);
     _controller.dispose();
     super.dispose();
+  }
+
+  void _handleTabSelection() {
+    if (!_controller.indexIsChanging) {
+      setState(() {});
+    }
+  }
+
+  void _openAddModal(BuildContext context, String tabTitle) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) {
+        final theme = Theme.of(context);
+
+        return Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Add new $tabTitle',
+                style: theme.textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'This is a placeholder for creating a new $tabTitle entry. '
+                'Replace this modal with the appropriate form or navigation when ready.',
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.add),
+                label: const Text('Close'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -55,6 +98,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final username = appState.username;
 
     final AppState scopedAppState = AppStateScope.of(context);
+
+    final bool isOverviewTabSelected = _controller.index == _tabs.length - 1;
+    final _HomeTab currentTab = _tabs[_controller.index];
 
     return Scaffold(
       body: SafeArea(
@@ -91,6 +137,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               .toList(growable: false),
         ),
       ),
+      floatingActionButton: isOverviewTabSelected
+          ? null
+          : FloatingActionButton(
+              tooltip: 'Add ${currentTab.title}',
+              onPressed: () => _openAddModal(context, currentTab.title),
+              child: const Icon(Icons.add),
+            ),
     );
   }
 }
