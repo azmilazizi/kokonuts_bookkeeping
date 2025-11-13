@@ -50,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _controller.removeListener(_handleTabSelection);
     _controller.dispose();
     super.dispose();
   }
