@@ -4,6 +4,7 @@ import '../app/app_state_scope.dart';
 import '../services/accounts_service.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/tab_page_header.dart';
+import '../widgets/table_filter_bar.dart';
 
 enum AccountsSortColumn { name, parent, type, detailType, balance }
 
@@ -21,9 +22,11 @@ class _AccountsTabState extends State<AccountsTab> {
   final _displayAccounts = <_AccountDisplay>[];
   final _accountsById = <String, Account>{};
   final _accountNamesById = <String, String>{};
+  final _filterController = TextEditingController();
 
   AccountsSortColumn _sortColumn = AccountsSortColumn.name;
   bool _sortAscending = true;
+  String _filterQuery = '';
 
   static const _perPage = 20;
   static const double _minTableWidth = 900;
@@ -47,6 +50,7 @@ class _AccountsTabState extends State<AccountsTab> {
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     _horizontalController.dispose();
+    _filterController.dispose();
     super.dispose();
   }
 
@@ -194,6 +198,14 @@ class _AccountsTabState extends State<AccountsTab> {
                         horizontalController: _horizontalController,
                       ),
                     ),
+                    SliverToBoxAdapter(
+                      child: TableFilterBar(
+                        controller: _filterController,
+                        onChanged: _handleFilterChanged,
+                        hintText: 'Search by name, parent, or type',
+                        isFiltering: _filterController.text.isNotEmpty,
+                      ),
+                    ),
                     SliverPersistentHeader(
                       pinned: true,
                       delegate: _AccountsHeaderDelegate(
@@ -244,6 +256,13 @@ class _AccountsTabState extends State<AccountsTab> {
     });
   }
 
+  void _handleFilterChanged(String value) {
+    setState(() {
+      _filterQuery = value.trim().toLowerCase();
+      _rebuildDisplayAccounts();
+    });
+  }
+
   String _resolveParentName(Account account) {
     final parentId = account.parentAccountId;
     if (parentId == null) {
@@ -267,9 +286,43 @@ class _AccountsTabState extends State<AccountsTab> {
   }
 
   void _rebuildDisplayAccounts() {
+    final ordered = _buildDisplayAccounts(_accountsById.values);
+    if (_filterQuery.isEmpty) {
+      _displayAccounts
+        ..clear()
+        ..addAll(ordered);
+      return;
+    }
+
     _displayAccounts
       ..clear()
-      ..addAll(_buildDisplayAccounts(_accountsById.values));
+      ..addAll(
+        ordered.where((entry) => _matchesFilter(entry.account)),
+      );
+  }
+
+  bool _matchesFilter(Account account) {
+    if (_filterQuery.isEmpty) {
+      return true;
+    }
+    final query = _filterQuery;
+    if (account.name.toLowerCase().contains(query)) {
+      return true;
+    }
+    final parent = _resolveParentName(account).toLowerCase();
+    if (parent.contains(query)) {
+      return true;
+    }
+    final type = (account.typeName ?? '').toLowerCase();
+    if (type.contains(query)) {
+      return true;
+    }
+    final detailType = (account.detailTypeName ?? '').toLowerCase();
+    if (detailType.contains(query)) {
+      return true;
+    }
+    final balance = account.balance.toLowerCase();
+    return balance.contains(query);
   }
 
   List<_AccountDisplay> _buildDisplayAccounts(Iterable<Account> accounts) {

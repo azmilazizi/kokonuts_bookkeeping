@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/bills_service.dart';
+import '../widgets/date_range_filter_button.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/tab_page_header.dart';
+import '../widgets/table_filter_bar.dart';
 
 enum BillsSortColumn { vendor, billDate, dueDate, status, total }
 
@@ -21,10 +23,15 @@ class _BillsTabState extends State<BillsTab> {
   final _scrollController = ScrollController();
   final _horizontalController = ScrollController();
   final _bills = <Bill>[];
+  final _allBills = <Bill>[];
   final _vendorNames = <String, String?>{};
+  final _filterController = TextEditingController();
+  DateTime? _filterStartDate;
+  DateTime? _filterEndDate;
 
   BillsSortColumn _sortColumn = BillsSortColumn.billDate;
   bool _sortAscending = false;
+  String _filterQuery = '';
 
   static const _perPage = 20;
   static const double _minTableWidth = 720;
@@ -48,6 +55,7 @@ class _BillsTabState extends State<BillsTab> {
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     _horizontalController.dispose();
+    _filterController.dispose();
     super.dispose();
   }
 
@@ -118,7 +126,6 @@ class _BillsTabState extends State<BillsTab> {
 
       setState(() {
         _mergeBills(result.bills, reset: reset);
-        _applySorting();
         _error = null;
         _hasMore = result.hasMore;
         _nextPage = result.hasMore ? pageToLoad + 1 : pageToLoad;
@@ -174,8 +181,12 @@ class _BillsTabState extends State<BillsTab> {
       }
       setState(() {
         _vendorNames[vendorId] = name ?? 'Unknown vendor';
-        if (_sortColumn == BillsSortColumn.vendor) {
+        final shouldResort = _sortColumn == BillsSortColumn.vendor;
+        if (shouldResort) {
           _applySorting();
+        }
+        if (shouldResort || _filterQuery.isNotEmpty) {
+          _applyFilters();
         }
       });
     } catch (error) {
@@ -184,8 +195,12 @@ class _BillsTabState extends State<BillsTab> {
       }
       setState(() {
         _vendorNames[vendorId] = 'Unknown vendor';
-        if (_sortColumn == BillsSortColumn.vendor) {
+        final shouldResort = _sortColumn == BillsSortColumn.vendor;
+        if (shouldResort) {
           _applySorting();
+        }
+        if (shouldResort || _filterQuery.isNotEmpty) {
+          _applyFilters();
         }
       });
     }
@@ -222,6 +237,21 @@ class _BillsTabState extends State<BillsTab> {
                       delegate: TabPageHeaderDelegate(
                         title: 'Bills',
                         horizontalController: _horizontalController,
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: TableFilterBar(
+                        controller: _filterController,
+                        onChanged: _handleFilterChanged,
+                        hintText: 'Search by vendor, status, or amount',
+                        isFiltering: _filterController.text.isNotEmpty,
+                        trailing: DateRangeFilterButton(
+                          label: 'Bill or due date',
+                          startDate: _filterStartDate,
+                          endDate: _filterEndDate,
+                          onRangeSelected: _handleDateRangeSelected,
+                          onClear: _clearDateRange,
+                        ),
                       ),
                     ),
                     SliverPersistentHeader(
@@ -269,32 +299,51 @@ class _BillsTabState extends State<BillsTab> {
         _sortAscending = true;
       }
       _applySorting();
+      _applyFilters();
+    });
+  }
+
+  void _handleFilterChanged(String value) {
+    setState(() {
+      _filterQuery = value.trim().toLowerCase();
+      _applyFilters();
+    });
+  }
+
+  void _handleDateRangeSelected(DateTimeRange range) {
+    setState(() {
+      _filterStartDate = DateUtils.dateOnly(range.start);
+      _filterEndDate = DateUtils.dateOnly(range.end);
+      _applyFilters();
+    });
+  }
+
+  void _clearDateRange() {
+    setState(() {
+      _filterStartDate = null;
+      _filterEndDate = null;
+      _applyFilters();
     });
   }
 
   void _mergeBills(List<Bill> newBills, {required bool reset}) {
-    final seenKeys = <String>{};
-    if (!reset) {
-      for (final bill in _bills) {
-        seenKeys.add(_billKey(bill));
-      }
+    if (reset) {
+      _allBills.clear();
     }
 
-    final filtered = <Bill>[];
+    final seenKeys = <String>{
+      for (final bill in _allBills) _billKey(bill),
+    };
+
     for (final bill in newBills) {
       final key = _billKey(bill);
       if (seenKeys.add(key)) {
-        filtered.add(bill);
+        _allBills.add(bill);
       }
     }
 
-    if (reset) {
-      _bills
-        ..clear()
-        ..addAll(filtered);
-    } else {
-      _bills.addAll(filtered);
-    }
+    _applySorting();
+    _applyFilters();
   }
 
   String _billKey(Bill bill) {
@@ -313,7 +362,83 @@ class _BillsTabState extends State<BillsTab> {
   }
 
   void _applySorting() {
-    _bills.sort(_compareBills);
+    _allBills.sort(_compareBills);
+  }
+
+  void _applyFilters() {
+    if (_filterQuery.isEmpty && !_hasDateRangeFilter) {
+      _bills
+        ..clear()
+        ..addAll(_allBills);
+      return;
+    }
+
+    _bills
+      ..clear()
+      ..addAll(
+        _allBills.where(_matchesAllFilters),
+      );
+  }
+
+  bool get _hasDateRangeFilter =>
+      _filterStartDate != null && _filterEndDate != null;
+
+  bool _matchesAllFilters(Bill bill) {
+    final query = _filterQuery;
+    if (query.isNotEmpty && !_matchesQuery(bill, query)) {
+      return false;
+    }
+    if (!_matchesDateRange(bill)) {
+      return false;
+    }
+    return true;
+  }
+
+  bool _matchesQuery(Bill bill, String query) {
+    if (_vendorLabel(bill).toLowerCase().contains(query)) {
+      return true;
+    }
+    final status = bill.status.label.toLowerCase();
+    final statusCode = bill.status.code.toString().toLowerCase();
+    if (status.contains(query) || statusCode.contains(query)) {
+      return true;
+    }
+    final total = bill.totalAmount?.toStringAsFixed(2) ?? bill.totalLabel;
+    if (total.toLowerCase().contains(query)) {
+      return true;
+    }
+    final billDate = bill.billDate?.toIso8601String().toLowerCase() ?? '';
+    if (billDate.contains(query)) {
+      return true;
+    }
+    final dueDate = bill.dueDate?.toIso8601String().toLowerCase() ?? '';
+    return dueDate.contains(query);
+  }
+
+  bool _matchesDateRange(Bill bill) {
+    if (!_hasDateRangeFilter) {
+      return true;
+    }
+    return _isWithinDateRange(bill.billDate) || _isWithinDateRange(bill.dueDate);
+  }
+
+  bool _isWithinDateRange(DateTime? value) {
+    if (!_hasDateRangeFilter) {
+      return true;
+    }
+    if (value == null) {
+      return false;
+    }
+    final start = DateUtils.dateOnly(_filterStartDate!);
+    final end = DateUtils.dateOnly(_filterEndDate!);
+    final date = DateUtils.dateOnly(value);
+    if (date.isBefore(start)) {
+      return false;
+    }
+    if (date.isAfter(end)) {
+      return false;
+    }
+    return true;
   }
 
   int _compareBills(Bill a, Bill b) {
