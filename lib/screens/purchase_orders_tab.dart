@@ -4,6 +4,7 @@ import '../app/app_state_scope.dart';
 import '../services/purchase_orders_service.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/tab_page_header.dart';
+import '../widgets/table_filter_bar.dart';
 
 enum PurchaseOrderSortColumn {
   number,
@@ -26,9 +27,12 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   final _scrollController = ScrollController();
   final _horizontalController = ScrollController();
   final _orders = <PurchaseOrder>[];
+  final _allOrders = <PurchaseOrder>[];
+  final _filterController = TextEditingController();
 
   PurchaseOrderSortColumn _sortColumn = PurchaseOrderSortColumn.orderDate;
   bool _sortAscending = false;
+  String _filterQuery = '';
 
   static const _perPage = 20;
   static const double _minTableWidth = 900;
@@ -52,6 +56,7 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     _horizontalController.dispose();
+    _filterController.dispose();
     super.dispose();
   }
 
@@ -122,13 +127,14 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
 
       setState(() {
         if (reset) {
-          _orders
+          _allOrders
             ..clear()
             ..addAll(result.orders);
         } else {
-          _orders.addAll(result.orders);
+          _allOrders.addAll(result.orders);
         }
         _applySorting();
+        _applyFilters();
         _error = null;
         _hasMore = result.hasMore;
         _nextPage = result.hasMore ? pageToLoad + 1 : pageToLoad;
@@ -191,6 +197,14 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                         horizontalController: _horizontalController,
                       ),
                     ),
+                    SliverToBoxAdapter(
+                      child: TableFilterBar(
+                        controller: _filterController,
+                        onChanged: _handleFilterChanged,
+                        hintText: 'Search by number, vendor, or total',
+                        isFiltering: _filterController.text.isNotEmpty,
+                      ),
+                    ),
                     SliverPersistentHeader(
                       pinned: true,
                       delegate: _PurchaseOrdersHeaderDelegate(
@@ -235,11 +249,57 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
         _sortAscending = true;
       }
       _applySorting();
+      _applyFilters();
+    });
+  }
+
+  void _handleFilterChanged(String value) {
+    setState(() {
+      _filterQuery = value.trim().toLowerCase();
+      _applyFilters();
     });
   }
 
   void _applySorting() {
-    _orders.sort(_compareOrders);
+    _allOrders.sort(_compareOrders);
+  }
+
+  void _applyFilters() {
+    if (_filterQuery.isEmpty) {
+      _orders
+        ..clear()
+        ..addAll(_allOrders);
+      return;
+    }
+
+    final query = _filterQuery;
+    _orders
+      ..clear()
+      ..addAll(
+        _allOrders.where((order) => _matchesFilter(order, query)),
+      );
+  }
+
+  bool _matchesFilter(PurchaseOrder order, String query) {
+    if (order.number.toLowerCase().contains(query)) {
+      return true;
+    }
+    if (order.name.toLowerCase().contains(query)) {
+      return true;
+    }
+    if (order.vendorName.toLowerCase().contains(query)) {
+      return true;
+    }
+    final date = order.orderDate?.toIso8601String().toLowerCase() ?? '';
+    if (date.contains(query)) {
+      return true;
+    }
+    final total = order.totalLabel.toLowerCase();
+    if (total.contains(query)) {
+      return true;
+    }
+    final progress = '0/${order.totalLabel}'.toLowerCase();
+    return progress.contains(query);
   }
 
   int _compareOrders(PurchaseOrder a, PurchaseOrder b) {

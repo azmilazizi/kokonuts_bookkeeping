@@ -4,6 +4,7 @@ import '../app/app_state_scope.dart';
 import '../services/expenses_service.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/tab_page_header.dart';
+import '../widgets/table_filter_bar.dart';
 
 enum ExpensesSortColumn { vendor, name, category, amount, date, paymentMode }
 
@@ -19,9 +20,12 @@ class _ExpensesTabState extends State<ExpensesTab> {
   final _scrollController = ScrollController();
   final _horizontalController = ScrollController();
   final _expenses = <Expense>[];
+  final _allExpenses = <Expense>[];
+  final _filterController = TextEditingController();
 
   ExpensesSortColumn _sortColumn = ExpensesSortColumn.date;
   bool _sortAscending = false;
+  String _filterQuery = '';
 
   static const _perPage = 20;
   static const double _minTableWidth = 900;
@@ -45,6 +49,7 @@ class _ExpensesTabState extends State<ExpensesTab> {
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     _horizontalController.dispose();
+    _filterController.dispose();
     super.dispose();
   }
 
@@ -115,7 +120,6 @@ class _ExpensesTabState extends State<ExpensesTab> {
 
       setState(() {
         _mergeExpenses(result.expenses, reset: reset);
-        _applySorting();
         _error = null;
         _hasMore = result.hasMore;
         _nextPage = result.hasMore ? pageToLoad + 1 : pageToLoad;
@@ -178,6 +182,14 @@ class _ExpensesTabState extends State<ExpensesTab> {
                         horizontalController: _horizontalController,
                       ),
                     ),
+                    SliverToBoxAdapter(
+                      child: TableFilterBar(
+                        controller: _filterController,
+                        onChanged: _handleFilterChanged,
+                        hintText: 'Search by vendor, name, or category',
+                        isFiltering: _filterController.text.isNotEmpty,
+                      ),
+                    ),
                     SliverPersistentHeader(
                       pinned: true,
                       delegate: _ExpensesHeaderDelegate(
@@ -222,32 +234,28 @@ class _ExpensesTabState extends State<ExpensesTab> {
         _sortAscending = true;
       }
       _applySorting();
+      _applyFilters();
     });
   }
 
   void _mergeExpenses(List<Expense> newExpenses, {required bool reset}) {
-    final seenKeys = <String>{};
-    if (!reset) {
-      for (final expense in _expenses) {
-        seenKeys.add(_expenseKey(expense));
-      }
+    if (reset) {
+      _allExpenses.clear();
     }
 
-    final filtered = <Expense>[];
+    final seenKeys = <String>{
+      for (final expense in _allExpenses) _expenseKey(expense),
+    };
+
     for (final expense in newExpenses) {
       final key = _expenseKey(expense);
       if (seenKeys.add(key)) {
-        filtered.add(expense);
+        _allExpenses.add(expense);
       }
     }
 
-    if (reset) {
-      _expenses
-        ..clear()
-        ..addAll(filtered);
-    } else {
-      _expenses.addAll(filtered);
-    }
+    _applySorting();
+    _applyFilters();
   }
 
   String _expenseKey(Expense expense) {
@@ -266,7 +274,52 @@ class _ExpensesTabState extends State<ExpensesTab> {
   }
 
   void _applySorting() {
-    _expenses.sort(_compareExpenses);
+    _allExpenses.sort(_compareExpenses);
+  }
+
+  void _applyFilters() {
+    if (_filterQuery.isEmpty) {
+      _expenses
+        ..clear()
+        ..addAll(_allExpenses);
+      return;
+    }
+
+    final query = _filterQuery;
+    _expenses
+      ..clear()
+      ..addAll(
+        _allExpenses.where((expense) => _matchesFilter(expense, query)),
+      );
+  }
+
+  bool _matchesFilter(Expense expense, String query) {
+    if (expense.vendor.toLowerCase().contains(query)) {
+      return true;
+    }
+    if (expense.name.toLowerCase().contains(query)) {
+      return true;
+    }
+    if (expense.categoryName.toLowerCase().contains(query)) {
+      return true;
+    }
+    final paymentMode = expense.paymentMode.toLowerCase();
+    if (paymentMode.contains(query)) {
+      return true;
+    }
+    final amountLabel = expense.amountLabel.toLowerCase();
+    if (amountLabel.contains(query)) {
+      return true;
+    }
+    final date = expense.date?.toIso8601String().toLowerCase() ?? '';
+    return date.contains(query);
+  }
+
+  void _handleFilterChanged(String value) {
+    setState(() {
+      _filterQuery = value.trim().toLowerCase();
+      _applyFilters();
+    });
   }
 
   int _compareExpenses(Expense a, Expense b) {
