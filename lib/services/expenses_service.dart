@@ -183,6 +183,7 @@ class Expense {
     required this.id,
     required this.vendor,
     required this.name,
+    required this.categoryName,
     required this.amount,
     required this.amountLabel,
     required this.currencySymbol,
@@ -230,9 +231,13 @@ class Expense {
           _stringValue(json['vendor_name']) ??
           _stringValue(json['vendor']) ??
           '—',
-      name: _stringValue(json['name']) ??
+      name: _stringValue(json['expense_name']) ??
+          _stringValue(json['name']) ??
           _stringValue(json['description']) ??
           _stringValue(json['title']) ??
+          '—',
+      categoryName: _stringValue(json['category_name']) ??
+          _stringValue(json['category']) ??
           '—',
       amount: amount,
       amountLabel: amountLabel,
@@ -249,6 +254,7 @@ class Expense {
   final String id;
   final String vendor;
   final String name;
+  final String categoryName;
   final double? amount;
   final String amountLabel;
   final String currencySymbol;
