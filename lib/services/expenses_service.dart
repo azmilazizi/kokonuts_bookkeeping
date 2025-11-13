@@ -7,7 +7,7 @@ class ExpensesService {
 
   final http.Client _client;
 
-  static const _baseUrl = 'https://crm.kokonuts.my/expenses/api/v1/expenses';
+  static const _baseUrl = 'https://crm.kokonuts.my/api/v1/expenses';
 
   Future<ExpensesPage> fetchExpenses({
     required int page,
