@@ -5,6 +5,7 @@ import '../app/app_state_scope.dart';
 
 import 'accounts_tab.dart';
 import 'bills_tab.dart';
+import 'expenses_tab.dart';
 import 'purchase_orders_tab.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -23,7 +24,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       icon: Icons.shopping_bag_outlined,
       builder: (_, __) => const PurchaseOrdersTab(),
     ),
-    const _HomeTab(title: 'Payments', icon: Icons.payments_outlined),
+    _HomeTab(
+      title: 'Expenses',
+      icon: Icons.payments_outlined,
+      builder: (_, __) => const ExpensesTab(),
+    ),
     _HomeTab(
       title: 'Bills',
       icon: Icons.receipt_long_outlined,
