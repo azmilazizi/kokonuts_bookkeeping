@@ -198,8 +198,8 @@ class PurchaseOrder {
     }
     return PurchaseOrder(
       id: _stringValue(json['id']) ?? '',
-      number: _stringValue(json['number']) ??
-          _stringValue(json['pur_order_number']) ??
+      number: _stringValue(json['pur_order_number']) ??
+          _stringValue(json['number']) ??
           _stringValue(json['order_number']) ??
           '—',
       name: _stringValue(json['pur_order_name']) ??
