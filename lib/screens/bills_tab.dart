@@ -117,13 +117,7 @@ class _BillsTabState extends State<BillsTab> {
       }
 
       setState(() {
-        if (reset) {
-          _bills
-            ..clear()
-            ..addAll(result.bills);
-        } else {
-          _bills.addAll(result.bills);
-        }
+        _mergeBills(result.bills, reset: reset);
         _applySorting();
         _error = null;
         _hasMore = result.hasMore;
@@ -276,6 +270,46 @@ class _BillsTabState extends State<BillsTab> {
       }
       _applySorting();
     });
+  }
+
+  void _mergeBills(List<Bill> newBills, {required bool reset}) {
+    final seenKeys = <String>{};
+    if (!reset) {
+      for (final bill in _bills) {
+        seenKeys.add(_billKey(bill));
+      }
+    }
+
+    final filtered = <Bill>[];
+    for (final bill in newBills) {
+      final key = _billKey(bill);
+      if (seenKeys.add(key)) {
+        filtered.add(bill);
+      }
+    }
+
+    if (reset) {
+      _bills
+        ..clear()
+        ..addAll(filtered);
+    } else {
+      _bills.addAll(filtered);
+    }
+  }
+
+  String _billKey(Bill bill) {
+    final normalizedId = bill.id.trim().toLowerCase();
+    if (normalizedId.isNotEmpty) {
+      return normalizedId;
+    }
+
+    final vendorId = bill.vendorId.trim().toLowerCase();
+    final billDate = bill.billDate?.millisecondsSinceEpoch ?? 0;
+    final dueDate = bill.dueDate?.millisecondsSinceEpoch ?? 0;
+    final status = bill.status.code;
+    final amount = bill.totalAmount?.toStringAsFixed(2) ?? 'null';
+
+    return '$vendorId|$billDate|$dueDate|$status|$amount';
   }
 
   void _applySorting() {

@@ -114,13 +114,7 @@ class _ExpensesTabState extends State<ExpensesTab> {
       }
 
       setState(() {
-        if (reset) {
-          _expenses
-            ..clear()
-            ..addAll(result.expenses);
-        } else {
-          _expenses.addAll(result.expenses);
-        }
+        _mergeExpenses(result.expenses, reset: reset);
         _applySorting();
         _error = null;
         _hasMore = result.hasMore;
@@ -229,6 +223,46 @@ class _ExpensesTabState extends State<ExpensesTab> {
       }
       _applySorting();
     });
+  }
+
+  void _mergeExpenses(List<Expense> newExpenses, {required bool reset}) {
+    final seenKeys = <String>{};
+    if (!reset) {
+      for (final expense in _expenses) {
+        seenKeys.add(_expenseKey(expense));
+      }
+    }
+
+    final filtered = <Expense>[];
+    for (final expense in newExpenses) {
+      final key = _expenseKey(expense);
+      if (seenKeys.add(key)) {
+        filtered.add(expense);
+      }
+    }
+
+    if (reset) {
+      _expenses
+        ..clear()
+        ..addAll(filtered);
+    } else {
+      _expenses.addAll(filtered);
+    }
+  }
+
+  String _expenseKey(Expense expense) {
+    final normalizedId = expense.id.trim().toLowerCase();
+    if (normalizedId.isNotEmpty) {
+      return normalizedId;
+    }
+
+    final vendor = expense.vendor.trim().toLowerCase();
+    final name = expense.name.trim().toLowerCase();
+    final amount = expense.amountLabel.trim().toLowerCase();
+    final date = expense.date?.millisecondsSinceEpoch ?? 0;
+    final paymentMode = expense.paymentMode.trim().toLowerCase();
+
+    return '$vendor|$name|$amount|$date|$paymentMode';
   }
 
   void _applySorting() {
