@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app/app_state_scope.dart';
 import '../services/purchase_orders_service.dart';
 import '../widgets/date_range_filter_button.dart';
+import '../widgets/purchase_order_details_dialog.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/tab_page_header.dart';
 import '../widgets/table_filter_bar.dart';
@@ -656,6 +657,15 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
 
   static const _columnFlex = [3, 4, 3, 3, 3, 2, 3];
 
+  void _showDetails(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => PurchaseOrderDetailsDialog(
+        orderId: widget.order.id,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final borderColor = widget.theme.dividerColor.withOpacity(0.6);
@@ -723,7 +733,7 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
                     IconButton(
                       icon: const Icon(Icons.visibility_outlined),
                       tooltip: 'View details',
-                      onPressed: () {},
+                      onPressed: () => _showDetails(context),
                     ),
                     const SizedBox(width: 8),
                     IconButton(
