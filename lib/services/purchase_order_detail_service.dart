@@ -38,7 +38,7 @@ class PurchaseOrderDetailService {
       throw PurchaseOrderDetailException('Unable to parse response: $error');
     }
 
-    final orderMap = _extractOrderMap(decoded);
+    final orderMap = _extractPurchaseOrderDetail(decoded);
     if (orderMap == null) {
       throw const PurchaseOrderDetailException(
         'Purchase order details were not found in the response.',
@@ -48,29 +48,19 @@ class PurchaseOrderDetailService {
     return PurchaseOrderDetail.fromJson(orderMap);
   }
 
-  Map<String, dynamic>? _extractOrderMap(dynamic data) {
+  Map<String, dynamic>? _extractPurchaseOrderDetail(dynamic data) {
     if (data is Map<String, dynamic>) {
-      if (_looksLikeOrder(data)) {
+      if (_looksLikeNormalizedOrder(data)) {
         return data;
       }
 
-      const preferredKeys = [
-        'data',
-        'purchase_order',
-        'purchaseOrder',
-        'order',
-      ];
-
-      for (final key in preferredKeys) {
-        final value = data[key];
-        final candidate = _extractOrderMap(value);
-        if (candidate != null) {
-          return candidate;
-        }
+      final normalizedFromWrapper = _extractFromOrderWrapper(data);
+      if (normalizedFromWrapper != null) {
+        return normalizedFromWrapper;
       }
 
       for (final value in data.values) {
-        final candidate = _extractOrderMap(value);
+        final candidate = _extractPurchaseOrderDetail(value);
         if (candidate != null) {
           return candidate;
         }
@@ -79,7 +69,7 @@ class PurchaseOrderDetailService {
 
     if (data is List) {
       for (final value in data) {
-        final candidate = _extractOrderMap(value);
+        final candidate = _extractPurchaseOrderDetail(value);
         if (candidate != null) {
           return candidate;
         }
@@ -89,15 +79,37 @@ class PurchaseOrderDetailService {
     return null;
   }
 
-  bool _looksLikeOrder(Map<String, dynamic> data) {
+  Map<String, dynamic>? _extractFromOrderWrapper(Map<String, dynamic> data) {
+    const orderKeys = [
+      'order',
+      'purchase_order',
+      'purchaseOrder',
+    ];
+    for (final key in orderKeys) {
+      final orderValue = data[key];
+      if (orderValue is Map<String, dynamic>) {
+        final normalized = Map<String, dynamic>.from(orderValue);
+        final items = data['items'] ??
+            data['order_items'] ??
+            data['purchase_order_items'];
+        if (items != null) {
+          normalized['items'] = items;
+        }
+        return normalized;
+      }
+    }
+    return null;
+  }
+
+  bool _looksLikeNormalizedOrder(Map<String, dynamic> data) {
     if (!data.containsKey('id')) {
       return false;
     }
     final hasNumber = data.containsKey('pur_order_number') ||
         data.containsKey('order_number') ||
         data.containsKey('number');
-    final hasItems = data['items'] is List ||
-        (data['items'] is Map<String, dynamic>);
+    final items = data['items'];
+    final hasItems = items is List || (items is Map<String, dynamic>);
     return hasNumber || hasItems;
   }
 }
