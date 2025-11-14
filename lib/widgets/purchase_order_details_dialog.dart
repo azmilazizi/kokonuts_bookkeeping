@@ -470,6 +470,69 @@ class _ItemsSection extends StatelessWidget {
       );
     }
 
+    const tablePadding = EdgeInsets.symmetric(horizontal: 16, vertical: 12);
+    final headerTextStyle =
+        theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600) ??
+            theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600) ??
+            const TextStyle(fontWeight: FontWeight.w600);
+    final cellStyle = theme.textTheme.bodyMedium;
+    final dividerColor = theme.dividerColor;
+
+    TableRow buildHeaderRow() {
+      return TableRow(
+        children: const [
+          'Item',
+          'Description',
+          'Quantity',
+          'Rate',
+          'Amount',
+        ].map((label) {
+          return Padding(
+            padding: tablePadding,
+            child: Text(
+              label,
+              style: headerTextStyle,
+            ),
+          );
+        }).toList(),
+      );
+    }
+
+    TableRow buildDataRow(PurchaseOrderItem item) {
+      return TableRow(
+        children: [
+          item.name,
+          item.description,
+          item.quantityLabel,
+          item.rateLabel,
+          item.amountLabel,
+        ].asMap().entries.map((entry) {
+          final index = entry.key;
+          final value = entry.value;
+          Widget child = Text(
+            value,
+            style: cellStyle,
+          );
+
+          if (index == 1) {
+            child = ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 320),
+              child: Text(
+                value,
+                style: cellStyle,
+                softWrap: true,
+              ),
+            );
+          }
+
+          return Padding(
+            padding: tablePadding,
+            child: child,
+          );
+        }).toList(),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -486,35 +549,20 @@ class _ItemsSection extends StatelessWidget {
           child: SingleChildScrollView(
             controller: controller,
             scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text('Item')),
-                DataColumn(label: Text('Description')),
-                DataColumn(label: Text('Quantity')),
-                DataColumn(label: Text('Rate')),
-                DataColumn(label: Text('Amount')),
+            child: Table(
+              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+              columnWidths: const {
+                0: IntrinsicColumnWidth(),
+                1: FlexColumnWidth(),
+                2: IntrinsicColumnWidth(),
+                3: IntrinsicColumnWidth(),
+                4: IntrinsicColumnWidth(),
+              },
+              border: TableBorder.all(color: dividerColor),
+              children: [
+                buildHeaderRow(),
+                ...detail.items.map(buildDataRow),
               ],
-              rows: detail.items
-                  .map(
-                    (item) => DataRow(
-                      cells: [
-                        DataCell(Text(item.name)),
-                        DataCell(
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 320),
-                            child: Text(
-                              item.description,
-                              softWrap: true,
-                            ),
-                          ),
-                        ),
-                        DataCell(Text(item.quantityLabel)),
-                        DataCell(Text(item.rateLabel)),
-                        DataCell(Text(item.amountLabel)),
-                      ],
-                    ),
-                  )
-                  .toList(),
             ),
           ),
         ),
@@ -532,9 +580,9 @@ class _TotalsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: Alignment.centerRight,
+      alignment: Alignment.centerLeft,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ..._buildTotalRows(),
         ],
@@ -606,7 +654,7 @@ class _TotalRow extends StatelessWidget {
           ),
         ],
       ),
-      textAlign: TextAlign.right,
+      textAlign: TextAlign.left,
     );
   }
 }
