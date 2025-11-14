@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../app/app_state_scope.dart';
@@ -105,54 +107,57 @@ class _PurchaseOrderDetailsDialogState
             final detail = snapshot.data!;
             final theme = Theme.of(context);
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _DialogHeader(
-                  orderNumber: detail.number,
-                  onClose: () => Navigator.of(context).pop(),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _SummarySection(detail: detail),
-                        const SizedBox(height: 24),
-                        _ItemsSection(
-                          detail: detail,
-                          controller: _itemsScrollController,
-                        ),
-                        const SizedBox(height: 24),
-                        _TotalsSection(detail: detail, theme: theme),
-                        if (detail.hasNotes) ...[
+            return Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _DialogHeader(
+                    orderNumber: detail.number,
+                    onClose: () => Navigator.of(context).pop(),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _SummarySection(detail: detail),
                           const SizedBox(height: 24),
-                          _RichTextSection(
-                            title: 'Notes',
-                            value: detail.notes!,
+                          _ItemsSection(
+                            detail: detail,
+                            controller: _itemsScrollController,
                           ),
-                        ],
-                        if (detail.hasTerms) ...[
                           const SizedBox(height: 24),
-                          _RichTextSection(
-                            title: 'Terms & Conditions',
-                            value: detail.terms!,
-                          ),
+                          _TotalsSection(detail: detail, theme: theme),
+                          if (detail.hasNotes) ...[
+                            const SizedBox(height: 24),
+                            _RichTextSection(
+                              title: 'Notes',
+                              value: detail.notes!,
+                            ),
+                          ],
+                          if (detail.hasTerms) ...[
+                            const SizedBox(height: 24),
+                            _RichTextSection(
+                              title: 'Terms & Conditions',
+                              value: detail.terms!,
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Close'),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Close'),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             );
           },
         ),
@@ -470,6 +475,73 @@ class _ItemsSection extends StatelessWidget {
       );
     }
 
+    const tablePadding = EdgeInsets.symmetric(horizontal: 16, vertical: 12);
+    final headerTextStyle =
+        theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600) ??
+            theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600) ??
+            const TextStyle(fontWeight: FontWeight.w600);
+    final cellStyle = theme.textTheme.bodyMedium;
+    final dividerColor = theme.dividerColor;
+
+    TableRow buildHeaderRow() {
+      return TableRow(
+        children: const [
+          'Item',
+          'Description',
+          'Quantity',
+          'Rate',
+          'Amount',
+        ].map((label) {
+          return Padding(
+            padding: tablePadding,
+            child: Text(
+              label,
+              style: headerTextStyle,
+            ),
+          );
+        }).toList(),
+      );
+    }
+
+    TableRow buildDataRow(PurchaseOrderItem item) {
+      return TableRow(
+        children: [
+          item.name,
+          item.description,
+          item.quantityLabel,
+          item.rateLabel,
+          item.amountLabel,
+        ].map((value) {
+          return Padding(
+            padding: tablePadding,
+            child: Text(
+              value,
+              style: cellStyle,
+              softWrap: true,
+            ),
+          );
+        }).toList(),
+      );
+    }
+
+    Table buildTable() {
+      return Table(
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        columnWidths: const {
+          0: FlexColumnWidth(2),
+          1: FlexColumnWidth(3),
+          2: FlexColumnWidth(1.4),
+          3: FlexColumnWidth(1.4),
+          4: FlexColumnWidth(1.4),
+        },
+        border: TableBorder.all(color: dividerColor),
+        children: [
+          buildHeaderRow(),
+          ...detail.items.map(buildDataRow),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -478,45 +550,26 @@ class _ItemsSection extends StatelessWidget {
           style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 12),
-        Scrollbar(
-          controller: controller,
-          thumbVisibility: true,
-          notificationPredicate: (notification) =>
-              notification.metrics.axis == Axis.horizontal,
-          child: SingleChildScrollView(
-            controller: controller,
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text('Item')),
-                DataColumn(label: Text('Description')),
-                DataColumn(label: Text('Quantity')),
-                DataColumn(label: Text('Rate')),
-                DataColumn(label: Text('Amount')),
-              ],
-              rows: detail.items
-                  .map(
-                    (item) => DataRow(
-                      cells: [
-                        DataCell(Text(item.name)),
-                        DataCell(
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 320),
-                            child: Text(
-                              item.description,
-                              softWrap: true,
-                            ),
-                          ),
-                        ),
-                        DataCell(Text(item.quantityLabel)),
-                        DataCell(Text(item.rateLabel)),
-                        DataCell(Text(item.amountLabel)),
-                      ],
-                    ),
-                  )
-                  .toList(),
-            ),
-          ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const minTableWidth = 720.0;
+            return Scrollbar(
+              controller: controller,
+              thumbVisibility: true,
+              notificationPredicate: (notification) =>
+                  notification.metrics.axis == Axis.horizontal,
+              child: SingleChildScrollView(
+                controller: controller,
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minWidth: math.max(constraints.maxWidth, minTableWidth),
+                  ),
+                  child: buildTable(),
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
@@ -595,18 +648,21 @@ class _TotalRow extends StatelessWidget {
         ? theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)
         : theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600);
 
-    return Text.rich(
-      TextSpan(
-        text: '$label: ',
-        style: labelStyle,
-        children: [
-          TextSpan(
-            text: value,
-            style: valueStyle,
-          ),
-        ],
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Text.rich(
+        TextSpan(
+          text: '$label: ',
+          style: labelStyle,
+          children: [
+            TextSpan(
+              text: value,
+              style: valueStyle,
+            ),
+          ],
+        ),
+        textAlign: TextAlign.right,
       ),
-      textAlign: TextAlign.right,
     );
   }
 }

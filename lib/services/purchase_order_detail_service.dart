@@ -178,8 +178,8 @@ class PurchaseOrderDetail {
 
     final vendorName = _string(json['vendor_name']) ??
         _string(json['supplier_name']) ??
-        _parseNestedName(json['vendor']) ??
-        _parseNestedName(json['supplier']) ??
+        _parseVendorName(json['vendor']) ??
+        _parseVendorName(json['supplier']) ??
         '—';
 
     final statusId = _parseInt(json['status_id']) ?? _parseInt(json['status']);
@@ -189,16 +189,19 @@ class PurchaseOrderDetail {
         (statusId != null ? _statusLabelFromId(statusId) : null) ??
         '—';
 
-    final approvalStatusId = _parseInt(json['approval_status']) ??
+    final approvalStatusId = _parseInt(json['approve_status']) ??
+        _parseInt(json['approval_status']) ??
         _parseInt(json['status_approval']) ??
         _parseInt(json['approval_status_id']);
-    final approvalStatusLabel = _string(json['approval_status_label']) ??
+    final approvalStatusLabelFromId = approvalStatusId != null
+        ? _approvalStatusLabelFromId(approvalStatusId)
+        : null;
+    final approvalStatusLabel =
+        approvalStatusLabelFromId ??
+            _string(json['approval_status_label']) ??
         _string(json['approval_status_text']) ??
         _parseNestedName(json['approval_status']) ??
         _parseNestedName(json['status_approval']) ??
-        (approvalStatusId != null
-            ? _approvalStatusLabelFromId(approvalStatusId)
-            : null) ??
         '—';
 
     final items = _extractItems(json['items'])
@@ -502,6 +505,17 @@ String _formatQuantity(dynamic value, {String? unit}) {
 String? _parseNestedName(dynamic value) {
   if (value is Map<String, dynamic>) {
     return _string(value['name']) ??
+        _string(value['label']) ??
+        _string(value['title']);
+  }
+  return _string(value);
+}
+
+String? _parseVendorName(dynamic value) {
+  if (value is Map<String, dynamic>) {
+    return _string(value['vendor_name']) ??
+        _string(value['supplier_name']) ??
+        _string(value['name']) ??
         _string(value['label']) ??
         _string(value['title']);
   }
