@@ -176,6 +176,20 @@ class PurchaseOrderDetail {
       removedSymbol: currencyResolution.removedSymbol,
     );
 
+    final discountLabel = _resolveOptionalAmount(
+      currencySymbol,
+      rawValue: json['discount_total'] ?? json['discount'],
+      formattedValue: _string(json['discount_total_formatted']) ??
+          _string(json['discount_formatted']),
+    );
+
+    final shippingFeeLabel = _resolveOptionalAmount(
+      currencySymbol,
+      rawValue: json['shipping_fee'] ?? json['shipping_total'],
+      formattedValue: _string(json['shipping_fee_formatted']) ??
+          _string(json['shipping_total_formatted']),
+    );
+
     final vendorName = _string(json['vendor_name']) ??
         _string(json['supplier_name']) ??
         _parseNestedName(json['vendor']) ??
