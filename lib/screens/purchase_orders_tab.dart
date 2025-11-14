@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/purchase_orders_service.dart';
+import '../widgets/date_range_filter_button.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/tab_page_header.dart';
 import '../widgets/table_filter_bar.dart';
@@ -29,6 +30,8 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   final _orders = <PurchaseOrder>[];
   final _allOrders = <PurchaseOrder>[];
   final _filterController = TextEditingController();
+  DateTime? _filterStartDate;
+  DateTime? _filterEndDate;
 
   PurchaseOrderSortColumn _sortColumn = PurchaseOrderSortColumn.orderDate;
   bool _sortAscending = false;
@@ -203,6 +206,13 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                         onChanged: _handleFilterChanged,
                         hintText: 'Search by number, vendor, or total',
                         isFiltering: _filterController.text.isNotEmpty,
+                        trailing: DateRangeFilterButton(
+                          label: 'Order date',
+                          startDate: _filterStartDate,
+                          endDate: _filterEndDate,
+                          onRangeSelected: _handleDateRangeSelected,
+                          onClear: _clearDateRange,
+                        ),
                       ),
                     ),
                     SliverPersistentHeader(
@@ -260,27 +270,56 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
     });
   }
 
+  void _handleDateRangeSelected(DateTimeRange range) {
+    setState(() {
+      _filterStartDate = DateUtils.dateOnly(range.start);
+      _filterEndDate = DateUtils.dateOnly(range.end);
+      _applyFilters();
+    });
+  }
+
+  void _clearDateRange() {
+    setState(() {
+      _filterStartDate = null;
+      _filterEndDate = null;
+      _applyFilters();
+    });
+  }
+
   void _applySorting() {
     _allOrders.sort(_compareOrders);
   }
 
   void _applyFilters() {
-    if (_filterQuery.isEmpty) {
+    if (_filterQuery.isEmpty && !_hasDateRangeFilter) {
       _orders
         ..clear()
         ..addAll(_allOrders);
       return;
     }
 
-    final query = _filterQuery;
     _orders
       ..clear()
       ..addAll(
-        _allOrders.where((order) => _matchesFilter(order, query)),
+        _allOrders.where(_matchesAllFilters),
       );
   }
 
-  bool _matchesFilter(PurchaseOrder order, String query) {
+  bool get _hasDateRangeFilter =>
+      _filterStartDate != null && _filterEndDate != null;
+
+  bool _matchesAllFilters(PurchaseOrder order) {
+    final query = _filterQuery;
+    if (query.isNotEmpty && !_matchesQuery(order, query)) {
+      return false;
+    }
+    if (!_isWithinDateRange(order.orderDate)) {
+      return false;
+    }
+    return true;
+  }
+
+  bool _matchesQuery(PurchaseOrder order, String query) {
     if (order.number.toLowerCase().contains(query)) {
       return true;
     }
@@ -300,6 +339,25 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
     }
     final progress = '0/${order.totalLabel}'.toLowerCase();
     return progress.contains(query);
+  }
+
+  bool _isWithinDateRange(DateTime? value) {
+    if (!_hasDateRangeFilter) {
+      return true;
+    }
+    if (value == null) {
+      return false;
+    }
+    final start = DateUtils.dateOnly(_filterStartDate!);
+    final end = DateUtils.dateOnly(_filterEndDate!);
+    final date = DateUtils.dateOnly(value);
+    if (date.isBefore(start)) {
+      return false;
+    }
+    if (date.isAfter(end)) {
+      return false;
+    }
+    return true;
   }
 
   int _compareOrders(PurchaseOrder a, PurchaseOrder b) {

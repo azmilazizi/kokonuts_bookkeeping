@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/expenses_service.dart';
+import '../widgets/date_range_filter_button.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/tab_page_header.dart';
 import '../widgets/table_filter_bar.dart';
@@ -22,6 +23,8 @@ class _ExpensesTabState extends State<ExpensesTab> {
   final _expenses = <Expense>[];
   final _allExpenses = <Expense>[];
   final _filterController = TextEditingController();
+  DateTime? _filterStartDate;
+  DateTime? _filterEndDate;
 
   ExpensesSortColumn _sortColumn = ExpensesSortColumn.date;
   bool _sortAscending = false;
@@ -188,6 +191,13 @@ class _ExpensesTabState extends State<ExpensesTab> {
                         onChanged: _handleFilterChanged,
                         hintText: 'Search by vendor, name, or category',
                         isFiltering: _filterController.text.isNotEmpty,
+                        trailing: DateRangeFilterButton(
+                          label: 'Expense date',
+                          startDate: _filterStartDate,
+                          endDate: _filterEndDate,
+                          onRangeSelected: _handleDateRangeSelected,
+                          onClear: _clearDateRange,
+                        ),
                       ),
                     ),
                     SliverPersistentHeader(
@@ -278,22 +288,35 @@ class _ExpensesTabState extends State<ExpensesTab> {
   }
 
   void _applyFilters() {
-    if (_filterQuery.isEmpty) {
+    if (_filterQuery.isEmpty && !_hasDateRangeFilter) {
       _expenses
         ..clear()
         ..addAll(_allExpenses);
       return;
     }
 
-    final query = _filterQuery;
     _expenses
       ..clear()
       ..addAll(
-        _allExpenses.where((expense) => _matchesFilter(expense, query)),
+        _allExpenses.where(_matchesAllFilters),
       );
   }
 
-  bool _matchesFilter(Expense expense, String query) {
+  bool get _hasDateRangeFilter =>
+      _filterStartDate != null && _filterEndDate != null;
+
+  bool _matchesAllFilters(Expense expense) {
+    final query = _filterQuery;
+    if (query.isNotEmpty && !_matchesQuery(expense, query)) {
+      return false;
+    }
+    if (!_isWithinDateRange(expense.date)) {
+      return false;
+    }
+    return true;
+  }
+
+  bool _matchesQuery(Expense expense, String query) {
     if (expense.vendor.toLowerCase().contains(query)) {
       return true;
     }
@@ -315,9 +338,44 @@ class _ExpensesTabState extends State<ExpensesTab> {
     return date.contains(query);
   }
 
+  bool _isWithinDateRange(DateTime? value) {
+    if (!_hasDateRangeFilter) {
+      return true;
+    }
+    if (value == null) {
+      return false;
+    }
+    final start = DateUtils.dateOnly(_filterStartDate!);
+    final end = DateUtils.dateOnly(_filterEndDate!);
+    final date = DateUtils.dateOnly(value);
+    if (date.isBefore(start)) {
+      return false;
+    }
+    if (date.isAfter(end)) {
+      return false;
+    }
+    return true;
+  }
+
   void _handleFilterChanged(String value) {
     setState(() {
       _filterQuery = value.trim().toLowerCase();
+      _applyFilters();
+    });
+  }
+
+  void _handleDateRangeSelected(DateTimeRange range) {
+    setState(() {
+      _filterStartDate = DateUtils.dateOnly(range.start);
+      _filterEndDate = DateUtils.dateOnly(range.end);
+      _applyFilters();
+    });
+  }
+
+  void _clearDateRange() {
+    setState(() {
+      _filterStartDate = null;
+      _filterEndDate = null;
       _applyFilters();
     });
   }

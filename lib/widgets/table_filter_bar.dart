@@ -8,6 +8,7 @@ class TableFilterBar extends StatelessWidget {
     required this.hintText,
     this.labelText = 'Filter',
     this.isFiltering = false,
+    this.trailing,
   });
 
   final TextEditingController controller;
@@ -15,6 +16,7 @@ class TableFilterBar extends StatelessWidget {
   final String hintText;
   final String labelText;
   final bool isFiltering;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -24,30 +26,39 @@ class TableFilterBar extends StatelessWidget {
     return Container(
       color: background,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        decoration: InputDecoration(
-          labelText: labelText,
-          hintText: hintText,
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: isFiltering
-              ? IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    if (controller.text.isEmpty) {
-                      return;
-                    }
-                    controller.clear();
-                    onChanged('');
-                  },
-                )
-              : null,
-          border: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(8)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: controller,
+            onChanged: onChanged,
+            decoration: InputDecoration(
+              labelText: labelText,
+              hintText: hintText,
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: isFiltering
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        if (controller.text.isEmpty) {
+                          return;
+                        }
+                        controller.clear();
+                        onChanged('');
+                      },
+                    )
+                  : null,
+              border: const OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(8)),
+              ),
+              isDense: true,
+            ),
           ),
-          isDense: true,
-        ),
+          if (trailing != null) ...[
+            const SizedBox(height: 12),
+            trailing!,
+          ],
+        ],
       ),
     );
   }

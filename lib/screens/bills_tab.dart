@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/bills_service.dart';
+import '../widgets/date_range_filter_button.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/tab_page_header.dart';
 import '../widgets/table_filter_bar.dart';
@@ -25,6 +26,8 @@ class _BillsTabState extends State<BillsTab> {
   final _allBills = <Bill>[];
   final _vendorNames = <String, String?>{};
   final _filterController = TextEditingController();
+  DateTime? _filterStartDate;
+  DateTime? _filterEndDate;
 
   BillsSortColumn _sortColumn = BillsSortColumn.billDate;
   bool _sortAscending = false;
@@ -242,6 +245,13 @@ class _BillsTabState extends State<BillsTab> {
                         onChanged: _handleFilterChanged,
                         hintText: 'Search by vendor, status, or amount',
                         isFiltering: _filterController.text.isNotEmpty,
+                        trailing: DateRangeFilterButton(
+                          label: 'Bill or due date',
+                          startDate: _filterStartDate,
+                          endDate: _filterEndDate,
+                          onRangeSelected: _handleDateRangeSelected,
+                          onClear: _clearDateRange,
+                        ),
                       ),
                     ),
                     SliverPersistentHeader(
@@ -300,6 +310,22 @@ class _BillsTabState extends State<BillsTab> {
     });
   }
 
+  void _handleDateRangeSelected(DateTimeRange range) {
+    setState(() {
+      _filterStartDate = DateUtils.dateOnly(range.start);
+      _filterEndDate = DateUtils.dateOnly(range.end);
+      _applyFilters();
+    });
+  }
+
+  void _clearDateRange() {
+    setState(() {
+      _filterStartDate = null;
+      _filterEndDate = null;
+      _applyFilters();
+    });
+  }
+
   void _mergeBills(List<Bill> newBills, {required bool reset}) {
     if (reset) {
       _allBills.clear();
@@ -340,22 +366,35 @@ class _BillsTabState extends State<BillsTab> {
   }
 
   void _applyFilters() {
-    if (_filterQuery.isEmpty) {
+    if (_filterQuery.isEmpty && !_hasDateRangeFilter) {
       _bills
         ..clear()
         ..addAll(_allBills);
       return;
     }
 
-    final query = _filterQuery;
     _bills
       ..clear()
       ..addAll(
-        _allBills.where((bill) => _matchesFilter(bill, query)),
+        _allBills.where(_matchesAllFilters),
       );
   }
 
-  bool _matchesFilter(Bill bill, String query) {
+  bool get _hasDateRangeFilter =>
+      _filterStartDate != null && _filterEndDate != null;
+
+  bool _matchesAllFilters(Bill bill) {
+    final query = _filterQuery;
+    if (query.isNotEmpty && !_matchesQuery(bill, query)) {
+      return false;
+    }
+    if (!_matchesDateRange(bill)) {
+      return false;
+    }
+    return true;
+  }
+
+  bool _matchesQuery(Bill bill, String query) {
     if (_vendorLabel(bill).toLowerCase().contains(query)) {
       return true;
     }
@@ -374,6 +413,32 @@ class _BillsTabState extends State<BillsTab> {
     }
     final dueDate = bill.dueDate?.toIso8601String().toLowerCase() ?? '';
     return dueDate.contains(query);
+  }
+
+  bool _matchesDateRange(Bill bill) {
+    if (!_hasDateRangeFilter) {
+      return true;
+    }
+    return _isWithinDateRange(bill.billDate) || _isWithinDateRange(bill.dueDate);
+  }
+
+  bool _isWithinDateRange(DateTime? value) {
+    if (!_hasDateRangeFilter) {
+      return true;
+    }
+    if (value == null) {
+      return false;
+    }
+    final start = DateUtils.dateOnly(_filterStartDate!);
+    final end = DateUtils.dateOnly(_filterEndDate!);
+    final date = DateUtils.dateOnly(value);
+    if (date.isBefore(start)) {
+      return false;
+    }
+    if (date.isAfter(end)) {
+      return false;
+    }
+    return true;
   }
 
   int _compareBills(Bill a, Bill b) {
