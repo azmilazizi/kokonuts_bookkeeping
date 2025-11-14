@@ -120,7 +120,7 @@ class PurchaseOrderDetail {
     required this.id,
     required this.number,
     required this.name,
-    required this.status,
+    required this.deliveryStatusLabel,
     required this.vendorName,
     required this.currencySymbol,
     required this.subtotalLabel,
@@ -136,7 +136,7 @@ class PurchaseOrderDetail {
     this.reference,
     this.notes,
     this.terms,
-    this.statusId,
+    this.deliveryStatusId,
     this.approvalStatusId,
   });
 
@@ -184,11 +184,20 @@ class PurchaseOrderDetail {
         _parseVendorName(json['supplier']) ??
         '—';
 
-    final statusId = _parseInt(json['status_id']) ?? _parseInt(json['status']);
-    final statusLabel = _string(json['status_label']) ??
+    final deliveryStatusId = _resolveDeliveryStatusId(json);
+    final statusFallbackId = _parseInt(json['status_id']) ??
+        _parseNestedId(json['status']) ??
+        _parseInt(json['status']);
+    final resolvedDeliveryStatusId = deliveryStatusId ?? statusFallbackId;
+    final deliveryStatusLabel = _string(json['delivery_status_label']) ??
+        _string(json['delivery_status_text']) ??
+        _parseNestedName(json['delivery_status']) ??
+        (resolvedDeliveryStatusId != null
+            ? _deliveryStatusLabelFromId(resolvedDeliveryStatusId)
+            : null) ??
+        _string(json['status_label']) ??
         _string(json['status_text']) ??
         _parseNestedName(json['status']) ??
-        (statusId != null ? _statusLabelFromId(statusId) : null) ??
         '—';
 
     final approvalStatusId = _parseInt(json['approve_status']) ??
@@ -265,7 +274,7 @@ class PurchaseOrderDetail {
       name: _string(json['pur_order_name']) ??
           _string(json['name']) ??
           '—',
-      status: statusLabel,
+      deliveryStatusLabel: deliveryStatusLabel,
       vendorName: vendorName,
       currencySymbol: currencySymbol,
       subtotalLabel: subtotalLabel,
@@ -285,7 +294,7 @@ class PurchaseOrderDetail {
           _string(json['ref_number']),
       notes: _string(json['notes']) ?? _string(json['note']),
       terms: _string(json['terms']) ?? _string(json['term']),
-      statusId: statusId,
+      deliveryStatusId: resolvedDeliveryStatusId,
       approvalStatusId: approvalStatusId,
     );
   }
@@ -293,7 +302,7 @@ class PurchaseOrderDetail {
   final String id;
   final String number;
   final String name;
-  final String status;
+  final String deliveryStatusLabel;
   final String vendorName;
   final DateTime? orderDate;
   final DateTime? deliveryDate;
@@ -306,7 +315,7 @@ class PurchaseOrderDetail {
   final String? notes;
   final String? terms;
   final String approvalStatus;
-  final int? statusId;
+  final int? deliveryStatusId;
   final int? approvalStatusId;
   final List<PurchaseOrderItem> items;
   final List<PurchaseOrderPayment> payments;
@@ -334,11 +343,9 @@ class PurchaseOrderDetail {
   bool get hasAttachments => attachments.isNotEmpty;
 }
 
-const Map<int, String> purchaseOrderStatusLabels = {
-  1: 'Not start',
-  2: 'In process',
-  3: 'Complete',
-  4: 'Cancelled',
+const Map<int, String> purchaseOrderDeliveryStatusLabels = {
+  0: 'Undelivered',
+  1: 'Delivered',
 };
 
 const Map<int, String> purchaseOrderApprovalStatusLabels = {
@@ -646,6 +653,29 @@ List<dynamic> _extractItems(dynamic source) {
   return const [];
 }
 
+int? _resolveDeliveryStatusId(Map<String, dynamic> json) {
+  final directCandidates = [
+    json['delivery_status'],
+    json['delivery_status_id'],
+    json['delivery_status_code'],
+    json['delivery_status_value'],
+  ];
+
+  for (final candidate in directCandidates) {
+    final parsed = _parseInt(candidate);
+    if (parsed != null) {
+      return parsed;
+    }
+  }
+
+  final nested = _parseNestedId(json['delivery_status']);
+  if (nested != null) {
+    return nested;
+  }
+
+  return null;
+}
+
 String? _string(dynamic value) {
   if (value == null) {
     return null;
@@ -753,6 +783,16 @@ String? _parseNestedName(dynamic value) {
         _string(value['title']);
   }
   return _string(value);
+}
+
+int? _parseNestedId(dynamic value) {
+  if (value is Map<String, dynamic>) {
+    return _parseInt(value['id']) ??
+        _parseInt(value['code']) ??
+        _parseInt(value['value']) ??
+        _parseInt(value['status']);
+  }
+  return _parseInt(value);
 }
 
 String? _parseVendorName(dynamic value) {
@@ -919,7 +959,7 @@ int? _parseInt(dynamic value) {
   return null;
 }
 
-String? _statusLabelFromId(int id) => purchaseOrderStatusLabels[id];
+String? _deliveryStatusLabelFromId(int id) => purchaseOrderDeliveryStatusLabels[id];
 
 String? _approvalStatusLabelFromId(int id) =>
     purchaseOrderApprovalStatusLabels[id];

@@ -39,6 +39,7 @@ class SortableHeaderCell extends StatelessWidget {
               label,
               textAlign: textAlign ?? TextAlign.start,
               overflow: TextOverflow.ellipsis,
+              maxLines: 1,
               style:
                   theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
             ),

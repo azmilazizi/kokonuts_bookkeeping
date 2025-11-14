@@ -178,7 +178,8 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
         builder: (context, constraints) {
           final maxWidth =
               constraints.maxWidth.isFinite ? constraints.maxWidth : _minTableWidth;
-          final tableWidth = maxWidth < _minTableWidth ? _minTableWidth : maxWidth;
+          final isCompactLayout = maxWidth < _minTableWidth;
+          final tableWidth = isCompactLayout ? _minTableWidth : maxWidth;
 
           return Scrollbar(
             controller: _horizontalController,
@@ -220,6 +221,7 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                       pinned: true,
                       delegate: _PurchaseOrdersHeaderDelegate(
                         theme: theme,
+                        isCompactLayout: isCompactLayout,
                         sortColumn: _sortColumn,
                         sortAscending: _sortAscending,
                         onSort: _handleSort,
@@ -233,6 +235,7 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                             order: order,
                             theme: theme,
                             showTopBorder: index == 0,
+                            isCompactLayout: isCompactLayout,
                           );
                         },
                         childCount: _orders.length,
@@ -502,22 +505,29 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
 class _PurchaseOrdersHeader extends StatelessWidget {
   const _PurchaseOrdersHeader({
     required this.theme,
+    required this.isCompactLayout,
     required this.sortColumn,
     required this.sortAscending,
     required this.onSort,
   });
 
   final ThemeData theme;
+  final bool isCompactLayout;
   final PurchaseOrderSortColumn sortColumn;
   final bool sortAscending;
   final ValueChanged<PurchaseOrderSortColumn> onSort;
 
-  static const _columnFlex = [3, 4, 3, 3, 3, 2, 3];
+  static const _columnFlex = [3, 4, 3, 3, 3, 2, 2, 4];
 
   @override
   Widget build(BuildContext context) {
+    final gap = isCompactLayout ? 8.0 : 12.0;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompactLayout ? 16 : 24,
+        vertical: 8,
+      ),
       child: Row(
         children: [
           SortableHeaderCell(
@@ -528,7 +538,7 @@ class _PurchaseOrdersHeader extends StatelessWidget {
             ascending: sortAscending,
             onTap: () => onSort(PurchaseOrderSortColumn.number),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: gap),
           SortableHeaderCell(
             label: 'Order Name',
             flex: _columnFlex[1],
@@ -564,18 +574,24 @@ class _PurchaseOrdersHeader extends StatelessWidget {
             onTap: () => onSort(PurchaseOrderSortColumn.paymentProgress),
           ),
           SortableHeaderCell(
-            label: 'Total',
+            label: 'Delivery Status',
             flex: _columnFlex[5],
+            theme: theme,
+            textAlign: TextAlign.center,
+          ),
+          SortableHeaderCell(
+            label: 'Total',
+            flex: _columnFlex[6],
             theme: theme,
             textAlign: TextAlign.end,
             isActive: sortColumn == PurchaseOrderSortColumn.total,
             ascending: sortAscending,
             onTap: () => onSort(PurchaseOrderSortColumn.total),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: gap),
           SortableHeaderCell(
             label: 'Actions',
-            flex: _columnFlex[6],
+            flex: _columnFlex[7],
             theme: theme,
             textAlign: TextAlign.center,
             ascending: sortAscending,
@@ -589,12 +605,14 @@ class _PurchaseOrdersHeader extends StatelessWidget {
 class _PurchaseOrdersHeaderDelegate extends SliverPersistentHeaderDelegate {
   _PurchaseOrdersHeaderDelegate({
     required this.theme,
+    required this.isCompactLayout,
     required this.sortColumn,
     required this.sortAscending,
     required this.onSort,
   });
 
   final ThemeData theme;
+  final bool isCompactLayout;
   final PurchaseOrderSortColumn sortColumn;
   final bool sortAscending;
   final ValueChanged<PurchaseOrderSortColumn> onSort;
@@ -621,6 +639,7 @@ class _PurchaseOrdersHeaderDelegate extends SliverPersistentHeaderDelegate {
         shadowColor: theme.shadowColor.withOpacity(0.2),
         child: _PurchaseOrdersHeader(
           theme: theme,
+          isCompactLayout: isCompactLayout,
           sortColumn: sortColumn,
           sortAscending: sortAscending,
           onSort: onSort,
@@ -633,7 +652,8 @@ class _PurchaseOrdersHeaderDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant _PurchaseOrdersHeaderDelegate oldDelegate) {
     return sortColumn != oldDelegate.sortColumn ||
         sortAscending != oldDelegate.sortAscending ||
-        theme != oldDelegate.theme;
+        theme != oldDelegate.theme ||
+        isCompactLayout != oldDelegate.isCompactLayout;
   }
 }
 
@@ -642,11 +662,13 @@ class _PurchaseOrderRow extends StatefulWidget {
     required this.order,
     required this.theme,
     required this.showTopBorder,
+    required this.isCompactLayout,
   });
 
   final PurchaseOrder order;
   final ThemeData theme;
   final bool showTopBorder;
+  final bool isCompactLayout;
 
   @override
   State<_PurchaseOrderRow> createState() => _PurchaseOrderRowState();
@@ -655,7 +677,7 @@ class _PurchaseOrderRow extends StatefulWidget {
 class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
   bool _hovering = false;
 
-  static const _columnFlex = [3, 4, 3, 3, 3, 2, 3];
+  static const _columnFlex = [3, 4, 3, 3, 3, 2, 2, 4];
 
   void _showDetails(BuildContext context) {
     showDialog(
@@ -680,72 +702,132 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
     final isComplete =
         totalAmount != null && totalAmount > 0 && paidAmount >= totalAmount;
 
+    final double horizontalPadding = widget.isCompactLayout ? 16.0 : 24.0;
+    final double columnGap = widget.isCompactLayout ? 8.0 : 12.0;
+    final double actionSpacing = widget.isCompactLayout ? 4.0 : 8.0;
+    final BoxConstraints? iconConstraints = widget.isCompactLayout
+        ? const BoxConstraints.tightFor(width: 36, height: 36)
+        : null;
+    final EdgeInsetsGeometry? iconPadding =
+        widget.isCompactLayout ? EdgeInsets.zero : null;
+    final double iconSize = widget.isCompactLayout ? 20.0 : 24.0;
+    final VisualDensity? iconDensity =
+        widget.isCompactLayout ? VisualDensity.compact : null;
+
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        decoration: BoxDecoration(
-          color: _hovering ? hoverBackground : baseBackground,
-          border: Border(
-            top: widget.showTopBorder ? BorderSide(color: borderColor) : BorderSide.none,
-            bottom: BorderSide(color: borderColor),
+      child: GestureDetector(
+        onTap: () => _showDetails(context),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: _hovering ? hoverBackground : baseBackground,
+            border: Border(
+              top:
+                  widget.showTopBorder ? BorderSide(color: borderColor) : BorderSide.none,
+              bottom: BorderSide(color: borderColor),
+            ),
           ),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-        child: Row(
-          children: [
-            _DataCell(widget.order.number, flex: _columnFlex[0]),
-            const SizedBox(width: 12),
-            _DataCell(widget.order.name, flex: _columnFlex[1]),
-            _DataCell(widget.order.vendorName, flex: _columnFlex[2]),
-            _DataCell(
-              widget.order.formattedDate,
-              flex: _columnFlex[3],
-              textAlign: TextAlign.center,
-            ),
-            _DataCell(
-              paymentProgress,
-              flex: _columnFlex[4],
-              textAlign: TextAlign.center,
-              style: isComplete
-                  ? widget.theme.textTheme.bodyMedium
-                      ?.copyWith(color: widget.theme.colorScheme.error)
-                  : null,
-            ),
-            _DataCell(
-              totalLabel,
-              flex: _columnFlex[5],
-              textAlign: TextAlign.end,
-              style: widget.theme.textTheme.bodyMedium?.copyWith(
-                color: widget.theme.colorScheme.error,
-                fontWeight: FontWeight.w600,
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8),
+          child: Row(
+            children: [
+              _DataCell(widget.order.number, flex: _columnFlex[0]),
+              SizedBox(width: columnGap),
+              _DataCell(widget.order.name, flex: _columnFlex[1]),
+              _DataCell(widget.order.vendorName, flex: _columnFlex[2]),
+              _DataCell(
+                widget.order.formattedDate,
+                flex: _columnFlex[3],
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: _columnFlex[6],
-              child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.visibility_outlined),
-                      tooltip: 'View details',
-                      onPressed: () => _showDetails(context),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.payments_outlined),
-                      tooltip: 'View payments',
-                      onPressed: () {},
-                    ),
-                  ],
+              _DataCell(
+                paymentProgress,
+                flex: _columnFlex[4],
+                textAlign: TextAlign.center,
+                style: isComplete
+                    ? widget.theme.textTheme.bodyMedium
+                        ?.copyWith(color: widget.theme.colorScheme.error)
+                    : null,
+              ),
+              _DeliveryStatusCell(
+                status: widget.order.deliveryStatus,
+                flex: _columnFlex[5],
+              ),
+              _DataCell(
+                totalLabel,
+                flex: _columnFlex[6],
+                textAlign: TextAlign.end,
+                style: widget.theme.textTheme.bodyMedium?.copyWith(
+                  color: widget.theme.colorScheme.error,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
-          ],
+              SizedBox(width: columnGap),
+              Expanded(
+                flex: _columnFlex[7],
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined),
+                        tooltip: 'Edit',
+                        iconSize: iconSize,
+                        padding: iconPadding,
+                        constraints: iconConstraints,
+                        visualDensity: iconDensity,
+                        onPressed: () => _showDetails(context),
+                      ),
+                      SizedBox(width: actionSpacing),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: 'Delete',
+                        iconSize: iconSize,
+                        padding: iconPadding,
+                        constraints: iconConstraints,
+                        visualDensity: iconDensity,
+                        onPressed: () {},
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DeliveryStatusCell extends StatelessWidget {
+  const _DeliveryStatusCell({
+    required this.status,
+    required this.flex,
+  });
+
+  final int status;
+  final int flex;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDelivered = status == 1;
+    final color = isDelivered ? Colors.green : Colors.red;
+    final label = isDelivered ? 'Delivered' : 'Undelivered';
+
+    return Expanded(
+      flex: flex,
+      child: Center(
+        child: Semantics(
+          label: label,
+          child: Icon(
+            Icons.circle,
+            size: 12,
+            color: color,
+          ),
         ),
       ),
     );
@@ -773,6 +855,7 @@ class _DataCell extends StatelessWidget {
         value,
         textAlign: textAlign ?? TextAlign.start,
         overflow: TextOverflow.ellipsis,
+        maxLines: 1,
         style: style,
       ),
     );
