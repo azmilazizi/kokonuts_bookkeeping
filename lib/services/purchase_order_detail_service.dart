@@ -126,11 +126,14 @@ class PurchaseOrderDetail {
     required this.subtotalLabel,
     required this.totalLabel,
     required this.items,
+    required this.approvalStatus,
     this.orderDate,
     this.deliveryDate,
     this.reference,
     this.notes,
     this.terms,
+    this.statusId,
+    this.approvalStatusId,
   });
 
   factory PurchaseOrderDetail.fromJson(Map<String, dynamic> json) {
@@ -155,10 +158,23 @@ class PurchaseOrderDetail {
         _parseNestedName(json['supplier']) ??
         '—';
 
+    final statusId = _parseInt(json['status_id']) ?? _parseInt(json['status']);
     final statusLabel = _string(json['status_label']) ??
         _string(json['status_text']) ??
         _parseNestedName(json['status']) ??
-        _string(json['status']) ??
+        (statusId != null ? _statusLabelFromId(statusId) : null) ??
+        '—';
+
+    final approvalStatusId = _parseInt(json['approval_status']) ??
+        _parseInt(json['status_approval']) ??
+        _parseInt(json['approval_status_id']);
+    final approvalStatusLabel = _string(json['approval_status_label']) ??
+        _string(json['approval_status_text']) ??
+        _parseNestedName(json['approval_status']) ??
+        _parseNestedName(json['status_approval']) ??
+        (approvalStatusId != null
+            ? _approvalStatusLabelFromId(approvalStatusId)
+            : null) ??
         '—';
 
     final items = _extractItems(json['items'])
@@ -184,6 +200,7 @@ class PurchaseOrderDetail {
       subtotalLabel: subtotalLabel,
       totalLabel: totalLabel,
       items: items,
+      approvalStatus: approvalStatusLabel,
       orderDate: _parseDate(json['order_date']) ??
           _parseDate(json['created_at']),
       deliveryDate: _parseDate(json['delivery_date']) ??
@@ -193,6 +210,8 @@ class PurchaseOrderDetail {
           _string(json['ref_number']),
       notes: _string(json['notes']) ?? _string(json['note']),
       terms: _string(json['terms']) ?? _string(json['term']),
+      statusId: statusId,
+      approvalStatusId: approvalStatusId,
     );
   }
 
@@ -209,6 +228,9 @@ class PurchaseOrderDetail {
   final String totalLabel;
   final String? notes;
   final String? terms;
+  final String approvalStatus;
+  final int? statusId;
+  final int? approvalStatusId;
   final List<PurchaseOrderItem> items;
 
   String get orderDateLabel => _formatDate(orderDate) ?? '—';
@@ -222,6 +244,20 @@ class PurchaseOrderDetail {
 
   bool get hasTerms => terms != null && terms!.trim().isNotEmpty;
 }
+
+const Map<int, String> purchaseOrderStatusLabels = {
+  1: 'Not start',
+  2: 'In process',
+  3: 'Complete',
+  4: 'Cancelled',
+};
+
+const Map<int, String> purchaseOrderApprovalStatusLabels = {
+  1: 'Draft',
+  2: 'Approved',
+  3: 'Rejected',
+  4: 'Cancelled',
+};
 
 /// Represents a single line item within a purchase order.
 class PurchaseOrderItem {
@@ -428,6 +464,28 @@ DateTime? _parseDate(dynamic value) {
 
   return null;
 }
+
+int? _parseInt(dynamic value) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  if (value is String) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    return int.tryParse(trimmed);
+  }
+  return null;
+}
+
+String? _statusLabelFromId(int id) => purchaseOrderStatusLabels[id];
+
+String? _approvalStatusLabelFromId(int id) =>
+    purchaseOrderApprovalStatusLabels[id];
 
 String? _formatDate(DateTime? value) {
   if (value == null) {
