@@ -348,7 +348,7 @@ class _SummaryField {
   const _SummaryField.text(String label, String value)
       : this._(label, value, null);
 
-  const _SummaryField.pill({required String label, required _PillStyle pillStyle})
+  _SummaryField.pill({required String label, required _PillStyle pillStyle})
       : this._(label, pillStyle.label, pillStyle);
 
   final String label;
