@@ -105,54 +105,57 @@ class _PurchaseOrderDetailsDialogState
             final detail = snapshot.data!;
             final theme = Theme.of(context);
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _DialogHeader(
-                  orderNumber: detail.number,
-                  onClose: () => Navigator.of(context).pop(),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _SummarySection(detail: detail),
-                        const SizedBox(height: 24),
-                        _ItemsSection(
-                          detail: detail,
-                          controller: _itemsScrollController,
-                        ),
-                        const SizedBox(height: 24),
-                        _TotalsSection(detail: detail, theme: theme),
-                        if (detail.hasNotes) ...[
+            return Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _DialogHeader(
+                    orderNumber: detail.number,
+                    onClose: () => Navigator.of(context).pop(),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _SummarySection(detail: detail),
                           const SizedBox(height: 24),
-                          _RichTextSection(
-                            title: 'Notes',
-                            value: detail.notes!,
+                          _ItemsSection(
+                            detail: detail,
+                            controller: _itemsScrollController,
                           ),
-                        ],
-                        if (detail.hasTerms) ...[
                           const SizedBox(height: 24),
-                          _RichTextSection(
-                            title: 'Terms & Conditions',
-                            value: detail.terms!,
-                          ),
+                          _TotalsSection(detail: detail, theme: theme),
+                          if (detail.hasNotes) ...[
+                            const SizedBox(height: 24),
+                            _RichTextSection(
+                              title: 'Notes',
+                              value: detail.notes!,
+                            ),
+                          ],
+                          if (detail.hasTerms) ...[
+                            const SizedBox(height: 24),
+                            _RichTextSection(
+                              title: 'Terms & Conditions',
+                              value: detail.terms!,
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Close'),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Close'),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             );
           },
         ),
@@ -506,30 +509,34 @@ class _ItemsSection extends StatelessWidget {
           item.quantityLabel,
           item.rateLabel,
           item.amountLabel,
-        ].asMap().entries.map((entry) {
-          final index = entry.key;
-          final value = entry.value;
-          Widget child = Text(
-            value,
-            style: cellStyle,
-          );
-
-          if (index == 1) {
-            child = ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 320),
-              child: Text(
-                value,
-                style: cellStyle,
-                softWrap: true,
-              ),
-            );
-          }
-
+        ].map((value) {
           return Padding(
             padding: tablePadding,
-            child: child,
+            child: Text(
+              value,
+              style: cellStyle,
+              softWrap: true,
+            ),
           );
         }).toList(),
+      );
+    }
+
+    Table buildTable() {
+      return Table(
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        columnWidths: const {
+          0: FlexColumnWidth(2),
+          1: FlexColumnWidth(3),
+          2: FlexColumnWidth(1.4),
+          3: FlexColumnWidth(1.4),
+          4: FlexColumnWidth(1.4),
+        },
+        border: TableBorder.all(color: dividerColor),
+        children: [
+          buildHeaderRow(),
+          ...detail.items.map(buildDataRow),
+        ],
       );
     }
 
@@ -541,30 +548,23 @@ class _ItemsSection extends StatelessWidget {
           style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 12),
-        Scrollbar(
-          controller: controller,
-          thumbVisibility: true,
-          notificationPredicate: (notification) =>
-              notification.metrics.axis == Axis.horizontal,
-          child: SingleChildScrollView(
-            controller: controller,
-            scrollDirection: Axis.horizontal,
-            child: Table(
-              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-              columnWidths: const {
-                0: IntrinsicColumnWidth(),
-                1: FlexColumnWidth(),
-                2: IntrinsicColumnWidth(),
-                3: IntrinsicColumnWidth(),
-                4: IntrinsicColumnWidth(),
-              },
-              border: TableBorder.all(color: dividerColor),
-              children: [
-                buildHeaderRow(),
-                ...detail.items.map(buildDataRow),
-              ],
-            ),
-          ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return Scrollbar(
+              controller: controller,
+              thumbVisibility: true,
+              notificationPredicate: (notification) =>
+                  notification.metrics.axis == Axis.horizontal,
+              child: SingleChildScrollView(
+                controller: controller,
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  child: buildTable(),
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
@@ -643,18 +643,21 @@ class _TotalRow extends StatelessWidget {
         ? theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)
         : theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600);
 
-    return Text.rich(
-      TextSpan(
-        text: '$label: ',
-        style: labelStyle,
-        children: [
-          TextSpan(
-            text: value,
-            style: valueStyle,
-          ),
-        ],
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Text.rich(
+        TextSpan(
+          text: '$label: ',
+          style: labelStyle,
+          children: [
+            TextSpan(
+              text: value,
+              style: valueStyle,
+            ),
+          ],
+        ),
+        textAlign: TextAlign.right,
       ),
-      textAlign: TextAlign.left,
     );
   }
 }
