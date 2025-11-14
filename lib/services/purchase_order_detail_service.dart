@@ -128,6 +128,8 @@ class PurchaseOrderDetail {
     this.discountLabel,
     this.shippingFeeLabel,
     required this.items,
+    required this.payments,
+    required this.attachments,
     required this.approvalStatus,
     this.orderDate,
     this.deliveryDate,
@@ -178,8 +180,8 @@ class PurchaseOrderDetail {
 
     final vendorName = _string(json['vendor_name']) ??
         _string(json['supplier_name']) ??
-        _parseNestedName(json['vendor']) ??
-        _parseNestedName(json['supplier']) ??
+        _parseVendorName(json['vendor']) ??
+        _parseVendorName(json['supplier']) ??
         '—';
 
     final statusId = _parseInt(json['status_id']) ?? _parseInt(json['status']);
@@ -189,16 +191,19 @@ class PurchaseOrderDetail {
         (statusId != null ? _statusLabelFromId(statusId) : null) ??
         '—';
 
-    final approvalStatusId = _parseInt(json['approval_status']) ??
+    final approvalStatusId = _parseInt(json['approve_status']) ??
+        _parseInt(json['approval_status']) ??
         _parseInt(json['status_approval']) ??
         _parseInt(json['approval_status_id']);
-    final approvalStatusLabel = _string(json['approval_status_label']) ??
+    final approvalStatusLabelFromId = approvalStatusId != null
+        ? _approvalStatusLabelFromId(approvalStatusId)
+        : null;
+    final approvalStatusLabel =
+        approvalStatusLabelFromId ??
+            _string(json['approval_status_label']) ??
         _string(json['approval_status_text']) ??
         _parseNestedName(json['approval_status']) ??
         _parseNestedName(json['status_approval']) ??
-        (approvalStatusId != null
-            ? _approvalStatusLabelFromId(approvalStatusId)
-            : null) ??
         '—';
 
     final items = _extractItems(json['items'])
@@ -207,7 +212,49 @@ class PurchaseOrderDetail {
               item,
               currencySymbol: currencySymbol,
             ))
-        .toList();
+        .toList(growable: false);
+
+    final payments = _extractRelatedCollection(json, const [
+      'payments',
+      'payment_history',
+      'paymentHistory',
+      'payment_list',
+      'paymentList',
+      'payment_details',
+      'paymentDetails',
+      'payment_logs',
+      'paymentLogs',
+      'payment_records',
+      'paymentRecords',
+      'payment_history_list',
+      'paymentHistoryList',
+      'payment_history_data',
+      'paymentHistoryData',
+      'payment',
+    ])
+        .whereType<Map<String, dynamic>>()
+        .map((payment) => PurchaseOrderPayment.fromJson(
+              payment,
+              currencySymbol: currencySymbol,
+            ))
+        .toList(growable: false);
+
+    final attachments = _extractRelatedCollection(json, const [
+      'attachments',
+      'files',
+      'documents',
+      'attachment',
+      'document',
+      'order_attachments',
+      'purchase_order_attachments',
+      'attachment_files',
+      'attachmentFiles',
+      'attachment_list',
+      'attachmentList',
+    ])
+        .whereType<Map<String, dynamic>>()
+        .map(PurchaseOrderAttachment.fromJson)
+        .toList(growable: false);
 
     return PurchaseOrderDetail(
       id: _string(json['id']) ?? '',
@@ -225,7 +272,9 @@ class PurchaseOrderDetail {
       totalLabel: totalLabel,
       discountLabel: resolvedDiscountLabel,
       shippingFeeLabel: resolvedShippingFeeLabel,
-      items: items,
+      items: List.unmodifiable(items),
+      payments: List.unmodifiable(payments),
+      attachments: List.unmodifiable(attachments),
       approvalStatus: approvalStatusLabel,
       orderDate: _parseDate(json['order_date']) ??
           _parseDate(json['created_at']),
@@ -260,6 +309,8 @@ class PurchaseOrderDetail {
   final int? statusId;
   final int? approvalStatusId;
   final List<PurchaseOrderItem> items;
+  final List<PurchaseOrderPayment> payments;
+  final List<PurchaseOrderAttachment> attachments;
 
   String get orderDateLabel => _formatDate(orderDate) ?? '—';
 
@@ -277,6 +328,10 @@ class PurchaseOrderDetail {
 
   bool get hasShippingFee =>
       shippingFeeLabel != null && shippingFeeLabel!.trim().isNotEmpty;
+
+  bool get hasPayments => payments.isNotEmpty;
+
+  bool get hasAttachments => attachments.isNotEmpty;
 }
 
 const Map<int, String> purchaseOrderStatusLabels = {
@@ -363,6 +418,166 @@ class PurchaseOrderItem {
   final String amountLabel;
 }
 
+/// Represents a payment recorded against a purchase order.
+class PurchaseOrderPayment {
+  const PurchaseOrderPayment({
+    required this.reference,
+    required this.amountLabel,
+    this.date,
+    this.method,
+    this.status,
+    this.note,
+    this.recordedBy,
+  });
+
+  factory PurchaseOrderPayment.fromJson(
+    Map<String, dynamic> json, {
+    required String currencySymbol,
+  }) {
+    final reference = _string(json['reference_no']) ??
+        _string(json['reference']) ??
+        _string(json['payment_number']) ??
+        _string(json['payment_no']) ??
+        _string(json['number']) ??
+        _string(json['code']) ??
+        _string(json['payment_reference']) ??
+        _string(json['transaction_reference']) ??
+        '—';
+
+    final amountValue = json['amount'] ??
+        json['payment_amount'] ??
+        json['paid_amount'] ??
+        json['total'];
+
+    final amountLabel = _string(json['amount_formatted']) ??
+        _string(json['payment_amount_formatted']) ??
+        _string(json['paid_amount_formatted']) ??
+        _string(json['total_formatted']) ??
+        _formatCurrency(currencySymbol, amountValue);
+
+    final date = _parseDate(json['payment_date']) ??
+        _parseDate(json['date']) ??
+        _parseDate(json['paid_at']) ??
+        _parseDate(json['created_at']);
+
+    final method = _string(json['payment_method']) ??
+        _string(json['method']) ??
+        _string(json['payment_mode']) ??
+        _string(json['mode']) ??
+        _string(json['payment_type']);
+
+    final status = _parseNestedName(json['status']) ??
+        _string(json['status_label']) ??
+        _string(json['status_text']);
+
+    final note = _string(json['note']) ??
+        _string(json['description']) ??
+        _string(json['remarks']) ??
+        _string(json['memo']);
+
+    final recordedBy = _string(json['received_by']) ??
+        _string(json['paid_by']) ??
+        _string(json['created_by']) ??
+        _string(json['owner']);
+
+    return PurchaseOrderPayment(
+      reference: reference,
+      amountLabel: amountLabel,
+      date: date,
+      method: method,
+      status: status,
+      note: note,
+      recordedBy: recordedBy,
+    );
+  }
+
+  final String reference;
+  final String amountLabel;
+  final DateTime? date;
+  final String? method;
+  final String? status;
+  final String? note;
+  final String? recordedBy;
+
+  String get dateLabel => _formatDate(date) ?? '—';
+
+  String get methodLabel =>
+      method?.trim().isNotEmpty == true ? method!.trim() : '—';
+
+  String get statusLabel =>
+      status?.trim().isNotEmpty == true ? status!.trim() : '—';
+
+  bool get hasNote => note != null && note!.trim().isNotEmpty;
+}
+
+/// Represents a file attachment associated with the purchase order.
+class PurchaseOrderAttachment {
+  const PurchaseOrderAttachment({
+    required this.fileName,
+    this.description,
+    this.downloadUrl,
+    this.uploadedBy,
+    this.uploadedAt,
+    this.sizeLabel,
+  });
+
+  factory PurchaseOrderAttachment.fromJson(Map<String, dynamic> json) {
+    final fileName = _string(json['file_name']) ??
+        _string(json['filename']) ??
+        _string(json['name']) ??
+        _string(json['title']) ??
+        'Attachment';
+
+    final description = _string(json['description']) ??
+        _string(json['note']) ??
+        _string(json['remarks']);
+
+    final downloadUrl = _string(json['download_url']) ??
+        _string(json['url']) ??
+        _string(json['file_url']) ??
+        _string(json['link']) ??
+        _string(json['file_path']) ??
+        _string(json['path']);
+
+    final uploadedBy = _string(json['uploaded_by']) ??
+        _string(json['created_by']) ??
+        _string(json['owner']) ??
+        _string(json['added_by']) ??
+        _string(json['uploadedBy']);
+
+    final uploadedAt = _parseDate(json['uploaded_at']) ??
+        _parseDate(json['created_at']) ??
+        _parseDate(json['date']);
+
+    final sizeLabel = _string(json['file_size_formatted']) ??
+        _string(json['size_formatted']) ??
+        _string(json['file_size']) ??
+        _string(json['size']);
+
+    return PurchaseOrderAttachment(
+      fileName: fileName,
+      description: description,
+      downloadUrl: downloadUrl,
+      uploadedBy: uploadedBy,
+      uploadedAt: uploadedAt,
+      sizeLabel: sizeLabel,
+    );
+  }
+
+  final String fileName;
+  final String? description;
+  final String? downloadUrl;
+  final String? uploadedBy;
+  final DateTime? uploadedAt;
+  final String? sizeLabel;
+
+  String get uploadedAtLabel => _formatDate(uploadedAt) ?? '—';
+
+  bool get hasDescription => description != null && description!.trim().isNotEmpty;
+
+  bool get hasDownloadUrl => downloadUrl != null && downloadUrl!.trim().isNotEmpty;
+}
+
 class _CurrencyResolution {
   const _CurrencyResolution({required this.symbol, this.removedSymbol});
 
@@ -378,6 +593,38 @@ class PurchaseOrderDetailException implements Exception {
 
   @override
   String toString() => 'PurchaseOrderDetailException: $message';
+}
+
+List<dynamic> _extractRelatedCollection(
+  dynamic source,
+  List<String> candidateKeys,
+) {
+  if (source is Map<String, dynamic>) {
+    for (final key in candidateKeys) {
+      if (source.containsKey(key)) {
+        final extracted = _extractItems(source[key]);
+        if (extracted.isNotEmpty) {
+          return extracted;
+        }
+      }
+    }
+
+    for (final value in source.values) {
+      final extracted = _extractRelatedCollection(value, candidateKeys);
+      if (extracted.isNotEmpty) {
+        return extracted;
+      }
+    }
+  } else if (source is List) {
+    for (final element in source) {
+      final extracted = _extractRelatedCollection(element, candidateKeys);
+      if (extracted.isNotEmpty) {
+        return extracted;
+      }
+    }
+  }
+
+  return const [];
 }
 
 List<dynamic> _extractItems(dynamic source) {
@@ -502,6 +749,17 @@ String _formatQuantity(dynamic value, {String? unit}) {
 String? _parseNestedName(dynamic value) {
   if (value is Map<String, dynamic>) {
     return _string(value['name']) ??
+        _string(value['label']) ??
+        _string(value['title']);
+  }
+  return _string(value);
+}
+
+String? _parseVendorName(dynamic value) {
+  if (value is Map<String, dynamic>) {
+    return _string(value['vendor_name']) ??
+        _string(value['supplier_name']) ??
+        _string(value['name']) ??
         _string(value['label']) ??
         _string(value['title']);
   }
