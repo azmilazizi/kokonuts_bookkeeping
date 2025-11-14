@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../app/app_state_scope.dart';
@@ -550,6 +552,7 @@ class _ItemsSection extends StatelessWidget {
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, constraints) {
+            const minTableWidth = 720.0;
             return Scrollbar(
               controller: controller,
               thumbVisibility: true,
@@ -559,7 +562,9 @@ class _ItemsSection extends StatelessWidget {
                 controller: controller,
                 scrollDirection: Axis.horizontal,
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  constraints: BoxConstraints(
+                    minWidth: math.max(constraints.maxWidth, minTableWidth),
+                  ),
                   child: buildTable(),
                 ),
               ),
