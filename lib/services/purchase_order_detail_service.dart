@@ -139,20 +139,42 @@ class PurchaseOrderDetail {
   });
 
   factory PurchaseOrderDetail.fromJson(Map<String, dynamic> json) {
-    final currencySymbol = _string(json['currency_symbol']) ??
-        _string(json['currency']) ??
-        _string(json['currency_name']) ??
-        '';
+    final currencyResolution = _resolveCurrencySymbol(json);
+    final currencySymbol = currencyResolution.symbol;
 
     final subtotalValue = json['subtotal'] ?? json['sub_total'];
-    final subtotalLabel = _string(json['subtotal_formatted']) ??
-        _string(json['sub_total_formatted']) ??
-        _formatCurrency(currencySymbol, subtotalValue);
+    final subtotalLabel = _resolveAmountLabel(
+      formattedValue: _string(json['subtotal_formatted']) ??
+          _string(json['sub_total_formatted']),
+      rawValue: subtotalValue,
+      currencySymbol: currencySymbol,
+      removedSymbol: currencyResolution.removedSymbol,
+    );
 
     final totalValue = json['total'];
-    final totalLabel = _string(json['total_formatted']) ??
-        _string(json['grand_total_formatted']) ??
-        _formatCurrency(currencySymbol, totalValue);
+    final totalLabel = _resolveAmountLabel(
+      formattedValue: _string(json['total_formatted']) ??
+          _string(json['grand_total_formatted']),
+      rawValue: totalValue,
+      currencySymbol: currencySymbol,
+      removedSymbol: currencyResolution.removedSymbol,
+    );
+
+    final discountLabel = _resolveOptionalAmount(
+      currencySymbol,
+      rawValue: json['discount_total'] ?? json['discount'],
+      formattedValue: _string(json['discount_total_formatted']) ??
+          _string(json['discount_formatted']),
+      removedSymbol: currencyResolution.removedSymbol,
+    );
+
+    final shippingFeeLabel = _resolveOptionalAmount(
+      currencySymbol,
+      rawValue: json['shipping_fee'] ?? json['shipping_total'],
+      formattedValue: _string(json['shipping_fee_formatted']) ??
+          _string(json['shipping_total_formatted']),
+      removedSymbol: currencyResolution.removedSymbol,
+    );
 
     final discountLabel = _resolveOptionalAmount(
       currencySymbol,
@@ -355,6 +377,13 @@ class PurchaseOrderItem {
   final String amountLabel;
 }
 
+class _CurrencyResolution {
+  const _CurrencyResolution({required this.symbol, this.removedSymbol});
+
+  final String symbol;
+  final String? removedSymbol;
+}
+
 /// Thrown when the purchase order details request fails.
 class PurchaseOrderDetailException implements Exception {
   const PurchaseOrderDetailException(this.message);
@@ -396,6 +425,58 @@ String? _string(dynamic value) {
     return value.toString();
   }
   return value.toString();
+}
+
+_CurrencyResolution _resolveCurrencySymbol(Map<String, dynamic> json) {
+  const candidateKeys = [
+    'currency_symbol',
+    'currency',
+    'currency_name',
+  ];
+
+  String symbol = '';
+  String? removedSymbol;
+
+  for (final key in candidateKeys) {
+    final candidate = _string(json[key]);
+    if (candidate == null) {
+      continue;
+    }
+
+    if (_looksLikeNumericSymbol(candidate)) {
+      removedSymbol ??= candidate.trim();
+      continue;
+    }
+
+    symbol = candidate;
+    break;
+  }
+
+  return _CurrencyResolution(symbol: symbol, removedSymbol: removedSymbol);
+}
+
+bool _looksLikeNumericSymbol(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) {
+    return true;
+  }
+
+  final normalized = trimmed.replaceAll(RegExp(r'[\s\u00a0,]'), '');
+  return double.tryParse(normalized) != null;
+}
+
+String _cleanAmountLabel(String value, {String? removedSymbol}) {
+  final trimmed = value.trim();
+  if (removedSymbol != null && removedSymbol.isNotEmpty) {
+    final escaped = RegExp.escape(removedSymbol.trim());
+    final pattern = RegExp('^$escaped[\u00a0\s]+');
+    final sanitized = trimmed.replaceFirst(pattern, '').trimLeft();
+    if (sanitized.isNotEmpty) {
+      return sanitized;
+    }
+  }
+
+  return trimmed;
 }
 
 String _formatCurrency(String symbol, dynamic value) {
@@ -445,6 +526,7 @@ String? _resolveOptionalAmount(
   String currencySymbol, {
   dynamic rawValue,
   String? formattedValue,
+  String? removedSymbol,
 }) {
   final shouldDisplay = _shouldDisplayAmount(
     rawValue: rawValue,
@@ -455,7 +537,13 @@ String? _resolveOptionalAmount(
   }
 
   if (formattedValue != null) {
-    return formattedValue;
+    final sanitized = _cleanAmountLabel(
+      formattedValue,
+      removedSymbol: removedSymbol,
+    );
+    if (sanitized.trim().isNotEmpty) {
+      return sanitized;
+    }
   }
 
   if (rawValue != null) {
@@ -463,6 +551,25 @@ String? _resolveOptionalAmount(
   }
 
   return null;
+}
+
+String _resolveAmountLabel({
+  String? formattedValue,
+  dynamic rawValue,
+  required String currencySymbol,
+  String? removedSymbol,
+}) {
+  if (formattedValue != null) {
+    final sanitized = _cleanAmountLabel(
+      formattedValue,
+      removedSymbol: removedSymbol,
+    );
+    if (sanitized.trim().isNotEmpty) {
+      return sanitized;
+    }
+  }
+
+  return _formatCurrency(currencySymbol, rawValue);
 }
 
 double? _parseDouble(dynamic value) {
