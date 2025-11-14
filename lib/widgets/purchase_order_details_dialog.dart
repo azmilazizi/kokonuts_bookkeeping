@@ -536,21 +536,42 @@ class _TotalsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          _TotalRow(
-            label: 'Subtotal',
-            value: detail.subtotalLabel,
-            theme: theme,
-          ),
-          const SizedBox(height: 8),
-          _TotalRow(
-            label: 'Total',
-            value: detail.totalLabel,
-            theme: theme,
-            emphasize: true,
-          ),
+          ..._buildTotalRows(),
         ],
       ),
     );
+  }
+
+  List<Widget> _buildTotalRows() {
+    final rows = <Widget>[];
+
+    void addRow(String label, String value, {bool emphasize = false}) {
+      if (rows.isNotEmpty) {
+        rows.add(const SizedBox(height: 8));
+      }
+      rows.add(
+        _TotalRow(
+          label: label,
+          value: value,
+          theme: theme,
+          emphasize: emphasize,
+        ),
+      );
+    }
+
+    addRow('Subtotal', detail.subtotalLabel);
+
+    if (detail.hasDiscount && detail.discountLabel != null) {
+      addRow('Discount', detail.discountLabel!);
+    }
+
+    if (detail.hasShippingFee && detail.shippingFeeLabel != null) {
+      addRow('Shipping Fee', detail.shippingFeeLabel!);
+    }
+
+    addRow('Total', detail.totalLabel, emphasize: true);
+
+    return rows;
   }
 }
 
@@ -569,23 +590,23 @@ class _TotalRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final labelStyle = theme.textTheme.bodyMedium;
     final valueStyle = emphasize
         ? theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)
         : theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600);
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.bodyMedium,
-        ),
-        const SizedBox(width: 16),
-        Text(
-          value,
-          style: valueStyle,
-        ),
-      ],
+    return Text.rich(
+      TextSpan(
+        text: '$label: ',
+        style: labelStyle,
+        children: [
+          TextSpan(
+            text: value,
+            style: valueStyle,
+          ),
+        ],
+      ),
+      textAlign: TextAlign.right,
     );
   }
 }

@@ -125,6 +125,8 @@ class PurchaseOrderDetail {
     required this.currencySymbol,
     required this.subtotalLabel,
     required this.totalLabel,
+    this.discountLabel,
+    this.shippingFeeLabel,
     required this.items,
     required this.approvalStatus,
     this.orderDate,
@@ -151,6 +153,20 @@ class PurchaseOrderDetail {
     final totalLabel = _string(json['total_formatted']) ??
         _string(json['grand_total_formatted']) ??
         _formatCurrency(currencySymbol, totalValue);
+
+    final discountLabel = _resolveOptionalAmount(
+      currencySymbol,
+      rawValue: json['discount_total'] ?? json['discount'],
+      formattedValue: _string(json['discount_total_formatted']) ??
+          _string(json['discount_formatted']),
+    );
+
+    final shippingFeeLabel = _resolveOptionalAmount(
+      currencySymbol,
+      rawValue: json['shipping_fee'] ?? json['shipping_total'],
+      formattedValue: _string(json['shipping_fee_formatted']) ??
+          _string(json['shipping_total_formatted']),
+    );
 
     final vendorName = _string(json['vendor_name']) ??
         _string(json['supplier_name']) ??
@@ -199,6 +215,8 @@ class PurchaseOrderDetail {
       currencySymbol: currencySymbol,
       subtotalLabel: subtotalLabel,
       totalLabel: totalLabel,
+      discountLabel: discountLabel,
+      shippingFeeLabel: shippingFeeLabel,
       items: items,
       approvalStatus: approvalStatusLabel,
       orderDate: _parseDate(json['order_date']) ??
@@ -226,6 +244,8 @@ class PurchaseOrderDetail {
   final String currencySymbol;
   final String subtotalLabel;
   final String totalLabel;
+  final String? discountLabel;
+  final String? shippingFeeLabel;
   final String? notes;
   final String? terms;
   final String approvalStatus;
@@ -243,6 +263,12 @@ class PurchaseOrderDetail {
   bool get hasNotes => notes != null && notes!.trim().isNotEmpty;
 
   bool get hasTerms => terms != null && terms!.trim().isNotEmpty;
+
+  bool get hasDiscount =>
+      discountLabel != null && discountLabel!.trim().isNotEmpty;
+
+  bool get hasShippingFee =>
+      shippingFeeLabel != null && shippingFeeLabel!.trim().isNotEmpty;
 }
 
 const Map<int, String> purchaseOrderStatusLabels = {
@@ -415,6 +441,30 @@ String? _parseNestedName(dynamic value) {
   return _string(value);
 }
 
+String? _resolveOptionalAmount(
+  String currencySymbol, {
+  dynamic rawValue,
+  String? formattedValue,
+}) {
+  final shouldDisplay = _shouldDisplayAmount(
+    rawValue: rawValue,
+    formattedValue: formattedValue,
+  );
+  if (!shouldDisplay) {
+    return null;
+  }
+
+  if (formattedValue != null) {
+    return formattedValue;
+  }
+
+  if (rawValue != null) {
+    return _formatCurrency(currencySymbol, rawValue);
+  }
+
+  return null;
+}
+
 double? _parseDouble(dynamic value) {
   if (value is num) {
     return value.toDouble();
@@ -427,6 +477,42 @@ double? _parseDouble(dynamic value) {
     return double.tryParse(trimmed.replaceAll(',', ''));
   }
   return null;
+}
+
+bool _shouldDisplayAmount({dynamic rawValue, String? formattedValue}) {
+  if (rawValue != null && !_isZeroValue(rawValue)) {
+    return true;
+  }
+
+  if (formattedValue != null && !_isZeroValue(formattedValue)) {
+    return true;
+  }
+
+  return false;
+}
+
+bool _isZeroValue(dynamic value) {
+  final parsed = _parseDouble(value);
+  if (parsed != null) {
+    return parsed == 0;
+  }
+
+  final stringValue = _string(value);
+  if (stringValue == null) {
+    return false;
+  }
+
+  final digitsOnly = stringValue.replaceAll(RegExp(r'[^0-9\.-]'), '');
+  if (digitsOnly.isEmpty) {
+    return false;
+  }
+
+  final normalized = double.tryParse(digitsOnly);
+  if (normalized != null) {
+    return normalized == 0;
+  }
+
+  return false;
 }
 
 DateTime? _parseDate(dynamic value) {
