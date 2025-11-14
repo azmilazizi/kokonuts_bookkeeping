@@ -512,7 +512,7 @@ class _PurchaseOrdersHeader extends StatelessWidget {
   final bool sortAscending;
   final ValueChanged<PurchaseOrderSortColumn> onSort;
 
-  static const _columnFlex = [3, 4, 3, 3, 3, 2, 3];
+  static const _columnFlex = [3, 4, 3, 3, 3, 2, 2, 3];
 
   @override
   Widget build(BuildContext context) {
@@ -564,8 +564,14 @@ class _PurchaseOrdersHeader extends StatelessWidget {
             onTap: () => onSort(PurchaseOrderSortColumn.paymentProgress),
           ),
           SortableHeaderCell(
-            label: 'Total',
+            label: 'Delivery Status',
             flex: _columnFlex[5],
+            theme: theme,
+            textAlign: TextAlign.center,
+          ),
+          SortableHeaderCell(
+            label: 'Total',
+            flex: _columnFlex[6],
             theme: theme,
             textAlign: TextAlign.end,
             isActive: sortColumn == PurchaseOrderSortColumn.total,
@@ -575,7 +581,7 @@ class _PurchaseOrdersHeader extends StatelessWidget {
           const SizedBox(width: 12),
           SortableHeaderCell(
             label: 'Actions',
-            flex: _columnFlex[6],
+            flex: _columnFlex[7],
             theme: theme,
             textAlign: TextAlign.center,
             ascending: sortAscending,
@@ -655,7 +661,7 @@ class _PurchaseOrderRow extends StatefulWidget {
 class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
   bool _hovering = false;
 
-  static const _columnFlex = [3, 4, 3, 3, 3, 2, 3];
+  static const _columnFlex = [3, 4, 3, 3, 3, 2, 2, 3];
 
   void _showDetails(BuildContext context) {
     showDialog(
@@ -681,71 +687,111 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
         totalAmount != null && totalAmount > 0 && paidAmount >= totalAmount;
 
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        decoration: BoxDecoration(
-          color: _hovering ? hoverBackground : baseBackground,
-          border: Border(
-            top: widget.showTopBorder ? BorderSide(color: borderColor) : BorderSide.none,
-            bottom: BorderSide(color: borderColor),
+      child: GestureDetector(
+        onTap: () => _showDetails(context),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: _hovering ? hoverBackground : baseBackground,
+            border: Border(
+              top:
+                  widget.showTopBorder ? BorderSide(color: borderColor) : BorderSide.none,
+              bottom: BorderSide(color: borderColor),
+            ),
           ),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-        child: Row(
-          children: [
-            _DataCell(widget.order.number, flex: _columnFlex[0]),
-            const SizedBox(width: 12),
-            _DataCell(widget.order.name, flex: _columnFlex[1]),
-            _DataCell(widget.order.vendorName, flex: _columnFlex[2]),
-            _DataCell(
-              widget.order.formattedDate,
-              flex: _columnFlex[3],
-              textAlign: TextAlign.center,
-            ),
-            _DataCell(
-              paymentProgress,
-              flex: _columnFlex[4],
-              textAlign: TextAlign.center,
-              style: isComplete
-                  ? widget.theme.textTheme.bodyMedium
-                      ?.copyWith(color: widget.theme.colorScheme.error)
-                  : null,
-            ),
-            _DataCell(
-              totalLabel,
-              flex: _columnFlex[5],
-              textAlign: TextAlign.end,
-              style: widget.theme.textTheme.bodyMedium?.copyWith(
-                color: widget.theme.colorScheme.error,
-                fontWeight: FontWeight.w600,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          child: Row(
+            children: [
+              _DataCell(widget.order.number, flex: _columnFlex[0]),
+              const SizedBox(width: 12),
+              _DataCell(widget.order.name, flex: _columnFlex[1]),
+              _DataCell(widget.order.vendorName, flex: _columnFlex[2]),
+              _DataCell(
+                widget.order.formattedDate,
+                flex: _columnFlex[3],
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: _columnFlex[6],
-              child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.visibility_outlined),
-                      tooltip: 'View details',
-                      onPressed: () => _showDetails(context),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.payments_outlined),
-                      tooltip: 'View payments',
-                      onPressed: () {},
-                    ),
-                  ],
+              _DataCell(
+                paymentProgress,
+                flex: _columnFlex[4],
+                textAlign: TextAlign.center,
+                style: isComplete
+                    ? widget.theme.textTheme.bodyMedium
+                        ?.copyWith(color: widget.theme.colorScheme.error)
+                    : null,
+              ),
+              _DeliveryStatusCell(
+                status: widget.order.deliveryStatus,
+                flex: _columnFlex[5],
+              ),
+              _DataCell(
+                totalLabel,
+                flex: _columnFlex[6],
+                textAlign: TextAlign.end,
+                style: widget.theme.textTheme.bodyMedium?.copyWith(
+                  color: widget.theme.colorScheme.error,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                flex: _columnFlex[7],
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined),
+                        tooltip: 'Edit',
+                        onPressed: () => _showDetails(context),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: 'Delete',
+                        onPressed: () {},
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DeliveryStatusCell extends StatelessWidget {
+  const _DeliveryStatusCell({
+    required this.status,
+    required this.flex,
+  });
+
+  final int status;
+  final int flex;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDelivered = status == 1;
+    final color = isDelivered ? Colors.green : Colors.red;
+    final label = isDelivered ? 'Delivered' : 'Undelivered';
+
+    return Expanded(
+      flex: flex,
+      child: Center(
+        child: Semantics(
+          label: label,
+          child: Icon(
+            Icons.circle,
+            size: 12,
+            color: color,
+          ),
         ),
       ),
     );

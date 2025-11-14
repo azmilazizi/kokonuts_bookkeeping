@@ -217,8 +217,8 @@ class _SummarySection extends StatelessWidget {
       _SummaryField.text('Order name', detail.name),
       _SummaryField.text('Vendor', detail.vendorName),
       _SummaryField.pill(
-        label: 'Status',
-        pillStyle: _buildStatusPillStyle(theme, detail),
+        label: 'Delivery status',
+        pillStyle: _buildDeliveryStatusPillStyle(theme, detail),
       ),
       _SummaryField.pill(
         label: 'Approval status',
@@ -242,33 +242,32 @@ class _SummarySection extends StatelessWidget {
   }
 }
 
-_PillStyle _buildStatusPillStyle(ThemeData theme, PurchaseOrderDetail detail) {
+_PillStyle _buildDeliveryStatusPillStyle(
+  ThemeData theme,
+  PurchaseOrderDetail detail,
+) {
   final label = _resolvePillLabel(
-    explicit: detail.status,
-    id: detail.statusId,
-    lookup: purchaseOrderStatusLabels,
+    explicit: detail.deliveryStatusLabel,
+    id: detail.deliveryStatusId,
+    lookup: purchaseOrderDeliveryStatusLabels,
   );
 
-  final id = detail.statusId ?? _findIdForLabel(label, purchaseOrderStatusLabels);
+  final id =
+      detail.deliveryStatusId ?? _findIdForLabel(label, purchaseOrderDeliveryStatusLabels);
   final colorScheme = theme.colorScheme;
 
   Color background;
   Color foreground;
 
   switch (id) {
-    case 2:
+    case 1:
       background = colorScheme.primaryContainer;
       foreground = colorScheme.onPrimaryContainer;
       break;
-    case 3:
-      background = colorScheme.secondaryContainer;
-      foreground = colorScheme.onSecondaryContainer;
-      break;
-    case 4:
+    case 0:
       background = colorScheme.errorContainer;
       foreground = colorScheme.onErrorContainer;
       break;
-    case 1:
     default:
       background = colorScheme.surfaceVariant;
       foreground = colorScheme.onSurfaceVariant;
