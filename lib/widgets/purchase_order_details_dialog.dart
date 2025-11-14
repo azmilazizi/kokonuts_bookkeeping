@@ -202,15 +202,22 @@ class _SummarySection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final fields = <_SummaryField>[
-      _SummaryField('Order name', detail.name),
-      _SummaryField('Vendor', detail.vendorName),
-      _SummaryField('Status', detail.status),
-      _SummaryField('Order date', detail.orderDateLabel),
-      _SummaryField('Delivery date', detail.deliveryDateLabel),
+      _SummaryField.text('Order name', detail.name),
+      _SummaryField.text('Vendor', detail.vendorName),
+      _SummaryField.pill(
+        label: 'Status',
+        pillStyle: _buildStatusPillStyle(theme, detail),
+      ),
+      _SummaryField.pill(
+        label: 'Approval status',
+        pillStyle: _buildApprovalPillStyle(theme, detail),
+      ),
+      _SummaryField.text('Order date', detail.orderDateLabel),
+      _SummaryField.text('Delivery date', detail.deliveryDateLabel),
     ];
 
     if (detail.referenceLabel != null) {
-      fields.add(_SummaryField('Reference', detail.referenceLabel!));
+      fields.add(_SummaryField.text('Reference', detail.referenceLabel!));
     }
 
     return Wrap(
@@ -223,11 +230,142 @@ class _SummarySection extends StatelessWidget {
   }
 }
 
+_PillStyle _buildStatusPillStyle(ThemeData theme, PurchaseOrderDetail detail) {
+  final label = _resolvePillLabel(
+    explicit: detail.status,
+    id: detail.statusId,
+    lookup: purchaseOrderStatusLabels,
+  );
+
+  final id = detail.statusId ?? _findIdForLabel(label, purchaseOrderStatusLabels);
+  final colorScheme = theme.colorScheme;
+
+  Color background;
+  Color foreground;
+
+  switch (id) {
+    case 2:
+      background = colorScheme.primaryContainer;
+      foreground = colorScheme.onPrimaryContainer;
+      break;
+    case 3:
+      background = colorScheme.secondaryContainer;
+      foreground = colorScheme.onSecondaryContainer;
+      break;
+    case 4:
+      background = colorScheme.errorContainer;
+      foreground = colorScheme.onErrorContainer;
+      break;
+    case 1:
+    default:
+      background = colorScheme.surfaceVariant;
+      foreground = colorScheme.onSurfaceVariant;
+      break;
+  }
+
+  return _PillStyle(
+    label: label,
+    backgroundColor: background,
+    foregroundColor: foreground,
+  );
+}
+
+_PillStyle _buildApprovalPillStyle(
+  ThemeData theme,
+  PurchaseOrderDetail detail,
+) {
+  final label = _resolvePillLabel(
+    explicit: detail.approvalStatus,
+    id: detail.approvalStatusId,
+    lookup: purchaseOrderApprovalStatusLabels,
+  );
+
+  final id =
+      detail.approvalStatusId ?? _findIdForLabel(label, purchaseOrderApprovalStatusLabels);
+  final colorScheme = theme.colorScheme;
+
+  Color background;
+  Color foreground;
+
+  switch (id) {
+    case 2:
+      background = colorScheme.primaryContainer;
+      foreground = colorScheme.onPrimaryContainer;
+      break;
+    case 3:
+      background = colorScheme.errorContainer;
+      foreground = colorScheme.onErrorContainer;
+      break;
+    case 4:
+      background = colorScheme.tertiaryContainer;
+      foreground = colorScheme.onTertiaryContainer;
+      break;
+    case 1:
+    default:
+      background = colorScheme.surfaceVariant;
+      foreground = colorScheme.onSurfaceVariant;
+      break;
+  }
+
+  return _PillStyle(
+    label: label,
+    backgroundColor: background,
+    foregroundColor: foreground,
+  );
+}
+
+String _resolvePillLabel({
+  required String explicit,
+  required int? id,
+  required Map<int, String> lookup,
+}) {
+  final trimmed = explicit.trim();
+  if (trimmed.isNotEmpty && trimmed != '—') {
+    return trimmed;
+  }
+  if (id != null) {
+    final mapped = lookup[id];
+    if (mapped != null) {
+      return mapped;
+    }
+  }
+  return '—';
+}
+
+int? _findIdForLabel(String label, Map<int, String> lookup) {
+  final normalized = label.trim().toLowerCase();
+  for (final entry in lookup.entries) {
+    if (entry.value.toLowerCase() == normalized) {
+      return entry.key;
+    }
+  }
+  return null;
+}
+
 class _SummaryField {
-  const _SummaryField(this.label, this.value);
+  const _SummaryField._(this.label, this.value, this.pillStyle);
+
+  const _SummaryField.text(String label, String value)
+      : this._(label, value, null);
+
+  const _SummaryField.pill({required String label, required _PillStyle pillStyle})
+      : this._(label, pillStyle.label, pillStyle);
 
   final String label;
   final String value;
+  final _PillStyle? pillStyle;
+}
+
+class _PillStyle {
+  const _PillStyle({
+    required this.label,
+    required this.backgroundColor,
+    required this.foregroundColor,
+  });
+
+  final String label;
+  final Color backgroundColor;
+  final Color foregroundColor;
 }
 
 class _SummaryTile extends StatelessWidget {
@@ -251,12 +389,54 @@ class _SummaryTile extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            field.value.isNotEmpty ? field.value : '—',
-            style: theme.textTheme.bodyMedium,
+          _SummaryValue(
+            field: field,
+            theme: theme,
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SummaryValue extends StatelessWidget {
+  const _SummaryValue({required this.field, required this.theme});
+
+  final _SummaryField field;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final pill = field.pillStyle;
+    final value = field.value.trim().isEmpty ? '—' : field.value.trim();
+
+    if (pill == null || value == '—') {
+      return Text(
+        value,
+        style: theme.textTheme.bodyMedium,
+      );
+    }
+
+    final textStyle = theme.textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w600,
+          color: pill.foregroundColor,
+        ) ??
+        TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: pill.foregroundColor,
+        );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: pill.backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 6,
+      ),
+      child: Text(pill.label, style: textStyle),
     );
   }
 }
