@@ -185,6 +185,7 @@ class PurchaseOrder {
     required this.totalAmount,
     required this.totalLabel,
     required this.currencySymbol,
+    required this.deliveryStatus,
   });
 
   factory PurchaseOrder.fromJson(Map<String, dynamic> json) {
@@ -217,6 +218,7 @@ class PurchaseOrder {
       totalLabel:
           totalAmount != null ? totalAmount.toStringAsFixed(2) : _formatAmount(totalValue),
       currencySymbol: _stringValue(currency) ?? '',
+      deliveryStatus: _parseDeliveryStatus(json),
     );
   }
 
@@ -228,6 +230,7 @@ class PurchaseOrder {
   final double? totalAmount;
   final String totalLabel;
   final String currencySymbol;
+  final int deliveryStatus;
 
   String get formattedDate {
     final date = orderDate;
@@ -253,6 +256,39 @@ class PurchaseOrder {
     }
     return value.toString();
   }
+}
+
+int _parseDeliveryStatus(Map<String, dynamic> json) {
+  final directValue = _parseInt(json['delivery_status']) ??
+      _parseInt(json['delivery_status_id']) ??
+      _parseInt(json['delivery_status_code']) ??
+      _parseInt(json['delivery_status_value']);
+
+  if (directValue != null) {
+    return directValue;
+  }
+
+  final nestedValue = _parseNestedDeliveryStatus(json['delivery_status']);
+  if (nestedValue != null) {
+    return nestedValue;
+  }
+
+  final fallback = _parseInt(json['status']) ?? _parseInt(json['status_id']);
+  if (fallback != null) {
+    return fallback;
+  }
+
+  return 0;
+}
+
+int? _parseNestedDeliveryStatus(dynamic value) {
+  if (value is Map<String, dynamic>) {
+    return _parseInt(value['id']) ??
+        _parseInt(value['code']) ??
+        _parseInt(value['value']) ??
+        _parseInt(value['status']);
+  }
+  return _parseInt(value);
 }
 
 class PaginationInfo {
@@ -319,6 +355,23 @@ DateTime? _tryParseDate(String value) {
   } catch (_) {
     return null;
   }
+}
+
+int? _parseInt(dynamic value) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  if (value is String) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    return int.tryParse(trimmed);
+  }
+  return null;
 }
 
 List<int> _parseTimeComponents(String? value) {
