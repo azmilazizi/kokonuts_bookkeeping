@@ -510,15 +510,50 @@ class _PaymentsTab extends StatelessWidget {
       );
     }
 
-    return ListView.separated(
-      padding: EdgeInsets.zero,
-      itemCount: detail.payments.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final payment = detail.payments[index];
-        return _PaymentCard(
-          payment: payment,
-          index: index + 1,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: DataTable(
+              columnSpacing: 24,
+              columns: const [
+                DataColumn(label: Text('Amount')),
+                DataColumn(label: Text('Payment Mode')),
+                DataColumn(label: Text('Date')),
+                DataColumn(label: Text('Actions')),
+              ],
+              rows: detail.payments
+                  .map(
+                    (payment) => DataRow(
+                      cells: [
+                        DataCell(Text(payment.amountLabel)),
+                        DataCell(Text(payment.methodLabel)),
+                        DataCell(Text(payment.dateLabel)),
+                        DataCell(
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                tooltip: 'Edit payment',
+                                icon: const Icon(Icons.edit_outlined),
+                                onPressed: () {},
+                              ),
+                              IconButton(
+                                tooltip: 'Delete payment',
+                                icon: const Icon(Icons.delete_outline),
+                                onPressed: () {},
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
         );
       },
     );
@@ -547,64 +582,6 @@ class _AttachmentsTab extends StatelessWidget {
         final attachment = detail.attachments[index];
         return _AttachmentCard(attachment: attachment);
       },
-    );
-  }
-}
-
-class _PaymentCard extends StatelessWidget {
-  const _PaymentCard({
-    required this.payment,
-    required this.index,
-  });
-
-  final PurchaseOrderPayment payment;
-  final int index;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final titleStyle = theme.textTheme.titleMedium?.copyWith(
-      fontWeight: FontWeight.w600,
-    );
-    final referenceLabel =
-        payment.reference.trim().isEmpty || payment.reference == '—'
-            ? 'Payment $index'
-            : payment.reference;
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: theme.dividerColor),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(referenceLabel, style: titleStyle),
-          const SizedBox(height: 12),
-          _LabelValueRow(label: 'Date', value: payment.dateLabel),
-          _LabelValueRow(label: 'Amount', value: payment.amountLabel),
-          _LabelValueRow(label: 'Method', value: payment.methodLabel),
-          _LabelValueRow(label: 'Status', value: payment.statusLabel),
-          if (payment.recordedBy != null && payment.recordedBy!.trim().isNotEmpty)
-            _LabelValueRow(label: 'Recorded by', value: payment.recordedBy!.trim()),
-          if (payment.hasNote) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Notes',
-              style: theme.textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              payment.note!.trim(),
-              style: theme.textTheme.bodyMedium,
-            ),
-          ],
-        ],
-      ),
     );
   }
 }
