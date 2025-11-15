@@ -8,6 +8,9 @@ import 'bills_tab.dart';
 import 'expenses_tab.dart';
 import 'purchase_orders_tab.dart';
 
+import '../services/purchase_orders_service.dart';
+import '../widgets/add_purchase_order_dialog.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -16,32 +19,40 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
-  late final TabController _controller = TabController(length: _tabs.length, vsync: this)
-    ..addListener(_handleTabSelection);
+  late final TabController _controller;
+  late final List<_HomeTab> _tabs;
+  final GlobalKey<PurchaseOrdersTabState> _purchaseOrdersTabKey =
+      GlobalKey<PurchaseOrdersTabState>();
 
-  static final List<_HomeTab> _tabs = [
-    _HomeTab(
-      title: 'Purchase Orders',
-      icon: Icons.shopping_bag_outlined,
-      builder: (_, __) => const PurchaseOrdersTab(),
-    ),
-    _HomeTab(
-      title: 'Expenses',
-      icon: Icons.payments_outlined,
-      builder: (_, __) => const ExpensesTab(),
-    ),
-    _HomeTab(
-      title: 'Bills',
-      icon: Icons.receipt_long_outlined,
-      builder: (_, __) => const BillsTab(),
-    ),
-    _HomeTab(
-      title: 'Accounts',
-      icon: Icons.account_balance_outlined,
-      builder: (_, __) => const AccountsTab(),
-    ),
-    const _HomeTab(title: 'Overview', icon: Icons.dashboard_outlined),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _tabs = [
+      _HomeTab(
+        title: 'Purchase Orders',
+        icon: Icons.shopping_bag_outlined,
+        builder: (_, __) => PurchaseOrdersTab(key: _purchaseOrdersTabKey),
+      ),
+      _HomeTab(
+        title: 'Expenses',
+        icon: Icons.payments_outlined,
+        builder: (_, __) => const ExpensesTab(),
+      ),
+      _HomeTab(
+        title: 'Bills',
+        icon: Icons.receipt_long_outlined,
+        builder: (_, __) => const BillsTab(),
+      ),
+      _HomeTab(
+        title: 'Accounts',
+        icon: Icons.account_balance_outlined,
+        builder: (_, __) => const AccountsTab(),
+      ),
+      const _HomeTab(title: 'Overview', icon: Icons.dashboard_outlined),
+    ];
+    _controller = TabController(length: _tabs.length, vsync: this)
+      ..addListener(_handleTabSelection);
+  }
 
   @override
   void dispose() {
@@ -56,7 +67,31 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     }
   }
 
-  void _openAddModal(BuildContext context, String tabTitle) {
+  Future<void> _openAddModal(BuildContext context, String tabTitle) async {
+    if (_controller.index == 0) {
+      final createdOrder = await showDialog<PurchaseOrder>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AddPurchaseOrderDialog(),
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (createdOrder != null) {
+        _purchaseOrdersTabKey.currentState
+            ?.insertCreatedPurchaseOrder(createdOrder);
+        final orderLabel = createdOrder.orderNumber.isNotEmpty
+            ? createdOrder.orderNumber
+            : createdOrder.orderName;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Purchase order $orderLabel created.')),
+        );
+      }
+      return;
+    }
+
     showModalBottomSheet<void>(
       context: context,
       builder: (context) {
