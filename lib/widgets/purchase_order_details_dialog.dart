@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -895,13 +894,8 @@ class _PdfAttachmentPreview extends StatefulWidget {
 }
 
 class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
-  late Future<Uint8List> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = _fetchPdfBytes();
-  }
+  final PdfViewerController _controller = PdfViewerController();
+  PdfDocumentLoadFailedDetails? _loadFailure;
 
   @override
   void didUpdateWidget(covariant _PdfAttachmentPreview oldWidget) {
@@ -909,7 +903,7 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
     if (oldWidget.url != widget.url ||
         !mapEquals(oldWidget.headers, widget.headers)) {
       setState(() {
-        _future = _fetchPdfBytes();
+        _loadFailure = null;
       });
     }
   }
@@ -977,12 +971,19 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
           );
         }
 
-        final bytes = snapshot.data;
-        if (bytes == null || bytes.isEmpty) {
-          return const _AttachmentPreviewMessage(
-            icon: Icons.picture_as_pdf_outlined,
-            message: 'The PDF preview is unavailable for this attachment.',
-          );
+    final headers = widget.headers == null
+        ? null
+        : Map<String, String>.from(widget.headers!);
+
+    return SfPdfViewer.network(
+      widget.url,
+      key: ValueKey('${widget.url}-${headers?.hashCode ?? 0}'),
+      controller: _controller,
+      headers: headers,
+      canShowPaginationDialog: true,
+      onDocumentLoadFailed: (details) {
+        if (!mounted) {
+          return;
         }
 
         final headersHash = widget.headers == null
