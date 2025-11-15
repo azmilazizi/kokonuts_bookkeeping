@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
@@ -24,6 +25,7 @@ class _PurchaseOrderDetailsDialogState
 
   late Future<PurchaseOrderDetail> _future;
   bool _initialized = false;
+  Map<String, String>? _attachmentPreviewHeaders;
 
   @override
   void didChangeDependencies() {
@@ -41,6 +43,7 @@ class _PurchaseOrderDetailsDialogState
   }
 
   Future<PurchaseOrderDetail> _loadDetails() async {
+    _attachmentPreviewHeaders = null;
     final appState = AppStateScope.of(context);
     final token = await appState.getValidAuthToken();
 
@@ -62,6 +65,17 @@ class _PurchaseOrderDetailsDialogState
         .trim();
     final authtokenHeader =
         autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+
+    final previewHeaders = <String, String>{};
+    if (authtokenHeader.isNotEmpty) {
+      previewHeaders['authtoken'] = authtokenHeader;
+      previewHeaders['Cookie'] = 'authtoken=$authtokenHeader';
+    }
+    if (normalizedAuth.isNotEmpty) {
+      previewHeaders['Authorization'] = normalizedAuth;
+    }
+    _attachmentPreviewHeaders =
+        previewHeaders.isEmpty ? null : Map.unmodifiable(previewHeaders);
 
     return _service.fetchPurchaseOrder(
       id: widget.orderId,
@@ -130,7 +144,10 @@ class _PurchaseOrderDetailsDialogState
                             itemsController: _itemsScrollController,
                           ),
                           _PaymentsTab(detail: detail),
-                          _AttachmentsTab(detail: detail),
+                          _AttachmentsTab(
+                            detail: detail,
+                            previewHeaders: _attachmentPreviewHeaders,
+                          ),
                         ],
                       ),
                     ),
@@ -563,9 +580,10 @@ class _PaymentsTab extends StatelessWidget {
 }
 
 class _AttachmentsTab extends StatelessWidget {
-  const _AttachmentsTab({required this.detail});
+  const _AttachmentsTab({required this.detail, this.previewHeaders});
 
   final PurchaseOrderDetail detail;
+  final Map<String, String>? previewHeaders;
 
   @override
   Widget build(BuildContext context) {
@@ -582,7 +600,10 @@ class _AttachmentsTab extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final attachment = detail.attachments[index];
-        return _AttachmentCard(attachment: attachment);
+        return _AttachmentCard(
+          attachment: attachment,
+          previewHeaders: previewHeaders,
+        );
       },
     );
   }
@@ -735,6 +756,7 @@ class _AttachmentPreviewDialog extends StatelessWidget {
   const _AttachmentPreviewDialog({required this.attachment});
 
   final PurchaseOrderAttachment attachment;
+  final Map<String, String>? headers;
 
   @override
   Widget build(BuildContext context) {

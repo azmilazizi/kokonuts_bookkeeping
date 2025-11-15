@@ -546,6 +546,22 @@ class PurchaseOrderAttachment {
         _string(json['file_path']) ??
         _string(json['path']);
 
+    final relId = _string(json['rel_id']) ??
+        _string(json['relId']) ??
+        _string(json['related_id']) ??
+        _string(json['relatedId']);
+    final relType = _string(json['rel_type']) ??
+        _string(json['relType']) ??
+        _string(json['related_type']) ??
+        _string(json['relatedType']);
+
+    final resolvedDownloadUrl = _resolveAttachmentDownloadUrl(
+      explicitUrl: downloadUrl,
+      relId: relId,
+      relType: relType,
+      fileName: fileName,
+    );
+
     final uploadedBy = _string(json['uploaded_by']) ??
         _string(json['created_by']) ??
         _string(json['owner']) ??
@@ -564,7 +580,7 @@ class PurchaseOrderAttachment {
     return PurchaseOrderAttachment(
       fileName: fileName,
       description: description,
-      downloadUrl: downloadUrl,
+      downloadUrl: resolvedDownloadUrl,
       uploadedBy: uploadedBy,
       uploadedAt: uploadedAt,
       sizeLabel: sizeLabel,
@@ -651,6 +667,93 @@ List<dynamic> _extractItems(dynamic source) {
         .toList();
   }
   return const [];
+}
+
+String? _resolveAttachmentDownloadUrl({
+  String? explicitUrl,
+  String? relId,
+  String? relType,
+  required String fileName,
+}) {
+  final trimmedExplicit = explicitUrl?.trim();
+  if (trimmedExplicit != null && trimmedExplicit.isNotEmpty) {
+    return trimmedExplicit;
+  }
+
+  final sanitizedRelId = relId?.trim();
+  final sanitizedRelType = relType?.trim();
+  final sanitizedFileName = fileName.trim();
+
+  if (sanitizedRelId == null ||
+      sanitizedRelId.isEmpty ||
+      sanitizedRelType == null ||
+      sanitizedRelType.isEmpty ||
+      sanitizedFileName.isEmpty) {
+    return trimmedExplicit;
+  }
+
+  final baseUri = Uri.tryParse(PurchaseOrderDetailService._baseUrl);
+  if (baseUri == null || baseUri.host.isEmpty) {
+    return trimmedExplicit;
+  }
+
+  final moduleSegment = _resolvePurchaseModuleSegment(baseUri);
+
+  final normalizedRelType = _trimSlashes(sanitizedRelType);
+  final normalizedRelId = _trimSlashes(sanitizedRelId);
+  final normalizedFileName = sanitizedFileName.split('/').last.trim();
+
+  if (normalizedRelType.isEmpty ||
+      normalizedRelId.isEmpty ||
+      normalizedFileName.isEmpty) {
+    return trimmedExplicit;
+  }
+
+  final uri = Uri(
+    scheme: baseUri.scheme.isEmpty ? 'https' : baseUri.scheme,
+    host: baseUri.host,
+    port: baseUri.hasPort ? baseUri.port : null,
+    pathSegments: <String>[
+      'modules',
+      moduleSegment,
+      'uploads',
+      normalizedRelType,
+      normalizedRelId,
+      normalizedFileName,
+    ],
+  );
+
+  return uri.toString();
+}
+
+String _trimSlashes(String value) {
+  var result = value;
+  while (result.startsWith('/')) {
+    result = result.substring(1);
+  }
+  while (result.endsWith('/')) {
+    result = result.substring(0, result.length - 1);
+  }
+  return result;
+}
+
+String _resolvePurchaseModuleSegment(Uri baseUri) {
+  for (final segment in baseUri.pathSegments) {
+    if (segment.isEmpty) {
+      continue;
+    }
+    if (segment.toLowerCase() == 'purchase') {
+      return segment;
+    }
+  }
+
+  for (final segment in baseUri.pathSegments) {
+    if (segment.isNotEmpty) {
+      return segment;
+    }
+  }
+
+  return 'purchase';
 }
 
 int? _resolveDeliveryStatusId(Map<String, dynamic> json) {
