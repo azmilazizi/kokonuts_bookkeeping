@@ -82,9 +82,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       if (createdOrder != null) {
         _purchaseOrdersTabKey.currentState
             ?.insertCreatedPurchaseOrder(createdOrder);
-        final orderLabel = createdOrder.orderNumber.isNotEmpty
-            ? createdOrder.orderNumber
-            : createdOrder.orderName;
+        final normalizedNumber = createdOrder.number.trim();
+        final orderLabel =
+            normalizedNumber.isEmpty || normalizedNumber == '—'
+                ? createdOrder.name
+                : normalizedNumber;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Purchase order $orderLabel created.')),
         );
