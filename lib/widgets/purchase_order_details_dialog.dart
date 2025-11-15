@@ -909,18 +909,13 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
   }
 
   Future<Uint8List> _fetchPdfBytes() async {
-    final uri = Uri.tryParse(widget.url);
-    if (uri == null) {
-      throw Exception('The attachment URL is invalid.');
-    }
+    final uri = Uri.parse(widget.url);
 
     final requestHeaders = <String, String>{
       if (widget.headers != null) ...widget.headers!,
     };
     requestHeaders.putIfAbsent(
-      'Accept',
-      () => 'application/pdf,application/octet-stream',
-    );
+        'Accept', () => 'application/pdf,application/octet-stream');
 
     final response = await _sendPdfRequest(uri, requestHeaders);
     return _validatePdfResponse(response);
