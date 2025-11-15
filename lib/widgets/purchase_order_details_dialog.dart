@@ -697,7 +697,7 @@ class _AttachmentCard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         SelectableText(
-          _normalizeAttachmentUrl(attachment.downloadUrl!),
+          _normalizeAttachmentPreviewUrl(attachment.downloadUrl!),
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.primary,
           ),
@@ -775,7 +775,7 @@ class _AttachmentPreviewDialog extends StatelessWidget {
         message: 'This attachment does not provide a downloadable preview.',
       );
     } else {
-      final url = _normalizeAttachmentUrl(attachment.downloadUrl!);
+      final url = _normalizeAttachmentPreviewUrl(attachment.downloadUrl!);
       switch (type) {
         case _AttachmentPreviewType.image:
           preview = _ImageAttachmentPreview(url: url, headers: headers);
@@ -845,7 +845,7 @@ class _AttachmentPreviewDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 SelectableText(
-                  _normalizeAttachmentUrl(attachment.downloadUrl!),
+                  _normalizeAttachmentPreviewUrl(attachment.downloadUrl!),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.primary,
                   ),
@@ -975,30 +975,7 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
   }
 }
 
-String _normalizeAttachmentUrl(String url) {
-  final trimmed = url.trim();
-  if (trimmed.isEmpty) {
-    return trimmed;
-  }
-
-  Uri? parsed;
-  try {
-    parsed = Uri.parse(trimmed);
-  } on FormatException {
-    parsed = null;
-  }
-
-  if (parsed != null) {
-    return parsed.toString();
-  }
-
-  final encoded = Uri.encodeFull(trimmed)
-      .replaceAll('(', '%28')
-      .replaceAll(')', '%29');
-  return encoded;
-}
-
-String _normalizeAttachmentUrl(String url) {
+String _normalizeAttachmentPreviewUrl(String url) {
   final trimmed = url.trim();
   if (trimmed.isEmpty) {
     return trimmed;
