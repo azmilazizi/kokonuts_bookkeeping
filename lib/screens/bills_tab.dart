@@ -34,7 +34,9 @@ class _BillsTabState extends State<BillsTab> {
   String _filterQuery = '';
 
   static const _perPage = 20;
-  static const double _minTableWidth = 720;
+  // The bills table includes action buttons which require extra width; raising
+  // the minimum ensures the columns stay separated on compact layouts.
+  static const double _minTableWidth = 1000;
 
   bool _isLoading = false;
   bool _hasMore = true;

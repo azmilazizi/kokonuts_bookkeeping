@@ -29,7 +29,9 @@ class _AccountsTabState extends State<AccountsTab> {
   String _filterQuery = '';
 
   static const _perPage = 20;
-  static const double _minTableWidth = 900;
+  // Ensures the five account columns retain enough space before horizontal
+  // scrolling is required, avoiding overlap on narrow screens.
+  static const double _minTableWidth = 960;
 
   bool _isLoading = false;
   bool _hasMore = true;

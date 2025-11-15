@@ -31,7 +31,9 @@ class _ExpensesTabState extends State<ExpensesTab> {
   String _filterQuery = '';
 
   static const _perPage = 20;
-  static const double _minTableWidth = 900;
+  // Provides generous breathing room for the seven expense columns so they do
+  // not crowd each other on smaller screens.
+  static const double _minTableWidth = 1080;
 
   bool _isLoading = false;
   bool _hasMore = true;
