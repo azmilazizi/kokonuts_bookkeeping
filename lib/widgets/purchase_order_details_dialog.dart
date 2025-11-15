@@ -867,7 +867,7 @@ class _ItemsSection extends StatelessWidget {
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, constraints) {
-            const minTableWidth = 720.0;
+            const minTableWidth = 900.0;
             return Scrollbar(
               controller: controller,
               thumbVisibility: true,

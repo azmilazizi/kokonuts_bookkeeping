@@ -39,7 +39,11 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   String _filterQuery = '';
 
   static const _perPage = 20;
-  static const double _minTableWidth = 900;
+  // A wider minimum width keeps the eight data columns readable on compact
+  // layouts and prevents them from collapsing into each other on small
+  // screens. The wider width ensures horizontal scrolling kicks in before the
+  // table gets cramped.
+  static const double _minTableWidth = 1100;
 
   bool _isLoading = false;
   bool _hasMore = true;
