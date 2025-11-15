@@ -620,6 +620,9 @@ class _AttachmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final labelColor = theme.colorScheme.onSurfaceVariant;
+    final previewType = _resolveAttachmentType(attachment);
+    final canPreview =
+        attachment.hasDownloadUrl && previewType != _AttachmentPreviewType.unsupported;
     final children = <Widget>[
       Row(
         children: [
@@ -633,6 +636,18 @@ class _AttachmentCard extends StatelessWidget {
               ),
             ),
           ),
+          if (canPreview)
+            const SizedBox(width: 8),
+          if (canPreview)
+            Tooltip(
+              message: 'Preview attachment',
+              child: Icon(
+                previewType == _AttachmentPreviewType.pdf
+                    ? Icons.picture_as_pdf_outlined
+                    : Icons.image_outlined,
+                color: theme.colorScheme.primary,
+              ),
+            ),
         ],
       ),
       const SizedBox(height: 12),
@@ -690,16 +705,21 @@ class _AttachmentCard extends StatelessWidget {
         const SizedBox(height: 12),
         Align(
           alignment: Alignment.centerRight,
-          child: OutlinedButton.icon(
-            icon: const Icon(Icons.visibility_outlined),
-            label: const Text('Preview'),
-            onPressed: () => _showPreview(context),
-          ),
+          child: canPreview
+              ? OutlinedButton.icon(
+                  icon: const Icon(Icons.visibility_outlined),
+                  label: const Text('Preview'),
+                  onPressed: () => _showPreview(context),
+                )
+              : Text(
+                  'Preview is not available for this file type.',
+                  style: theme.textTheme.bodySmall?.copyWith(color: labelColor),
+                ),
         ),
       ]);
     }
 
-    return Container(
+    final card = Container(
       decoration: BoxDecoration(
         border: Border.all(color: theme.dividerColor),
         borderRadius: BorderRadius.circular(12),
@@ -708,6 +728,20 @@ class _AttachmentCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: children,
+      ),
+    );
+
+    if (!canPreview) {
+      return card;
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        mouseCursor: SystemMouseCursors.click,
+        onTap: () => _showPreview(context),
+        child: card,
       ),
     );
   }
@@ -939,6 +973,29 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
       },
     );
   }
+}
+
+String _normalizeAttachmentUrl(String url) {
+  final trimmed = url.trim();
+  if (trimmed.isEmpty) {
+    return trimmed;
+  }
+
+  Uri? parsed;
+  try {
+    parsed = Uri.parse(trimmed);
+  } on FormatException {
+    parsed = null;
+  }
+
+  if (parsed != null) {
+    return parsed.toString();
+  }
+
+  final encoded = Uri.encodeFull(trimmed)
+      .replaceAll('(', '%28')
+      .replaceAll(')', '%29');
+  return encoded;
 }
 
 String _normalizeAttachmentUrl(String url) {

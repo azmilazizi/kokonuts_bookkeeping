@@ -55,6 +55,48 @@ class PurchaseOrdersService {
     );
   }
 
+  Future<PurchaseOrder> createPurchaseOrder({
+    required Map<String, String> headers,
+    required CreatePurchaseOrderRequest request,
+  }) async {
+    http.Response response;
+    try {
+      response = await _client.post(
+        Uri.parse(_baseUrl),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: jsonEncode(request.toJson()),
+      );
+    } catch (error) {
+      throw PurchaseOrdersException('Failed to create purchase order: $error');
+    }
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw PurchaseOrdersException(
+        'Creation failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error) {
+      throw PurchaseOrdersException('Unable to parse create response: $error');
+    }
+
+    final orderJson = _extractCreatedOrder(decoded);
+    if (orderJson == null) {
+      throw PurchaseOrdersException(
+        'Create response did not include a purchase order payload.',
+      );
+    }
+
+    return PurchaseOrder.fromJson(orderJson);
+  }
+
   List<dynamic> _extractOrdersList(dynamic decoded) {
     if (decoded is List) {
       return decoded;
@@ -165,6 +207,131 @@ class PurchaseOrdersService {
       }
     }
     return null;
+  }
+
+  Map<String, dynamic>? _extractCreatedOrder(dynamic decoded) {
+    if (decoded is Map<String, dynamic>) {
+      if (_looksLikePurchaseOrder(decoded)) {
+        return decoded;
+      }
+      const preferredKeys = [
+        'data',
+        'purchase_order',
+        'purchaseOrder',
+        'order',
+        'purchase_orders',
+        'items',
+      ];
+      for (final key in preferredKeys) {
+        final value = decoded[key];
+        final candidate = _extractCreatedOrder(value);
+        if (candidate != null) {
+          return candidate;
+        }
+      }
+      for (final value in decoded.values) {
+        final candidate = _extractCreatedOrder(value);
+        if (candidate != null) {
+          return candidate;
+        }
+      }
+    }
+
+    if (decoded is List) {
+      for (final value in decoded) {
+        final candidate = _extractCreatedOrder(value);
+        if (candidate != null) {
+          return candidate;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  bool _looksLikePurchaseOrder(Map<String, dynamic> map) {
+    const keys = {
+      'id',
+      'pur_order_number',
+      'pur_order_name',
+      'order_date',
+      'vendor_name',
+    };
+    return map.keys.any(keys.contains);
+  }
+}
+
+class CreatePurchaseOrderRequest {
+  const CreatePurchaseOrderRequest({
+    required this.vendorName,
+    required this.orderName,
+    required this.orderNumber,
+    required this.orderDate,
+    required this.items,
+    this.reference,
+    this.notes,
+    this.terms,
+  });
+
+  final String vendorName;
+  final String orderName;
+  final String orderNumber;
+  final DateTime orderDate;
+  final List<CreatePurchaseOrderItem> items;
+  final String? reference;
+  final String? notes;
+  final String? terms;
+
+  Map<String, dynamic> toJson() {
+    final itemsJson = items.map((item) => item.toJson()).toList(growable: false);
+    final totals = items.fold<double>(0, (value, item) => value + item.amount);
+
+    return <String, dynamic>{
+      'vendor_name': vendorName,
+      'pur_order_name': orderName,
+      if (orderNumber.isNotEmpty) 'pur_order_number': orderNumber,
+      'order_date': _formatDate(orderDate),
+      if (reference != null && reference!.isNotEmpty) 'reference': reference,
+      if (notes != null && notes!.isNotEmpty) 'notes': notes,
+      if (terms != null && terms!.isNotEmpty) 'terms': terms,
+      'items': itemsJson,
+      'subtotal': totals,
+      'total': totals,
+    };
+  }
+
+  String _formatDate(DateTime value) {
+    final year = value.year.toString().padLeft(4, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
+  }
+}
+
+class CreatePurchaseOrderItem {
+  const CreatePurchaseOrderItem({
+    required this.name,
+    required this.quantity,
+    required this.rate,
+    this.description,
+  });
+
+  final String name;
+  final double quantity;
+  final double rate;
+  final String? description;
+
+  double get amount => quantity * rate;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'name': name,
+      'quantity': quantity,
+      'rate': rate,
+      'amount': amount,
+      if (description != null && description!.isNotEmpty)
+        'description': description,
+    };
   }
 }
 
