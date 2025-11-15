@@ -610,9 +610,13 @@ class _AttachmentsTab extends StatelessWidget {
 }
 
 class _AttachmentCard extends StatelessWidget {
-  const _AttachmentCard({required this.attachment});
+  const _AttachmentCard({
+    required this.attachment,
+    this.previewHeaders,
+  });
 
   final PurchaseOrderAttachment attachment;
+  final Map<String, String>? previewHeaders;
 
   @override
   Widget build(BuildContext context) {
@@ -747,13 +751,19 @@ class _AttachmentCard extends StatelessWidget {
   void _showPreview(BuildContext context) {
     showDialog<void>(
       context: context,
-      builder: (context) => _AttachmentPreviewDialog(attachment: attachment),
+      builder: (context) => _AttachmentPreviewDialog(
+        attachment: attachment,
+        headers: previewHeaders,
+      ),
     );
   }
 }
 
 class _AttachmentPreviewDialog extends StatelessWidget {
-  const _AttachmentPreviewDialog({required this.attachment});
+  const _AttachmentPreviewDialog({
+    required this.attachment,
+    this.headers,
+  });
 
   final PurchaseOrderAttachment attachment;
   final Map<String, String>? headers;
@@ -773,10 +783,10 @@ class _AttachmentPreviewDialog extends StatelessWidget {
       final url = attachment.downloadUrl!.trim();
       switch (type) {
         case _AttachmentPreviewType.image:
-          preview = _ImageAttachmentPreview(url: url);
+          preview = _ImageAttachmentPreview(url: url, headers: headers);
           break;
         case _AttachmentPreviewType.pdf:
-          preview = _PdfAttachmentPreview(url: url);
+          preview = _PdfAttachmentPreview(url: url, headers: headers);
           break;
         case _AttachmentPreviewType.unsupported:
           preview = _AttachmentPreviewMessage(
@@ -855,9 +865,13 @@ class _AttachmentPreviewDialog extends StatelessWidget {
 }
 
 class _ImageAttachmentPreview extends StatelessWidget {
-  const _ImageAttachmentPreview({required this.url});
+  const _ImageAttachmentPreview({
+    required this.url,
+    this.headers,
+  });
 
   final String url;
+  final Map<String, String>? headers;
 
   @override
   Widget build(BuildContext context) {
@@ -867,6 +881,7 @@ class _ImageAttachmentPreview extends StatelessWidget {
         child: Image.network(
           url,
           fit: BoxFit.contain,
+          headers: headers,
           errorBuilder: (context, error, stackTrace) => const _AttachmentPreviewMessage(
             icon: Icons.broken_image_outlined,
             message: 'Unable to load the image preview.',
@@ -878,13 +893,17 @@ class _ImageAttachmentPreview extends StatelessWidget {
 }
 
 class _PdfAttachmentPreview extends StatelessWidget {
-  const _PdfAttachmentPreview({required this.url});
+  const _PdfAttachmentPreview({
+    required this.url,
+    this.headers,
+  });
 
   final String url;
+  final Map<String, String>? headers;
 
   @override
   Widget build(BuildContext context) {
-    return SfPdfViewer.network(url);
+    return SfPdfViewer.network(url, headers: headers);
   }
 }
 
