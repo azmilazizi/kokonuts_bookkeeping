@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/purchase_order_detail_service.dart';
@@ -595,6 +596,84 @@ class _AttachmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final labelColor = theme.colorScheme.onSurfaceVariant;
+    final children = <Widget>[
+      Row(
+        children: [
+          Icon(Icons.attach_file, color: labelColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              attachment.fileName,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      _LabelValueRow(label: 'Uploaded on', value: attachment.uploadedAtLabel),
+    ];
+
+    if (attachment.uploadedBy != null && attachment.uploadedBy!.trim().isNotEmpty) {
+      children.add(
+        _LabelValueRow(
+          label: 'Uploaded by',
+          value: attachment.uploadedBy!.trim(),
+        ),
+      );
+    }
+
+    if (attachment.sizeLabel != null && attachment.sizeLabel!.trim().isNotEmpty) {
+      children.add(_LabelValueRow(label: 'Size', value: attachment.sizeLabel!.trim()));
+    }
+
+    if (attachment.hasDescription) {
+      children.addAll([
+        const SizedBox(height: 12),
+        Text(
+          'Description',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: labelColor,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          attachment.description!.trim(),
+          style: theme.textTheme.bodyMedium,
+        ),
+      ]);
+    }
+
+    if (attachment.hasDownloadUrl) {
+      children.addAll([
+        const SizedBox(height: 12),
+        Text(
+          'Download URL',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: labelColor,
+          ),
+        ),
+        const SizedBox(height: 4),
+        SelectableText(
+          attachment.downloadUrl!.trim(),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.visibility_outlined),
+            label: const Text('Preview'),
+            onPressed: () => _showPreview(context),
+          ),
+        ),
+      ]);
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -604,68 +683,237 @@ class _AttachmentCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+        children: children,
+      ),
+    );
+  }
+
+  void _showPreview(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => _AttachmentPreviewDialog(attachment: attachment),
+    );
+  }
+}
+
+class _AttachmentPreviewDialog extends StatelessWidget {
+  const _AttachmentPreviewDialog({required this.attachment});
+
+  final PurchaseOrderAttachment attachment;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final type = _resolveAttachmentType(attachment);
+
+    Widget preview;
+    if (!attachment.hasDownloadUrl) {
+      preview = const _AttachmentPreviewMessage(
+        icon: Icons.link_off,
+        message: 'This attachment does not provide a downloadable preview.',
+      );
+    } else {
+      final url = attachment.downloadUrl!.trim();
+      switch (type) {
+        case _AttachmentPreviewType.image:
+          preview = _ImageAttachmentPreview(url: url);
+          break;
+        case _AttachmentPreviewType.pdf:
+          preview = _PdfAttachmentPreview(url: url);
+          break;
+        case _AttachmentPreviewType.unsupported:
+          preview = _AttachmentPreviewMessage(
+            icon: Icons.visibility_off_outlined,
+            message:
+                'Preview is not available for this file type. Use the download URL to open it externally.',
+          );
+          break;
+      }
+    }
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 640),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Icon(Icons.attach_file, color: labelColor),
-              const SizedBox(width: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      attachment.fileName,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close preview',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               Expanded(
-                child: Text(
-                  attachment.fileName,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                    ),
+                    child: preview,
                   ),
                 ),
               ),
+              if (attachment.hasDownloadUrl) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Download URL',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                SelectableText(
+                  attachment.downloadUrl!.trim(),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ImageAttachmentPreview extends StatelessWidget {
+  const _ImageAttachmentPreview({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return InteractiveViewer(
+      maxScale: 5,
+      child: Center(
+        child: Image.network(
+          url,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => const _AttachmentPreviewMessage(
+            icon: Icons.broken_image_outlined,
+            message: 'Unable to load the image preview.',
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PdfAttachmentPreview extends StatelessWidget {
+  const _PdfAttachmentPreview({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return SfPdfViewer.network(url);
+  }
+}
+
+class _AttachmentPreviewMessage extends StatelessWidget {
+  const _AttachmentPreviewMessage({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 48, color: color),
           const SizedBox(height: 12),
-          _LabelValueRow(label: 'Uploaded on', value: attachment.uploadedAtLabel),
-          if (attachment.uploadedBy != null &&
-              attachment.uploadedBy!.trim().isNotEmpty)
-            _LabelValueRow(
-              label: 'Uploaded by',
-              value: attachment.uploadedBy!.trim(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(color: color),
             ),
-          if (attachment.sizeLabel != null && attachment.sizeLabel!.trim().isNotEmpty)
-            _LabelValueRow(label: 'Size', value: attachment.sizeLabel!.trim()),
-          if (attachment.hasDescription) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Description',
-              style: theme.textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: labelColor,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              attachment.description!.trim(),
-              style: theme.textTheme.bodyMedium,
-            ),
-          ],
-          if (attachment.hasDownloadUrl) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Download URL',
-              style: theme.textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: labelColor,
-              ),
-            ),
-            const SizedBox(height: 4),
-            SelectableText(
-              attachment.downloadUrl!.trim(),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          ],
+          ),
         ],
       ),
     );
   }
 }
+
+enum _AttachmentPreviewType { image, pdf, unsupported }
+
+_AttachmentPreviewType _resolveAttachmentType(PurchaseOrderAttachment attachment) {
+  final extension = _resolveAttachmentExtension(
+    [attachment.fileName, attachment.downloadUrl],
+  );
+
+  if (extension == null) {
+    return _AttachmentPreviewType.unsupported;
+  }
+
+  if (_imageAttachmentExtensions.contains(extension)) {
+    return _AttachmentPreviewType.image;
+  }
+
+  if (extension == 'pdf') {
+    return _AttachmentPreviewType.pdf;
+  }
+
+  return _AttachmentPreviewType.unsupported;
+}
+
+String? _resolveAttachmentExtension(List<Object?> candidates) {
+  for (final candidate in candidates) {
+    final value = switch (candidate) {
+      String s => s,
+      Uri u => u.toString(),
+      _ => null,
+    };
+    if (value == null || value.trim().isEmpty) {
+      continue;
+    }
+    final sanitized = value.split('?').first.split('#').first;
+    final dotIndex = sanitized.lastIndexOf('.');
+    if (dotIndex == -1 || dotIndex == sanitized.length - 1) {
+      continue;
+    }
+    return sanitized.substring(dotIndex + 1).toLowerCase();
+  }
+  return null;
+}
+
+const _imageAttachmentExtensions = <String>{
+  'apng',
+  'avif',
+  'bmp',
+  'gif',
+  'jpeg',
+  'jpg',
+  'png',
+  'webp',
+};
 
 class _EmptyTabMessage extends StatelessWidget {
   const _EmptyTabMessage({required this.icon, required this.message});
