@@ -23,6 +23,7 @@ class _PurchaseOrderDetailsDialogState
 
   late Future<PurchaseOrderDetail> _future;
   bool _initialized = false;
+  Map<String, String>? _attachmentPreviewHeaders;
 
   @override
   void didChangeDependencies() {
@@ -40,6 +41,7 @@ class _PurchaseOrderDetailsDialogState
   }
 
   Future<PurchaseOrderDetail> _loadDetails() async {
+    _attachmentPreviewHeaders = null;
     final appState = AppStateScope.of(context);
     final token = await appState.getValidAuthToken();
 
@@ -61,6 +63,16 @@ class _PurchaseOrderDetailsDialogState
         .trim();
     final authtokenHeader =
         autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+
+    final previewHeaders = <String, String>{};
+    if (authtokenHeader.isNotEmpty) {
+      previewHeaders['authtoken'] = authtokenHeader;
+    }
+    if (normalizedAuth.isNotEmpty) {
+      previewHeaders['Authorization'] = normalizedAuth;
+    }
+    _attachmentPreviewHeaders =
+        previewHeaders.isEmpty ? null : Map.unmodifiable(previewHeaders);
 
     return _service.fetchPurchaseOrder(
       id: widget.orderId,
@@ -129,7 +141,10 @@ class _PurchaseOrderDetailsDialogState
                             itemsController: _itemsScrollController,
                           ),
                           _PaymentsTab(detail: detail),
-                          _AttachmentsTab(detail: detail),
+                          _AttachmentsTab(
+                            detail: detail,
+                            previewHeaders: _attachmentPreviewHeaders,
+                          ),
                         ],
                       ),
                     ),
@@ -562,9 +577,10 @@ class _PaymentsTab extends StatelessWidget {
 }
 
 class _AttachmentsTab extends StatelessWidget {
-  const _AttachmentsTab({required this.detail});
+  const _AttachmentsTab({required this.detail, this.previewHeaders});
 
   final PurchaseOrderDetail detail;
+  final Map<String, String>? previewHeaders;
 
   @override
   Widget build(BuildContext context) {
@@ -581,16 +597,20 @@ class _AttachmentsTab extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final attachment = detail.attachments[index];
-        return _AttachmentCard(attachment: attachment);
+        return _AttachmentCard(
+          attachment: attachment,
+          previewHeaders: previewHeaders,
+        );
       },
     );
   }
 }
 
 class _AttachmentCard extends StatelessWidget {
-  const _AttachmentCard({required this.attachment});
+  const _AttachmentCard({required this.attachment, this.previewHeaders});
 
   final PurchaseOrderAttachment attachment;
+  final Map<String, String>? previewHeaders;
 
   @override
   Widget build(BuildContext context) {
@@ -658,7 +678,7 @@ class _AttachmentCard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         SelectableText(
-          attachment.downloadUrl!.trim(),
+          _normalizeAttachmentUrl(attachment.downloadUrl!),
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.primary,
           ),
@@ -691,15 +711,19 @@ class _AttachmentCard extends StatelessWidget {
   void _showPreview(BuildContext context) {
     showDialog<void>(
       context: context,
-      builder: (context) => _AttachmentPreviewDialog(attachment: attachment),
+      builder: (context) => _AttachmentPreviewDialog(
+        attachment: attachment,
+        headers: previewHeaders,
+      ),
     );
   }
 }
 
 class _AttachmentPreviewDialog extends StatelessWidget {
-  const _AttachmentPreviewDialog({required this.attachment});
+  const _AttachmentPreviewDialog({required this.attachment, this.headers});
 
   final PurchaseOrderAttachment attachment;
+  final Map<String, String>? headers;
 
   @override
   Widget build(BuildContext context) {
@@ -713,13 +737,13 @@ class _AttachmentPreviewDialog extends StatelessWidget {
         message: 'This attachment does not provide a downloadable preview.',
       );
     } else {
-      final url = attachment.downloadUrl!.trim();
+      final url = _normalizeAttachmentUrl(attachment.downloadUrl!);
       switch (type) {
         case _AttachmentPreviewType.image:
-          preview = _ImageAttachmentPreview(url: url);
+          preview = _ImageAttachmentPreview(url: url, headers: headers);
           break;
         case _AttachmentPreviewType.pdf:
-          preview = _PdfAttachmentPreview(url: url);
+          preview = _PdfAttachmentPreview(url: url, headers: headers);
           break;
         case _AttachmentPreviewType.unsupported:
           preview = _AttachmentPreviewMessage(
@@ -783,7 +807,7 @@ class _AttachmentPreviewDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 SelectableText(
-                  attachment.downloadUrl!.trim(),
+                  _normalizeAttachmentUrl(attachment.downloadUrl!),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.primary,
                   ),
@@ -798,9 +822,10 @@ class _AttachmentPreviewDialog extends StatelessWidget {
 }
 
 class _ImageAttachmentPreview extends StatelessWidget {
-  const _ImageAttachmentPreview({required this.url});
+  const _ImageAttachmentPreview({required this.url, this.headers});
 
   final String url;
+  final Map<String, String>? headers;
 
   @override
   Widget build(BuildContext context) {
@@ -809,6 +834,7 @@ class _ImageAttachmentPreview extends StatelessWidget {
       child: Center(
         child: Image.network(
           url,
+          headers: headers,
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) => const _AttachmentPreviewMessage(
             icon: Icons.broken_image_outlined,
@@ -821,14 +847,38 @@ class _ImageAttachmentPreview extends StatelessWidget {
 }
 
 class _PdfAttachmentPreview extends StatelessWidget {
-  const _PdfAttachmentPreview({required this.url});
+  const _PdfAttachmentPreview({required this.url, this.headers});
 
   final String url;
+  final Map<String, String>? headers;
 
   @override
   Widget build(BuildContext context) {
-    return SfPdfViewer.network(url);
+    return SfPdfViewer.network(url, headers: headers);
   }
+}
+
+String _normalizeAttachmentUrl(String url) {
+  final trimmed = url.trim();
+  if (trimmed.isEmpty) {
+    return trimmed;
+  }
+
+  Uri? parsed;
+  try {
+    parsed = Uri.parse(trimmed);
+  } on FormatException {
+    parsed = null;
+  }
+
+  if (parsed != null) {
+    return parsed.toString();
+  }
+
+  final encoded = Uri.encodeFull(trimmed)
+      .replaceAll('(', '%28')
+      .replaceAll(')', '%29');
+  return encoded;
 }
 
 class _AttachmentPreviewMessage extends StatelessWidget {
