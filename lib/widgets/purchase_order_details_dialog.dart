@@ -1,9 +1,8 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:http/http.dart' show Response, get;
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../app/app_state_scope.dart';
@@ -768,7 +767,7 @@ class _AttachmentPreviewDialog extends StatelessWidget {
     final theme = Theme.of(context);
     final type = _resolveAttachmentType(attachment);
 
-    Widget preview;
+    late final Widget preview;
     if (!attachment.hasDownloadUrl) {
       preview = const _AttachmentPreviewMessage(
         icon: Icons.link_off,
@@ -895,13 +894,8 @@ class _PdfAttachmentPreview extends StatefulWidget {
 }
 
 class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
-  late Future<Uint8List> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = _fetchPdfBytes();
-  }
+  final PdfViewerController _controller = PdfViewerController();
+  PdfDocumentLoadFailedDetails? _loadFailure;
 
   @override
   void didUpdateWidget(covariant _PdfAttachmentPreview oldWidget) {
@@ -909,7 +903,7 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
     if (oldWidget.url != widget.url ||
         !mapEquals(oldWidget.headers, widget.headers)) {
       setState(() {
-        _future = _fetchPdfBytes();
+        _loadFailure = null;
       });
     }
   }
@@ -923,21 +917,31 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
     requestHeaders.putIfAbsent(
         'Accept', () => 'application/pdf,application/octet-stream');
 
-    http.Response response;
-    try {
-      response = await http.get(uri, headers: requestHeaders);
-    } catch (error) {
-      throw Exception('Failed to load PDF: $error');
-    }
+    final response = await _sendPdfRequest(uri, requestHeaders);
+    return _validatePdfResponse(response);
+  }
 
+  Future<Response> _sendPdfRequest(
+    Uri uri,
+    Map<String, String> headers,
+  ) async {
+    try {
+      return await get(uri, headers: headers);
+    } catch (error) {
+      throw Exception('Failed to contact the server: $error');
+    }
+  }
+
+  Uint8List _validatePdfResponse(Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception(
-          'Request failed with status ${response.statusCode}: ${response.reasonPhrase ?? 'Unknown error'}');
+      final reason = response.reasonPhrase?.trim();
+      final suffix = reason == null || reason.isEmpty ? '' : ' ($reason)';
+      throw Exception('Request failed with status ${response.statusCode}$suffix');
     }
 
     final bytes = response.bodyBytes;
     if (bytes.isEmpty) {
-      throw Exception('The PDF file appears to be empty.');
+      throw Exception('The attachment returned no data.');
     }
 
     return bytes;
@@ -953,24 +957,39 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
         }
 
         if (snapshot.hasError) {
-          return const _AttachmentPreviewMessage(
+          final description = snapshot.error.toString();
+          final details = description.isEmpty ? '' : '\n\n$description';
+          return _AttachmentPreviewMessage(
             icon: Icons.picture_as_pdf_outlined,
             message:
-                'Unable to load the PDF preview. Try downloading the file to view it externally.',
+                'Unable to load the PDF preview. Try downloading the file to view it externally.$details',
           );
         }
 
-        final bytes = snapshot.data;
-        if (bytes == null || bytes.isEmpty) {
-          return const _AttachmentPreviewMessage(
-            icon: Icons.picture_as_pdf_outlined,
-            message: 'The PDF preview is unavailable for this attachment.',
-          );
+    final headers = widget.headers == null
+        ? null
+        : Map<String, String>.from(widget.headers!);
+
+    return SfPdfViewer.network(
+      widget.url,
+      key: ValueKey('${widget.url}-${headers?.hashCode ?? 0}'),
+      controller: _controller,
+      headers: headers,
+      canShowPaginationDialog: true,
+      onDocumentLoadFailed: (details) {
+        if (!mounted) {
+          return;
         }
 
+        final headersHash = widget.headers == null
+            ? 0
+            : Object.hashAllUnordered(
+                widget.headers!.entries
+                    .map((entry) => Object.hash(entry.key, entry.value)),
+              );
         return SfPdfViewer.memory(
           bytes,
-          key: ValueKey(widget.url),
+          key: ValueKey('${widget.url}-$headersHash'),
         );
       },
     );
