@@ -916,10 +916,12 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
 
   Future<Uint8List> _fetchPdfBytes() async {
     final uri = Uri.parse(widget.url);
+
     final requestHeaders = <String, String>{
       if (widget.headers != null) ...widget.headers!,
     };
-    requestHeaders.putIfAbsent('Accept', () => 'application/pdf,application/octet-stream');
+    requestHeaders.putIfAbsent(
+        'Accept', () => 'application/pdf,application/octet-stream');
 
     http.Response response;
     try {
@@ -1053,21 +1055,31 @@ _AttachmentPreviewType _resolveAttachmentType(PurchaseOrderAttachment attachment
 
 String? _resolveAttachmentExtension(List<Object?> candidates) {
   for (final candidate in candidates) {
-    final value = switch (candidate) {
-      String s => s,
-      Uri u => u.toString(),
-      _ => null,
-    };
-    if (value == null || value.trim().isEmpty) {
+    String? value;
+    if (candidate is String) {
+      value = candidate;
+    } else if (candidate is Uri) {
+      value = candidate.toString();
+    }
+
+    if (value == null) {
       continue;
     }
-    final sanitized = value.split('?').first.split('#').first;
+
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      continue;
+    }
+
+    final sanitized = trimmed.split('?').first.split('#').first;
     final dotIndex = sanitized.lastIndexOf('.');
     if (dotIndex == -1 || dotIndex == sanitized.length - 1) {
       continue;
     }
+
     return sanitized.substring(dotIndex + 1).toLowerCase();
   }
+
   return null;
 }
 
