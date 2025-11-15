@@ -573,6 +573,7 @@ class _PurchaseOrdersHeader extends StatelessWidget {
             ascending: sortAscending,
             onTap: () => onSort(PurchaseOrderSortColumn.paymentProgress),
           ),
+          SizedBox(width: gap),
           SortableHeaderCell(
             label: 'Delivery Status',
             flex: _columnFlex[5],
