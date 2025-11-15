@@ -21,10 +21,10 @@ class PurchaseOrdersTab extends StatefulWidget {
   const PurchaseOrdersTab({super.key});
 
   @override
-  State<PurchaseOrdersTab> createState() => _PurchaseOrdersTabState();
+  PurchaseOrdersTabState createState() => PurchaseOrdersTabState();
 }
 
-class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
+class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   final _service = PurchaseOrdersService();
   final _scrollController = ScrollController();
   final _horizontalController = ScrollController();
@@ -291,6 +291,21 @@ class _PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       _filterStartDate = null;
       _filterEndDate = null;
       _applyFilters();
+    });
+  }
+
+  void insertCreatedPurchaseOrder(PurchaseOrder order) {
+    setState(() {
+      final existingIndex =
+          _allOrders.indexWhere((element) => element.id == order.id);
+      if (existingIndex >= 0) {
+        _allOrders[existingIndex] = order;
+      } else {
+        _allOrders.add(order);
+      }
+      _applySorting();
+      _applyFilters();
+      _error = null;
     });
   }
 
