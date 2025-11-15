@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' show Response, get;
+import 'package:flutter/services.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../app/app_state_scope.dart';
@@ -610,10 +610,9 @@ class _AttachmentsTab extends StatelessWidget {
 }
 
 class _AttachmentCard extends StatelessWidget {
-  const _AttachmentCard({required this.attachment, this.previewHeaders});
+  const _AttachmentCard({required this.attachment});
 
   final PurchaseOrderAttachment attachment;
-  final Map<String, String>? previewHeaders;
 
   @override
   Widget build(BuildContext context) {
@@ -696,7 +695,7 @@ class _AttachmentCard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         SelectableText(
-          _normalizeAttachmentPreviewUrl(attachment.downloadUrl!),
+          attachment.downloadUrl!.trim(),
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.primary,
           ),
@@ -748,16 +747,13 @@ class _AttachmentCard extends StatelessWidget {
   void _showPreview(BuildContext context) {
     showDialog<void>(
       context: context,
-      builder: (context) => _AttachmentPreviewDialog(
-        attachment: attachment,
-        headers: previewHeaders,
-      ),
+      builder: (context) => _AttachmentPreviewDialog(attachment: attachment),
     );
   }
 }
 
 class _AttachmentPreviewDialog extends StatelessWidget {
-  const _AttachmentPreviewDialog({required this.attachment, this.headers});
+  const _AttachmentPreviewDialog({required this.attachment});
 
   final PurchaseOrderAttachment attachment;
   final Map<String, String>? headers;
@@ -767,20 +763,20 @@ class _AttachmentPreviewDialog extends StatelessWidget {
     final theme = Theme.of(context);
     final type = _resolveAttachmentType(attachment);
 
-    late final Widget preview;
+    Widget preview;
     if (!attachment.hasDownloadUrl) {
       preview = const _AttachmentPreviewMessage(
         icon: Icons.link_off,
         message: 'This attachment does not provide a downloadable preview.',
       );
     } else {
-      final url = _normalizeAttachmentPreviewUrl(attachment.downloadUrl!);
+      final url = attachment.downloadUrl!.trim();
       switch (type) {
         case _AttachmentPreviewType.image:
-          preview = _ImageAttachmentPreview(url: url, headers: headers);
+          preview = _ImageAttachmentPreview(url: url);
           break;
         case _AttachmentPreviewType.pdf:
-          preview = _PdfAttachmentPreview(url: url, headers: headers);
+          preview = _PdfAttachmentPreview(url: url);
           break;
         case _AttachmentPreviewType.unsupported:
           preview = _AttachmentPreviewMessage(
@@ -844,7 +840,7 @@ class _AttachmentPreviewDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 SelectableText(
-                  _normalizeAttachmentPreviewUrl(attachment.downloadUrl!),
+                  attachment.downloadUrl!.trim(),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.primary,
                   ),
@@ -859,10 +855,9 @@ class _AttachmentPreviewDialog extends StatelessWidget {
 }
 
 class _ImageAttachmentPreview extends StatelessWidget {
-  const _ImageAttachmentPreview({required this.url, this.headers});
+  const _ImageAttachmentPreview({required this.url});
 
   final String url;
-  final Map<String, String>? headers;
 
   @override
   Widget build(BuildContext context) {
@@ -871,7 +866,6 @@ class _ImageAttachmentPreview extends StatelessWidget {
       child: Center(
         child: Image.network(
           url,
-          headers: headers,
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) => const _AttachmentPreviewMessage(
             icon: Icons.broken_image_outlined,
@@ -883,145 +877,15 @@ class _ImageAttachmentPreview extends StatelessWidget {
   }
 }
 
-class _PdfAttachmentPreview extends StatefulWidget {
-  const _PdfAttachmentPreview({required this.url, this.headers});
+class _PdfAttachmentPreview extends StatelessWidget {
+  const _PdfAttachmentPreview({required this.url});
 
   final String url;
-  final Map<String, String>? headers;
-
-  @override
-  State<_PdfAttachmentPreview> createState() => _PdfAttachmentPreviewState();
-}
-
-class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
-  final PdfViewerController _controller = PdfViewerController();
-  PdfDocumentLoadFailedDetails? _loadFailure;
-
-  @override
-  void didUpdateWidget(covariant _PdfAttachmentPreview oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.url != widget.url ||
-        !mapEquals(oldWidget.headers, widget.headers)) {
-      setState(() {
-        _loadFailure = null;
-      });
-    }
-  }
-
-  Future<Uint8List> _fetchPdfBytes() async {
-    final uri = Uri.tryParse(widget.url);
-    if (uri == null) {
-      throw Exception('The attachment URL is invalid.');
-    }
-
-    final requestHeaders = <String, String>{
-      if (widget.headers != null) ...widget.headers!,
-    };
-    requestHeaders.putIfAbsent(
-      'Accept',
-      () => 'application/pdf,application/octet-stream',
-    );
-
-    final response = await _sendPdfRequest(uri, requestHeaders);
-    return _validatePdfResponse(response);
-  }
-
-  Future<Response> _sendPdfRequest(
-    Uri uri,
-    Map<String, String> headers,
-  ) async {
-    try {
-      return await get(uri, headers: headers);
-    } catch (error) {
-      throw Exception('Failed to contact the server: $error');
-    }
-  }
-
-  Uint8List _validatePdfResponse(Response response) {
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final reason = response.reasonPhrase?.trim();
-      final suffix = reason == null || reason.isEmpty ? '' : ' ($reason)';
-      throw Exception('Request failed with status ${response.statusCode}$suffix');
-    }
-
-    final bytes = response.bodyBytes;
-    if (bytes.isEmpty) {
-      throw Exception('The attachment returned no data.');
-    }
-
-    return bytes;
-  }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Uint8List>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (snapshot.hasError) {
-          final description = snapshot.error.toString();
-          final details = description.isEmpty ? '' : '\n\n$description';
-          return _AttachmentPreviewMessage(
-            icon: Icons.picture_as_pdf_outlined,
-            message:
-                'Unable to load the PDF preview. Try downloading the file to view it externally.$details',
-          );
-        }
-
-    final headers = widget.headers == null
-        ? null
-        : Map<String, String>.from(widget.headers!);
-
-    return SfPdfViewer.network(
-      widget.url,
-      key: ValueKey('${widget.url}-${headers?.hashCode ?? 0}'),
-      controller: _controller,
-      headers: headers,
-      canShowPaginationDialog: true,
-      onDocumentLoadFailed: (details) {
-        if (!mounted) {
-          return;
-        }
-
-        final headersHash = widget.headers == null
-            ? 0
-            : Object.hashAllUnordered(
-                widget.headers!.entries
-                    .map((entry) => Object.hash(entry.key, entry.value)),
-              );
-        return SfPdfViewer.memory(
-          bytes,
-          key: ValueKey('${widget.url}-$headersHash'),
-        );
-      },
-    );
+    return SfPdfViewer.network(url);
   }
-}
-
-String _normalizeAttachmentPreviewUrl(String url) {
-  final trimmed = url.trim();
-  if (trimmed.isEmpty) {
-    return trimmed;
-  }
-
-  Uri? parsed;
-  try {
-    parsed = Uri.parse(trimmed);
-  } on FormatException {
-    parsed = null;
-  }
-
-  if (parsed != null) {
-    return parsed.toString();
-  }
-
-  final encoded = Uri.encodeFull(trimmed)
-      .replaceAll('(', '%28')
-      .replaceAll(')', '%29');
-  return encoded;
 }
 
 class _AttachmentPreviewMessage extends StatelessWidget {
@@ -1079,31 +943,21 @@ _AttachmentPreviewType _resolveAttachmentType(PurchaseOrderAttachment attachment
 
 String? _resolveAttachmentExtension(List<Object?> candidates) {
   for (final candidate in candidates) {
-    String? value;
-    if (candidate is String) {
-      value = candidate;
-    } else if (candidate is Uri) {
-      value = candidate.toString();
-    }
-
-    if (value == null) {
+    final value = switch (candidate) {
+      String s => s,
+      Uri u => u.toString(),
+      _ => null,
+    };
+    if (value == null || value.trim().isEmpty) {
       continue;
     }
-
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) {
-      continue;
-    }
-
-    final sanitized = trimmed.split('?').first.split('#').first;
+    final sanitized = value.split('?').first.split('#').first;
     final dotIndex = sanitized.lastIndexOf('.');
     if (dotIndex == -1 || dotIndex == sanitized.length - 1) {
       continue;
     }
-
     return sanitized.substring(dotIndex + 1).toLowerCase();
   }
-
   return null;
 }
 
