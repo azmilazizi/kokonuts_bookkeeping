@@ -907,24 +907,59 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
     }
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  Future<Uint8List> _fetchPdfBytes() async {
+    final uri = Uri.tryParse(widget.url);
+    if (uri == null) {
+      throw Exception('The attachment URL is invalid.');
+    }
+
+    final requestHeaders = <String, String>{
+      if (widget.headers != null) ...widget.headers!,
+    };
+    requestHeaders.putIfAbsent(
+      'Accept',
+      () => 'application/pdf,application/octet-stream',
+    );
+
+    http.Response response;
+    try {
+      response = await http.get(uri, headers: requestHeaders);
+    } catch (error) {
+      throw Exception('Failed to contact the server: $error');
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final reason = response.reasonPhrase?.trim();
+      final suffix = reason == null || reason.isEmpty ? '' : ' ($reason)';
+      throw Exception('Request failed with status ${response.statusCode}$suffix');
+    }
+
+    final bytes = response.bodyBytes;
+    if (bytes.isEmpty) {
+      throw Exception('The attachment returned no data.');
+    }
+
+    return bytes;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loadFailure != null) {
-      final description = _loadFailure!.description?.trim();
-      final detailsMessage =
-          description == null || description.isEmpty ? '' : '\n\n$description';
-      return _AttachmentPreviewMessage(
-        icon: Icons.picture_as_pdf_outlined,
-        message:
-            'Unable to load the PDF preview. Try downloading the file to view it externally.$detailsMessage',
-      );
-    }
+    return FutureBuilder<Uint8List>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          final description = snapshot.error.toString();
+          final details = description.isEmpty ? '' : '\n\n$description';
+          return _AttachmentPreviewMessage(
+            icon: Icons.picture_as_pdf_outlined,
+            message:
+                'Unable to load the PDF preview. Try downloading the file to view it externally.$details',
+          );
+        }
 
     final headers = widget.headers == null
         ? null
@@ -940,9 +975,17 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
         if (!mounted) {
           return;
         }
-        setState(() {
-          _loadFailure = details;
-        });
+
+        final headersHash = widget.headers == null
+            ? 0
+            : Object.hashAllUnordered(
+                widget.headers!.entries
+                    .map((entry) => Object.hash(entry.key, entry.value)),
+              );
+        return SfPdfViewer.memory(
+          bytes,
+          key: ValueKey('${widget.url}-$headersHash'),
+        );
       },
     );
   }
