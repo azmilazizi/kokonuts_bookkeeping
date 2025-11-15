@@ -1,7 +1,9 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../app/app_state_scope.dart';
@@ -68,6 +70,7 @@ class _PurchaseOrderDetailsDialogState
     final previewHeaders = <String, String>{};
     if (authtokenHeader.isNotEmpty) {
       previewHeaders['authtoken'] = authtokenHeader;
+      previewHeaders['Cookie'] = 'authtoken=$authtokenHeader';
     }
     if (normalizedAuth.isNotEmpty) {
       previewHeaders['Authorization'] = normalizedAuth;
@@ -881,16 +884,118 @@ class _ImageAttachmentPreview extends StatelessWidget {
   }
 }
 
-class _PdfAttachmentPreview extends StatelessWidget {
+class _PdfAttachmentPreview extends StatefulWidget {
   const _PdfAttachmentPreview({required this.url, this.headers});
 
   final String url;
   final Map<String, String>? headers;
 
   @override
-  Widget build(BuildContext context) {
-    return SfPdfViewer.network(url, headers: headers);
+  State<_PdfAttachmentPreview> createState() => _PdfAttachmentPreviewState();
+}
+
+class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
+  late Future<Uint8List> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _fetchPdfBytes();
   }
+
+  @override
+  void didUpdateWidget(covariant _PdfAttachmentPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url ||
+        !mapEquals(oldWidget.headers, widget.headers)) {
+      setState(() {
+        _future = _fetchPdfBytes();
+      });
+    }
+  }
+
+  Future<Uint8List> _fetchPdfBytes() async {
+    final uri = Uri.parse(widget.url);
+    final requestHeaders = <String, String>{
+      if (widget.headers != null) ...widget.headers!,
+    };
+    requestHeaders.putIfAbsent('Accept', () => 'application/pdf,application/octet-stream');
+
+    http.Response response;
+    try {
+      response = await http.get(uri, headers: requestHeaders);
+    } catch (error) {
+      throw Exception('Failed to load PDF: $error');
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+          'Request failed with status ${response.statusCode}: ${response.reasonPhrase ?? 'Unknown error'}');
+    }
+
+    final bytes = response.bodyBytes;
+    if (bytes.isEmpty) {
+      throw Exception('The PDF file appears to be empty.');
+    }
+
+    return bytes;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Uint8List>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return const _AttachmentPreviewMessage(
+            icon: Icons.picture_as_pdf_outlined,
+            message:
+                'Unable to load the PDF preview. Try downloading the file to view it externally.',
+          );
+        }
+
+        final bytes = snapshot.data;
+        if (bytes == null || bytes.isEmpty) {
+          return const _AttachmentPreviewMessage(
+            icon: Icons.picture_as_pdf_outlined,
+            message: 'The PDF preview is unavailable for this attachment.',
+          );
+        }
+
+        return SfPdfViewer.memory(
+          bytes,
+          key: ValueKey(widget.url),
+        );
+      },
+    );
+  }
+}
+
+String _normalizeAttachmentUrl(String url) {
+  final trimmed = url.trim();
+  if (trimmed.isEmpty) {
+    return trimmed;
+  }
+
+  Uri? parsed;
+  try {
+    parsed = Uri.parse(trimmed);
+  } on FormatException {
+    parsed = null;
+  }
+
+  if (parsed != null) {
+    return parsed.toString();
+  }
+
+  final encoded = Uri.encodeFull(trimmed)
+      .replaceAll('(', '%28')
+      .replaceAll(')', '%29');
+  return encoded;
 }
 
 String _normalizeAttachmentUrl(String url) {
