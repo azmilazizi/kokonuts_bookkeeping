@@ -1,9 +1,7 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../app/app_state_scope.dart';
@@ -895,13 +893,8 @@ class _PdfAttachmentPreview extends StatefulWidget {
 }
 
 class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
-  late Future<Uint8List> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = _fetchPdfBytes();
-  }
+  final PdfViewerController _controller = PdfViewerController();
+  PdfDocumentLoadFailedDetails? _loadFailure;
 
   @override
   void didUpdateWidget(covariant _PdfAttachmentPreview oldWidget) {
@@ -909,67 +902,47 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
     if (oldWidget.url != widget.url ||
         !mapEquals(oldWidget.headers, widget.headers)) {
       setState(() {
-        _future = _fetchPdfBytes();
+        _loadFailure = null;
       });
     }
   }
 
-  Future<Uint8List> _fetchPdfBytes() async {
-    final uri = Uri.parse(widget.url);
-    final requestHeaders = <String, String>{
-      if (widget.headers != null) ...widget.headers!,
-    };
-    requestHeaders.putIfAbsent('Accept', () => 'application/pdf,application/octet-stream');
-
-    http.Response response;
-    try {
-      response = await http.get(uri, headers: requestHeaders);
-    } catch (error) {
-      throw Exception('Failed to load PDF: $error');
-    }
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception(
-          'Request failed with status ${response.statusCode}: ${response.reasonPhrase ?? 'Unknown error'}');
-    }
-
-    final bytes = response.bodyBytes;
-    if (bytes.isEmpty) {
-      throw Exception('The PDF file appears to be empty.');
-    }
-
-    return bytes;
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Uint8List>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    if (_loadFailure != null) {
+      final description = _loadFailure!.description?.trim();
+      final detailsMessage =
+          description == null || description.isEmpty ? '' : '\n\n$description';
+      return _AttachmentPreviewMessage(
+        icon: Icons.picture_as_pdf_outlined,
+        message:
+            'Unable to load the PDF preview. Try downloading the file to view it externally.$detailsMessage',
+      );
+    }
 
-        if (snapshot.hasError) {
-          return const _AttachmentPreviewMessage(
-            icon: Icons.picture_as_pdf_outlined,
-            message:
-                'Unable to load the PDF preview. Try downloading the file to view it externally.',
-          );
-        }
+    final headers = widget.headers == null
+        ? null
+        : Map<String, String>.from(widget.headers!);
 
-        final bytes = snapshot.data;
-        if (bytes == null || bytes.isEmpty) {
-          return const _AttachmentPreviewMessage(
-            icon: Icons.picture_as_pdf_outlined,
-            message: 'The PDF preview is unavailable for this attachment.',
-          );
+    return SfPdfViewer.network(
+      widget.url,
+      key: ValueKey('${widget.url}-${headers?.hashCode ?? 0}'),
+      controller: _controller,
+      headers: headers,
+      canShowPaginationDialog: true,
+      onDocumentLoadFailed: (details) {
+        if (!mounted) {
+          return;
         }
-
-        return SfPdfViewer.memory(
-          bytes,
-          key: ValueKey(widget.url),
-        );
+        setState(() {
+          _loadFailure = details;
+        });
       },
     );
   }
