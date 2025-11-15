@@ -224,6 +224,105 @@ class _DialogTabs extends StatelessWidget {
   }
 }
 
+class _PillStyle {
+  const _PillStyle({
+    required this.label,
+    required this.backgroundColor,
+    required this.foregroundColor,
+  });
+
+  final String label;
+  final Color backgroundColor;
+  final Color foregroundColor;
+}
+
+class _SummaryField {
+  const _SummaryField._(this.label, this.value, this.pillStyle);
+
+  const _SummaryField.text(String label, String value)
+      : this._(label, value, null);
+
+  _SummaryField.pill({required String label, required _PillStyle pillStyle})
+      : this._(label, pillStyle.label, pillStyle);
+
+  final String label;
+  final String value;
+  final _PillStyle? pillStyle;
+}
+
+class _SummaryValue extends StatelessWidget {
+  const _SummaryValue({required this.field, required this.theme});
+
+  final _SummaryField field;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final pill = field.pillStyle;
+    final value = field.value.trim().isEmpty ? '—' : field.value.trim();
+
+    if (pill == null || value == '—') {
+      return Text(
+        value,
+        style: theme.textTheme.bodyMedium,
+      );
+    }
+
+    final textStyle = theme.textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w600,
+          color: pill.foregroundColor,
+        ) ??
+        TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: pill.foregroundColor,
+        );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: pill.backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 6,
+      ),
+      child: Text(pill.label, style: textStyle),
+    );
+  }
+}
+
+class _SummaryTile extends StatelessWidget {
+  const _SummaryTile({required this.field, required this.theme});
+
+  final _SummaryField field;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 160),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            field.label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 4),
+          _SummaryValue(
+            field: field,
+            theme: theme,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SummarySection extends StatelessWidget {
   const _SummarySection({required this.detail});
 
@@ -370,677 +469,6 @@ int? _findIdForLabel(String label, Map<int, String> lookup) {
     }
   }
   return null;
-}
-
-class _SummaryField {
-  const _SummaryField._(this.label, this.value, this.pillStyle);
-
-  const _SummaryField.text(String label, String value)
-      : this._(label, value, null);
-
-  _SummaryField.pill({required String label, required _PillStyle pillStyle})
-      : this._(label, pillStyle.label, pillStyle);
-
-  final String label;
-  final String value;
-  final _PillStyle? pillStyle;
-}
-
-class _PillStyle {
-  const _PillStyle({
-    required this.label,
-    required this.backgroundColor,
-    required this.foregroundColor,
-  });
-
-  final String label;
-  final Color backgroundColor;
-  final Color foregroundColor;
-}
-
-class _SummaryTile extends StatelessWidget {
-  const _SummaryTile({required this.field, required this.theme});
-
-  final _SummaryField field;
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 160),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            field.label,
-            style: theme.textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 4),
-          _SummaryValue(
-            field: field,
-            theme: theme,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SummaryValue extends StatelessWidget {
-  const _SummaryValue({required this.field, required this.theme});
-
-  final _SummaryField field;
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    final pill = field.pillStyle;
-    final value = field.value.trim().isEmpty ? '—' : field.value.trim();
-
-    if (pill == null || value == '—') {
-      return Text(
-        value,
-        style: theme.textTheme.bodyMedium,
-      );
-    }
-
-    final textStyle = theme.textTheme.labelSmall?.copyWith(
-          fontWeight: FontWeight.w600,
-          color: pill.foregroundColor,
-        ) ??
-        TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: pill.foregroundColor,
-        );
-
-    return Container(
-      decoration: BoxDecoration(
-        color: pill.backgroundColor,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 6,
-      ),
-      child: Text(pill.label, style: textStyle),
-    );
-  }
-}
-
-class _DetailsTab extends StatelessWidget {
-  const _DetailsTab({
-    required this.detail,
-    required this.itemsController,
-  });
-
-  final PurchaseOrderDetail detail;
-  final ScrollController itemsController;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SummarySection(detail: detail),
-          const SizedBox(height: 24),
-          _ItemsSection(
-            detail: detail,
-            controller: itemsController,
-          ),
-          const SizedBox(height: 24),
-          _TotalsSection(detail: detail, theme: theme),
-          if (detail.hasNotes) ...[
-            const SizedBox(height: 24),
-            _RichTextSection(
-              title: 'Notes',
-              value: detail.notes!,
-            ),
-          ],
-          if (detail.hasTerms) ...[
-            const SizedBox(height: 24),
-            _RichTextSection(
-              title: 'Terms & Conditions',
-              value: detail.terms!,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _PaymentsTab extends StatelessWidget {
-  const _PaymentsTab({required this.detail});
-
-  final PurchaseOrderDetail detail;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!detail.hasPayments) {
-      return const _EmptyTabMessage(
-        icon: Icons.receipt_long,
-        message: 'No payments recorded for this purchase order.',
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: DataTable(
-              columnSpacing: 24,
-              columns: const [
-                DataColumn(label: Text('Amount')),
-                DataColumn(label: Text('Payment Mode')),
-                DataColumn(label: Text('Date')),
-                DataColumn(label: Text('Actions')),
-              ],
-              rows: detail.payments
-                  .map(
-                    (payment) => DataRow(
-                      cells: [
-                        DataCell(Text(payment.amountLabel)),
-                        DataCell(Text(payment.methodLabel)),
-                        DataCell(Text(payment.dateLabel)),
-                        DataCell(
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                tooltip: 'Edit payment',
-                                icon: const Icon(Icons.edit_outlined),
-                                onPressed: () {},
-                              ),
-                              IconButton(
-                                tooltip: 'Delete payment',
-                                icon: const Icon(Icons.delete_outline),
-                                onPressed: () {},
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                  .toList(),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AttachmentsTab extends StatelessWidget {
-  const _AttachmentsTab({required this.detail, this.previewHeaders});
-
-  final PurchaseOrderDetail detail;
-  final Map<String, String>? previewHeaders;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!detail.hasAttachments) {
-      return const _EmptyTabMessage(
-        icon: Icons.attach_file,
-        message: 'No attachments were uploaded for this purchase order.',
-      );
-    }
-
-    return ListView.separated(
-      padding: EdgeInsets.zero,
-      itemCount: detail.attachments.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final attachment = detail.attachments[index];
-        return _AttachmentCard(
-          attachment: attachment,
-          previewHeaders: previewHeaders,
-        );
-      },
-    );
-  }
-}
-
-class _AttachmentCard extends StatelessWidget {
-  const _AttachmentCard({required this.attachment});
-
-  final PurchaseOrderAttachment attachment;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final labelColor = theme.colorScheme.onSurfaceVariant;
-    final previewType = _resolveAttachmentType(attachment);
-    final canPreview =
-        attachment.hasDownloadUrl && previewType != _AttachmentPreviewType.unsupported;
-    final children = <Widget>[
-      Row(
-        children: [
-          Icon(Icons.attach_file, color: labelColor),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              attachment.fileName,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          if (canPreview)
-            const SizedBox(width: 8),
-          if (canPreview)
-            Tooltip(
-              message: 'Preview attachment',
-              child: Icon(
-                previewType == _AttachmentPreviewType.pdf
-                    ? Icons.picture_as_pdf_outlined
-                    : Icons.image_outlined,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-        ],
-      ),
-      const SizedBox(height: 12),
-      _LabelValueRow(label: 'Uploaded on', value: attachment.uploadedAtLabel),
-    ];
-
-    if (attachment.uploadedBy != null && attachment.uploadedBy!.trim().isNotEmpty) {
-      children.add(
-        _LabelValueRow(
-          label: 'Uploaded by',
-          value: attachment.uploadedBy!.trim(),
-        ),
-      );
-    }
-
-    if (attachment.sizeLabel != null && attachment.sizeLabel!.trim().isNotEmpty) {
-      children.add(_LabelValueRow(label: 'Size', value: attachment.sizeLabel!.trim()));
-    }
-
-    if (attachment.hasDescription) {
-      children.addAll([
-        const SizedBox(height: 12),
-        Text(
-          'Description',
-          style: theme.textTheme.labelMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: labelColor,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          attachment.description!.trim(),
-          style: theme.textTheme.bodyMedium,
-        ),
-      ]);
-    }
-
-    if (attachment.hasDownloadUrl) {
-      children.addAll([
-        const SizedBox(height: 12),
-        Text(
-          'Download URL',
-          style: theme.textTheme.labelMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: labelColor,
-          ),
-        ),
-        const SizedBox(height: 4),
-        SelectableText(
-          attachment.downloadUrl!.trim(),
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.primary,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerRight,
-          child: canPreview
-              ? OutlinedButton.icon(
-                  icon: const Icon(Icons.visibility_outlined),
-                  label: const Text('Preview'),
-                  onPressed: () => _showPreview(context),
-                )
-              : Text(
-                  'Preview is not available for this file type.',
-                  style: theme.textTheme.bodySmall?.copyWith(color: labelColor),
-                ),
-        ),
-      ]);
-    }
-
-    final card = Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: theme.dividerColor),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
-      ),
-    );
-
-    if (!canPreview) {
-      return card;
-    }
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        mouseCursor: SystemMouseCursors.click,
-        onTap: () => _showPreview(context),
-        child: card,
-      ),
-    );
-  }
-
-  void _showPreview(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => _AttachmentPreviewDialog(attachment: attachment),
-    );
-  }
-}
-
-class _AttachmentPreviewDialog extends StatelessWidget {
-  const _AttachmentPreviewDialog({required this.attachment});
-
-  final PurchaseOrderAttachment attachment;
-  final Map<String, String>? headers;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final type = _resolveAttachmentType(attachment);
-
-    Widget preview;
-    if (!attachment.hasDownloadUrl) {
-      preview = const _AttachmentPreviewMessage(
-        icon: Icons.link_off,
-        message: 'This attachment does not provide a downloadable preview.',
-      );
-    } else {
-      final url = attachment.downloadUrl!.trim();
-      switch (type) {
-        case _AttachmentPreviewType.image:
-          preview = _ImageAttachmentPreview(url: url);
-          break;
-        case _AttachmentPreviewType.pdf:
-          preview = _PdfAttachmentPreview(url: url);
-          break;
-        case _AttachmentPreviewType.unsupported:
-          preview = _AttachmentPreviewMessage(
-            icon: Icons.visibility_off_outlined,
-            message:
-                'Preview is not available for this file type. Use the download URL to open it externally.',
-          );
-          break;
-      }
-    }
-
-    return Dialog(
-      insetPadding: const EdgeInsets.all(24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 640),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      attachment.fileName,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Close preview',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-                    ),
-                    child: preview,
-                  ),
-                ),
-              ),
-              if (attachment.hasDownloadUrl) ...[
-                const SizedBox(height: 16),
-                Text(
-                  'Download URL',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                SelectableText(
-                  attachment.downloadUrl!.trim(),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ImageAttachmentPreview extends StatelessWidget {
-  const _ImageAttachmentPreview({required this.url});
-
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    return InteractiveViewer(
-      maxScale: 5,
-      child: Center(
-        child: Image.network(
-          url,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) => const _AttachmentPreviewMessage(
-            icon: Icons.broken_image_outlined,
-            message: 'Unable to load the image preview.',
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PdfAttachmentPreview extends StatelessWidget {
-  const _PdfAttachmentPreview({required this.url});
-
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    return SfPdfViewer.network(url);
-  }
-}
-
-class _AttachmentPreviewMessage extends StatelessWidget {
-  const _AttachmentPreviewMessage({required this.icon, required this.message});
-
-  final IconData icon;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = theme.colorScheme.onSurfaceVariant;
-
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 48, color: color),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              message,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(color: color),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-enum _AttachmentPreviewType { image, pdf, unsupported }
-
-_AttachmentPreviewType _resolveAttachmentType(PurchaseOrderAttachment attachment) {
-  final extension = _resolveAttachmentExtension(
-    [attachment.fileName, attachment.downloadUrl],
-  );
-
-  if (extension == null) {
-    return _AttachmentPreviewType.unsupported;
-  }
-
-  if (_imageAttachmentExtensions.contains(extension)) {
-    return _AttachmentPreviewType.image;
-  }
-
-  if (extension == 'pdf') {
-    return _AttachmentPreviewType.pdf;
-  }
-
-  return _AttachmentPreviewType.unsupported;
-}
-
-String? _resolveAttachmentExtension(List<Object?> candidates) {
-  for (final candidate in candidates) {
-    final value = switch (candidate) {
-      String s => s,
-      Uri u => u.toString(),
-      _ => null,
-    };
-    if (value == null || value.trim().isEmpty) {
-      continue;
-    }
-    final sanitized = value.split('?').first.split('#').first;
-    final dotIndex = sanitized.lastIndexOf('.');
-    if (dotIndex == -1 || dotIndex == sanitized.length - 1) {
-      continue;
-    }
-    return sanitized.substring(dotIndex + 1).toLowerCase();
-  }
-  return null;
-}
-
-const _imageAttachmentExtensions = <String>{
-  'apng',
-  'avif',
-  'bmp',
-  'gif',
-  'jpeg',
-  'jpg',
-  'png',
-  'webp',
-};
-
-class _EmptyTabMessage extends StatelessWidget {
-  const _EmptyTabMessage({required this.icon, required this.message});
-
-  final IconData icon;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = theme.colorScheme.onSurfaceVariant;
-
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 36, color: color),
-          const SizedBox(height: 12),
-          Text(
-            message,
-            style: theme.textTheme.bodyMedium?.copyWith(color: color),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LabelValueRow extends StatelessWidget {
-  const _LabelValueRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final labelColor = theme.colorScheme.onSurfaceVariant;
-    final labelStyle = theme.textTheme.labelMedium?.copyWith(
-      fontWeight: FontWeight.w600,
-      color: labelColor,
-    );
-
-    final displayValue = value.trim().isEmpty ? '—' : value;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: labelStyle,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              displayValue,
-              style: theme.textTheme.bodyMedium,
-              softWrap: true,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _ItemsSection extends StatelessWidget {
@@ -1286,6 +714,597 @@ class _RichTextSection extends StatelessWidget {
           style: theme.textTheme.bodyMedium,
         ),
       ],
+    );
+  }
+}
+
+class _DetailsTab extends StatelessWidget {
+  const _DetailsTab({
+    required this.detail,
+    required this.itemsController,
+  });
+
+  final PurchaseOrderDetail detail;
+  final ScrollController itemsController;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SummarySection(detail: detail),
+          const SizedBox(height: 24),
+          _ItemsSection(
+            detail: detail,
+            controller: itemsController,
+          ),
+          const SizedBox(height: 24),
+          _TotalsSection(detail: detail, theme: theme),
+          if (detail.hasNotes) ...[
+            const SizedBox(height: 24),
+            _RichTextSection(
+              title: 'Notes',
+              value: detail.notes!,
+            ),
+          ],
+          if (detail.hasTerms) ...[
+            const SizedBox(height: 24),
+            _RichTextSection(
+              title: 'Terms & Conditions',
+              value: detail.terms!,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyTabMessage extends StatelessWidget {
+  const _EmptyTabMessage({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 36, color: color),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            style: theme.textTheme.bodyMedium?.copyWith(color: color),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentsTab extends StatelessWidget {
+  const _PaymentsTab({required this.detail});
+
+  final PurchaseOrderDetail detail;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!detail.hasPayments) {
+      return const _EmptyTabMessage(
+        icon: Icons.receipt_long,
+        message: 'No payments recorded for this purchase order.',
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: DataTable(
+              columnSpacing: 24,
+              columns: const [
+                DataColumn(label: Text('Amount')),
+                DataColumn(label: Text('Payment Mode')),
+                DataColumn(label: Text('Date')),
+                DataColumn(label: Text('Actions')),
+              ],
+              rows: detail.payments
+                  .map(
+                    (payment) => DataRow(
+                      cells: [
+                        DataCell(Text(payment.amountLabel)),
+                        DataCell(Text(payment.methodLabel)),
+                        DataCell(Text(payment.dateLabel)),
+                        DataCell(
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                tooltip: 'Edit payment',
+                                icon: const Icon(Icons.edit_outlined),
+                                onPressed: () {},
+                              ),
+                              IconButton(
+                                tooltip: 'Delete payment',
+                                icon: const Icon(Icons.delete_outline),
+                                onPressed: () {},
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _AttachmentsTab extends StatelessWidget {
+  const _AttachmentsTab({required this.detail, this.previewHeaders});
+
+  final PurchaseOrderDetail detail;
+  final Map<String, String>? previewHeaders;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!detail.hasAttachments) {
+      return const _EmptyTabMessage(
+        icon: Icons.attach_file,
+        message: 'No attachments were uploaded for this purchase order.',
+      );
+    }
+
+    return ListView.separated(
+      padding: EdgeInsets.zero,
+      itemCount: detail.attachments.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final attachment = detail.attachments[index];
+        return _AttachmentCard(
+          attachment: attachment,
+          previewHeaders: previewHeaders,
+        );
+      },
+    );
+  }
+}
+
+class _LabelValueRow extends StatelessWidget {
+  const _LabelValueRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labelColor = theme.colorScheme.onSurfaceVariant;
+    final labelStyle = theme.textTheme.labelMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+      color: labelColor,
+    );
+
+    final displayValue = value.trim().isEmpty ? '—' : value;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: labelStyle,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              displayValue,
+              style: theme.textTheme.bodyMedium,
+              softWrap: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AttachmentPreviewMessage extends StatelessWidget {
+  const _AttachmentPreviewMessage({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 48, color: color),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(color: color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ImageAttachmentPreview extends StatelessWidget {
+  const _ImageAttachmentPreview({
+    required this.url,
+    this.headers,
+  });
+
+  final String url;
+  final Map<String, String>? headers;
+
+  @override
+  Widget build(BuildContext context) {
+    return InteractiveViewer(
+      maxScale: 5,
+      child: Center(
+        child: Image.network(
+          url,
+          fit: BoxFit.contain,
+          headers: headers,
+          errorBuilder: (context, error, stackTrace) => const _AttachmentPreviewMessage(
+            icon: Icons.broken_image_outlined,
+            message: 'Unable to load the image preview.',
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PdfAttachmentPreview extends StatelessWidget {
+  const _PdfAttachmentPreview({
+    required this.url,
+    this.headers,
+  });
+
+  final String url;
+  final Map<String, String>? headers;
+
+  @override
+  Widget build(BuildContext context) {
+    return SfPdfViewer.network(url, headers: headers);
+  }
+}
+
+enum _AttachmentPreviewType { image, pdf, unsupported }
+
+_AttachmentPreviewType _resolveAttachmentType(PurchaseOrderAttachment attachment) {
+  final extension = _resolveAttachmentExtension(
+    [attachment.fileName, attachment.downloadUrl],
+  );
+
+  if (extension == null) {
+    return _AttachmentPreviewType.unsupported;
+  }
+
+  if (_imageAttachmentExtensions.contains(extension)) {
+    return _AttachmentPreviewType.image;
+  }
+
+  if (extension == 'pdf') {
+    return _AttachmentPreviewType.pdf;
+  }
+
+  return _AttachmentPreviewType.unsupported;
+}
+
+String? _resolveAttachmentExtension(List<Object?> candidates) {
+  for (final candidate in candidates) {
+    final value = switch (candidate) {
+      String s => s,
+      Uri u => u.toString(),
+      _ => null,
+    };
+    if (value == null || value.trim().isEmpty) {
+      continue;
+    }
+    final sanitized = value.split('?').first.split('#').first;
+    final dotIndex = sanitized.lastIndexOf('.');
+    if (dotIndex == -1 || dotIndex == sanitized.length - 1) {
+      continue;
+    }
+    return sanitized.substring(dotIndex + 1).toLowerCase();
+  }
+  return null;
+}
+
+const _imageAttachmentExtensions = <String>{
+  'apng',
+  'avif',
+  'bmp',
+  'gif',
+  'jpeg',
+  'jpg',
+  'png',
+  'webp',
+};
+
+class _AttachmentPreviewDialog extends StatelessWidget {
+  const _AttachmentPreviewDialog({
+    required this.attachment,
+    this.headers,
+  });
+
+  final PurchaseOrderAttachment attachment;
+  final Map<String, String>? headers;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final type = _resolveAttachmentType(attachment);
+
+    Widget preview;
+    if (!attachment.hasDownloadUrl) {
+      preview = const _AttachmentPreviewMessage(
+        icon: Icons.link_off,
+        message: 'This attachment does not provide a downloadable preview.',
+      );
+    } else {
+      final url = attachment.downloadUrl!.trim();
+      switch (type) {
+        case _AttachmentPreviewType.image:
+          preview = _ImageAttachmentPreview(url: url, headers: headers);
+          break;
+        case _AttachmentPreviewType.pdf:
+          preview = _PdfAttachmentPreview(url: url, headers: headers);
+          break;
+        case _AttachmentPreviewType.unsupported:
+          preview = _AttachmentPreviewMessage(
+            icon: Icons.visibility_off_outlined,
+            message:
+                'Preview is not available for this file type. Use the download URL to open it externally.',
+          );
+          break;
+      }
+    }
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 640),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      attachment.fileName,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close preview',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                    ),
+                    child: preview,
+                  ),
+                ),
+              ),
+              if (attachment.hasDownloadUrl) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Download URL',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                SelectableText(
+                  attachment.downloadUrl!.trim(),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AttachmentCard extends StatelessWidget {
+  const _AttachmentCard({
+    required this.attachment,
+    this.previewHeaders,
+  });
+
+  final PurchaseOrderAttachment attachment;
+  final Map<String, String>? previewHeaders;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labelColor = theme.colorScheme.onSurfaceVariant;
+    final previewType = _resolveAttachmentType(attachment);
+    final canPreview =
+        attachment.hasDownloadUrl && previewType != _AttachmentPreviewType.unsupported;
+    final children = <Widget>[
+      Row(
+        children: [
+          Icon(Icons.attach_file, color: labelColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              attachment.fileName,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          if (canPreview)
+            const SizedBox(width: 8),
+          if (canPreview)
+            Tooltip(
+              message: 'Preview attachment',
+              child: Icon(
+                previewType == _AttachmentPreviewType.pdf
+                    ? Icons.picture_as_pdf_outlined
+                    : Icons.image_outlined,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      _LabelValueRow(label: 'Uploaded on', value: attachment.uploadedAtLabel),
+    ];
+
+    if (attachment.uploadedBy != null && attachment.uploadedBy!.trim().isNotEmpty) {
+      children.add(
+        _LabelValueRow(
+          label: 'Uploaded by',
+          value: attachment.uploadedBy!.trim(),
+        ),
+      );
+    }
+
+    if (attachment.sizeLabel != null && attachment.sizeLabel!.trim().isNotEmpty) {
+      children.add(_LabelValueRow(label: 'Size', value: attachment.sizeLabel!.trim()));
+    }
+
+    if (attachment.hasDescription) {
+      children.addAll([
+        const SizedBox(height: 12),
+        Text(
+          'Description',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: labelColor,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          attachment.description!.trim(),
+          style: theme.textTheme.bodyMedium,
+        ),
+      ]);
+    }
+
+    if (attachment.hasDownloadUrl) {
+      children.addAll([
+        const SizedBox(height: 12),
+        Text(
+          'Download URL',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: labelColor,
+          ),
+        ),
+        const SizedBox(height: 4),
+        SelectableText(
+          attachment.downloadUrl!.trim(),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: canPreview
+              ? OutlinedButton.icon(
+                  icon: const Icon(Icons.visibility_outlined),
+                  label: const Text('Preview'),
+                  onPressed: () => _showPreview(context),
+                )
+              : Text(
+                  'Preview is not available for this file type.',
+                  style: theme.textTheme.bodySmall?.copyWith(color: labelColor),
+                ),
+        ),
+      ]);
+    }
+
+    final card = Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.dividerColor),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+
+    if (!canPreview) {
+      return card;
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        mouseCursor: SystemMouseCursors.click,
+        onTap: () => _showPreview(context),
+        child: card,
+      ),
+    );
+  }
+
+  void _showPreview(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => _AttachmentPreviewDialog(
+        attachment: attachment,
+        headers: previewHeaders,
+      ),
     );
   }
 }
