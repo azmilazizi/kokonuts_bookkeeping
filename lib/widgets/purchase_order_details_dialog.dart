@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' show Response, get;
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../app/app_state_scope.dart';
@@ -766,7 +767,7 @@ class _AttachmentPreviewDialog extends StatelessWidget {
     final theme = Theme.of(context);
     final type = _resolveAttachmentType(attachment);
 
-    Widget preview;
+    late final Widget preview;
     if (!attachment.hasDownloadUrl) {
       preview = const _AttachmentPreviewMessage(
         icon: Icons.link_off,
@@ -921,13 +922,22 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
       () => 'application/pdf,application/octet-stream',
     );
 
-    http.Response response;
+    final response = await _sendPdfRequest(uri, requestHeaders);
+    return _validatePdfResponse(response);
+  }
+
+  Future<Response> _sendPdfRequest(
+    Uri uri,
+    Map<String, String> headers,
+  ) async {
     try {
-      response = await http.get(uri, headers: requestHeaders);
+      return await get(uri, headers: headers);
     } catch (error) {
       throw Exception('Failed to contact the server: $error');
     }
+  }
 
+  Uint8List _validatePdfResponse(Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final reason = response.reasonPhrase?.trim();
       final suffix = reason == null || reason.isEmpty ? '' : ' ($reason)';
