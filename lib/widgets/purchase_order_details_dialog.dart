@@ -915,27 +915,35 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
   }
 
   Future<Uint8List> _fetchPdfBytes() async {
-    final uri = Uri.parse(widget.url);
+    final uri = Uri.tryParse(widget.url);
+    if (uri == null) {
+      throw Exception('The attachment URL is invalid.');
+    }
+
     final requestHeaders = <String, String>{
       if (widget.headers != null) ...widget.headers!,
     };
-    requestHeaders.putIfAbsent('Accept', () => 'application/pdf,application/octet-stream');
+    requestHeaders.putIfAbsent(
+      'Accept',
+      () => 'application/pdf,application/octet-stream',
+    );
 
     http.Response response;
     try {
       response = await http.get(uri, headers: requestHeaders);
     } catch (error) {
-      throw Exception('Failed to load PDF: $error');
+      throw Exception('Failed to contact the server: $error');
     }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception(
-          'Request failed with status ${response.statusCode}: ${response.reasonPhrase ?? 'Unknown error'}');
+      final reason = response.reasonPhrase?.trim();
+      final suffix = reason == null || reason.isEmpty ? '' : ' ($reason)';
+      throw Exception('Request failed with status ${response.statusCode}$suffix');
     }
 
     final bytes = response.bodyBytes;
     if (bytes.isEmpty) {
-      throw Exception('The PDF file appears to be empty.');
+      throw Exception('The attachment returned no data.');
     }
 
     return bytes;
@@ -951,10 +959,12 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
         }
 
         if (snapshot.hasError) {
-          return const _AttachmentPreviewMessage(
+          final description = snapshot.error.toString();
+          final details = description.isEmpty ? '' : '\n\n$description';
+          return _AttachmentPreviewMessage(
             icon: Icons.picture_as_pdf_outlined,
             message:
-                'Unable to load the PDF preview. Try downloading the file to view it externally.',
+                'Unable to load the PDF preview. Try downloading the file to view it externally.$details',
           );
         }
 
@@ -966,9 +976,15 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
           );
         }
 
+        final headersHash = widget.headers == null
+            ? 0
+            : Object.hashAllUnordered(
+                widget.headers!.entries
+                    .map((entry) => Object.hash(entry.key, entry.value)),
+              );
         return SfPdfViewer.memory(
           bytes,
-          key: ValueKey(widget.url),
+          key: ValueKey('${widget.url}-$headersHash'),
         );
       },
     );
