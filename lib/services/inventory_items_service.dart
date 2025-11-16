@@ -45,8 +45,8 @@ class InventoryItemsService {
 
   void _collectItems(dynamic source, List<InventoryItem> target) {
     if (source is Map<String, dynamic>) {
-      final name =
-          _readString(source, const ['name', 'item_name', 'itemName', 'title']);
+      final name = _readString(source,
+          const ['name', 'item_name', 'itemName', 'title', 'sku_name', 'skuName']);
       final id =
           _readString(source, const ['id', 'item_id', 'itemId', 'uid']);
       if (name != null && id != null) {
