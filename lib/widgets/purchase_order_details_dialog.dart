@@ -330,10 +330,10 @@ class _SummaryField {
   const _SummaryField._(this.label, this.value, this.pillStyle);
 
   const _SummaryField.text(String label, String value)
-    : this._(label, value, null);
+      : this._(label, value, null);
 
   _SummaryField.pill({required String label, required _PillStyle pillStyle})
-    : this._(label, pillStyle.label, pillStyle);
+      : this._(label, pillStyle.label, pillStyle);
 
   final String label;
   final String value;
@@ -341,22 +341,24 @@ class _SummaryField {
 }
 
 class _SummaryValue extends StatelessWidget {
-  const _SummaryValue({required this.field, required this.theme});
+  const _SummaryValue({required this.field});
 
   final _SummaryField field;
-  final ThemeData theme;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final pill = field.pillStyle;
     final value = field.value.trim().isEmpty ? '—' : field.value.trim();
 
     if (pill == null || value == '—') {
-      return Text(value, style: theme.textTheme.bodyMedium);
+      return Text(
+        value,
+        style: theme.textTheme.bodyMedium,
+      );
     }
 
-    final textStyle =
-        theme.textTheme.labelSmall?.copyWith(
+    final textStyle = theme.textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.w600,
           color: pill.foregroundColor,
         ) ??
@@ -371,20 +373,23 @@ class _SummaryValue extends StatelessWidget {
         color: pill.backgroundColor,
         borderRadius: BorderRadius.circular(999),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 6,
+      ),
       child: Text(pill.label, style: textStyle),
     );
   }
 }
 
 class _SummaryTile extends StatelessWidget {
-  const _SummaryTile({required this.field, required this.theme});
+  const _SummaryTile({required this.field});
 
   final _SummaryField field;
-  final ThemeData theme;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return ConstrainedBox(
       constraints: const BoxConstraints(minWidth: 160),
       child: Column(
@@ -398,7 +403,7 @@ class _SummaryTile extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          _SummaryValue(field: field, theme: theme),
+          _SummaryValue(field: field),
         ],
       ),
     );
@@ -435,9 +440,7 @@ class _SummarySection extends StatelessWidget {
     return Wrap(
       spacing: 24,
       runSpacing: 16,
-      children: fields
-          .map((field) => _SummaryTile(field: field, theme: theme))
-          .toList(),
+      children: fields.map((field) => _SummaryTile(field: field)).toList(),
     );
   }
 }
@@ -556,7 +559,10 @@ int? _findIdForLabel(String label, Map<int, String> lookup) {
 }
 
 class _ItemsSection extends StatelessWidget {
-  const _ItemsSection({required this.detail, required this.controller});
+  const _ItemsSection({
+    required this.detail,
+    required this.controller,
+  });
 
   final PurchaseOrderDetail detail;
   final ScrollController controller;
@@ -571,6 +577,11 @@ class _ItemsSection extends StatelessWidget {
           Text('Items', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(
+            'Items',
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
             'No items were returned for this purchase order.',
             style: theme.textTheme.bodyMedium,
           ),
@@ -581,39 +592,49 @@ class _ItemsSection extends StatelessWidget {
     const tablePadding = EdgeInsets.symmetric(horizontal: 16, vertical: 12);
     final headerTextStyle =
         theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600) ??
-        theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600) ??
-        const TextStyle(fontWeight: FontWeight.w600);
+            theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600) ??
+            const TextStyle(fontWeight: FontWeight.w600);
     final cellStyle = theme.textTheme.bodyMedium;
     final dividerColor = theme.dividerColor;
 
     TableRow buildHeaderRow() {
       return TableRow(
-        children: const ['Item', 'Description', 'Quantity', 'Rate', 'Amount']
-            .map((label) {
-              return Padding(
-                padding: tablePadding,
-                child: Text(label, style: headerTextStyle),
-              );
-            })
-            .toList(),
+        children: const [
+          'Item',
+          'Description',
+          'Quantity',
+          'Rate',
+          'Amount',
+        ].map((label) {
+          return Padding(
+            padding: tablePadding,
+            child: Text(
+              label,
+              style: headerTextStyle,
+            ),
+          );
+        }).toList(),
       );
     }
 
     TableRow buildDataRow(PurchaseOrderItem item) {
       return TableRow(
-        children:
-            [
-              item.name,
-              item.description,
-              item.quantityLabel,
-              item.rateLabel,
-              item.amountLabel,
-            ].map((value) {
-              return Padding(
-                padding: tablePadding,
-                child: Text(value, style: cellStyle, softWrap: true),
-              );
-            }).toList(),
+        children: [
+          item.name,
+          item.description,
+          item.quantityLabel,
+          item.rateLabel,
+          item.amountLabel,
+        ].map((value) {
+          return Padding(
+            padding: tablePadding,
+            child: Text(
+              value,
+              style: cellStyle,
+              softWrap: true,
+            ),
+          );
+        }).toList(),
       );
     }
 
@@ -628,14 +649,20 @@ class _ItemsSection extends StatelessWidget {
           4: FlexColumnWidth(1.4),
         },
         border: TableBorder.all(color: dividerColor),
-        children: [buildHeaderRow(), ...detail.items.map(buildDataRow)],
+        children: [
+          buildHeaderRow(),
+          ...detail.items.map(buildDataRow),
+        ],
       );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Items', style: theme.textTheme.titleMedium),
+        Text(
+          'Items',
+          style: theme.textTheme.titleMedium,
+        ),
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, constraints) {
@@ -675,7 +702,9 @@ class _TotalsSection extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [..._buildTotalRows()],
+        children: [
+          ..._buildTotalRows(),
+        ],
       ),
     );
   }
@@ -739,7 +768,12 @@ class _TotalRow extends StatelessWidget {
         TextSpan(
           text: '$label: ',
           style: labelStyle,
-          children: [TextSpan(text: value, style: valueStyle)],
+          children: [
+            TextSpan(
+              text: value,
+              style: valueStyle,
+            ),
+          ],
         ),
         textAlign: TextAlign.right,
       ),
@@ -759,38 +793,16 @@ class _RichTextSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: theme.textTheme.titleMedium),
+        Text(
+          title,
+          style: theme.textTheme.titleMedium,
+        ),
         const SizedBox(height: 8),
-        Text(value, style: theme.textTheme.bodyMedium),
+        Text(
+          value,
+          style: theme.textTheme.bodyMedium,
+        ),
       ],
-    );
-  }
-}
-
-class _EmptyTabMessage extends StatelessWidget {
-  const _EmptyTabMessage({required this.icon, required this.message});
-
-  final IconData icon;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = theme.colorScheme.onSurfaceVariant;
-
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 36, color: color),
-          const SizedBox(height: 12),
-          Text(
-            message,
-            style: theme.textTheme.bodyMedium?.copyWith(color: color),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
     );
   }
 }
@@ -823,6 +835,98 @@ class _DetailsTab extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _EmptyTabMessage extends StatelessWidget {
+  const _EmptyTabMessage({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 36, color: color),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            style: theme.textTheme.bodyMedium?.copyWith(color: color),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentsTab extends StatelessWidget {
+  const _PaymentsTab({required this.detail});
+
+  final PurchaseOrderDetail detail;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!detail.hasPayments) {
+      return const _EmptyTabMessage(
+        icon: Icons.receipt_long,
+        message: 'No payments recorded for this purchase order.',
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: DataTable(
+              columnSpacing: 24,
+              columns: const [
+                DataColumn(label: Text('Amount')),
+                DataColumn(label: Text('Payment Mode')),
+                DataColumn(label: Text('Date')),
+                DataColumn(label: Text('Actions')),
+              ],
+              rows: detail.payments
+                  .map(
+                    (payment) => DataRow(
+                      cells: [
+                        DataCell(Text(payment.amountLabel)),
+                        DataCell(Text(payment.methodLabel)),
+                        DataCell(Text(payment.dateLabel)),
+                        DataCell(
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                tooltip: 'Edit payment',
+                                icon: const Icon(Icons.edit_outlined),
+                                onPressed: () {},
+                              ),
+                              IconButton(
+                                tooltip: 'Delete payment',
+                                icon: const Icon(Icons.delete_outline),
+                                onPressed: () {},
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -879,7 +983,13 @@ class _LabelValueRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 120, child: Text(label, style: labelStyle)),
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: labelStyle,
+            ),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -926,7 +1036,10 @@ class _AttachmentPreviewMessage extends StatelessWidget {
 }
 
 class _ImageAttachmentPreview extends StatelessWidget {
-  const _ImageAttachmentPreview({required this.url, this.headers});
+  const _ImageAttachmentPreview({
+    required this.url,
+    this.headers,
+  });
 
   final String url;
   final Map<String, String>? headers;
@@ -940,11 +1053,10 @@ class _ImageAttachmentPreview extends StatelessWidget {
           url,
           fit: BoxFit.contain,
           headers: headers,
-          errorBuilder: (context, error, stackTrace) =>
-              const _AttachmentPreviewMessage(
-                icon: Icons.broken_image_outlined,
-                message: 'Unable to load the image preview.',
-              ),
+          errorBuilder: (context, error, stackTrace) => const _AttachmentPreviewMessage(
+            icon: Icons.broken_image_outlined,
+            message: 'Unable to load the image preview.',
+          ),
         ),
       ),
     );
@@ -952,7 +1064,10 @@ class _ImageAttachmentPreview extends StatelessWidget {
 }
 
 class _PdfAttachmentPreview extends StatefulWidget {
-  const _PdfAttachmentPreview({required this.url, this.headers});
+  const _PdfAttachmentPreview({
+    required this.url,
+    this.headers,
+  });
 
   final String url;
   final Map<String, String>? headers;
@@ -1034,17 +1149,15 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
       headers.entries.map((entry) => Object.hash(entry.key, entry.value)),
     );
   }
+  return null;
 }
 
 enum _AttachmentPreviewType { image, pdf, unsupported }
 
-_AttachmentPreviewType _resolveAttachmentType(
-  PurchaseOrderAttachment attachment,
-) {
-  final extension = _resolveAttachmentExtension([
-    attachment.fileName,
-    attachment.downloadUrl,
-  ]);
+_AttachmentPreviewType _resolveAttachmentType(PurchaseOrderAttachment attachment) {
+  final extension = _resolveAttachmentExtension(
+    [attachment.fileName, attachment.downloadUrl],
+  );
 
   if (extension == null) {
     return _AttachmentPreviewType.unsupported;
@@ -1081,6 +1194,35 @@ String? _resolveAttachmentExtension(List<Object?> candidates) {
   return null;
 }
 
+String _normalizeAttachmentPreviewUrl(String url) {
+  final trimmed = url.trim();
+  if (trimmed.isEmpty) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('//')) {
+    return 'https:$trimmed';
+  }
+
+  final uri = Uri.tryParse(trimmed);
+  if (uri == null) {
+    return trimmed;
+  }
+
+  if (uri.hasScheme) {
+    return uri.toString();
+  }
+
+  final base = Uri.base;
+  final canUseBase =
+      base.hasScheme && (base.scheme == 'http' || base.scheme == 'https');
+  if (canUseBase) {
+    return base.resolveUri(uri).toString();
+  }
+
+  return uri.toString();
+}
+
 const _imageAttachmentExtensions = <String>{
   'apng',
   'avif',
@@ -1093,7 +1235,10 @@ const _imageAttachmentExtensions = <String>{
 };
 
 class _AttachmentPreviewDialog extends StatelessWidget {
-  const _AttachmentPreviewDialog({required this.attachment, this.headers});
+  const _AttachmentPreviewDialog({
+    required this.attachment,
+    this.headers,
+  });
 
   final PurchaseOrderAttachment attachment;
   final Map<String, String>? headers;
@@ -1195,7 +1340,10 @@ class _AttachmentPreviewDialog extends StatelessWidget {
 }
 
 class _AttachmentCard extends StatelessWidget {
-  const _AttachmentCard({required this.attachment, this.previewHeaders});
+  const _AttachmentCard({
+    required this.attachment,
+    this.previewHeaders,
+  });
 
   final PurchaseOrderAttachment attachment;
   final Map<String, String>? previewHeaders;
@@ -1206,8 +1354,10 @@ class _AttachmentCard extends StatelessWidget {
     final labelColor = theme.colorScheme.onSurfaceVariant;
     final previewType = _resolveAttachmentType(attachment);
     final canPreview =
-        attachment.hasDownloadUrl &&
-        previewType != _AttachmentPreviewType.unsupported;
+        attachment.hasDownloadUrl && previewType != _AttachmentPreviewType.unsupported;
+    final normalizedDownloadUrl = attachment.hasDownloadUrl
+        ? _normalizeAttachmentPreviewUrl(attachment.downloadUrl!)
+        : null;
     final children = <Widget>[
       Row(
         children: [
@@ -1221,7 +1371,8 @@ class _AttachmentCard extends StatelessWidget {
               ),
             ),
           ),
-          if (canPreview) const SizedBox(width: 8),
+          if (canPreview)
+            const SizedBox(width: 8),
           if (canPreview)
             Tooltip(
               message: 'Preview attachment',
@@ -1238,8 +1389,7 @@ class _AttachmentCard extends StatelessWidget {
       _LabelValueRow(label: 'Uploaded on', value: attachment.uploadedAtLabel),
     ];
 
-    if (attachment.uploadedBy != null &&
-        attachment.uploadedBy!.trim().isNotEmpty) {
+    if (attachment.uploadedBy != null && attachment.uploadedBy!.trim().isNotEmpty) {
       children.add(
         _LabelValueRow(
           label: 'Uploaded by',
@@ -1248,11 +1398,8 @@ class _AttachmentCard extends StatelessWidget {
       );
     }
 
-    if (attachment.sizeLabel != null &&
-        attachment.sizeLabel!.trim().isNotEmpty) {
-      children.add(
-        _LabelValueRow(label: 'Size', value: attachment.sizeLabel!.trim()),
-      );
+    if (attachment.sizeLabel != null && attachment.sizeLabel!.trim().isNotEmpty) {
+      children.add(_LabelValueRow(label: 'Size', value: attachment.sizeLabel!.trim()));
     }
 
     if (attachment.hasDescription) {
@@ -1266,7 +1413,10 @@ class _AttachmentCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Text(attachment.description!.trim(), style: theme.textTheme.bodyMedium),
+        Text(
+          attachment.description!.trim(),
+          style: theme.textTheme.bodyMedium,
+        ),
       ]);
     }
 
@@ -1282,7 +1432,7 @@ class _AttachmentCard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         SelectableText(
-          attachment.downloadUrl!.trim(),
+          normalizedDownloadUrl!,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.primary,
           ),
@@ -1330,6 +1480,23 @@ class _AttachmentCard extends StatelessWidget {
       ),
     );
   }
+
+  void _showPreview(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => _AttachmentPreviewDialog(
+        attachment: attachment,
+        headers: previewHeaders,
+      ),
+    );
+  }
+}
+
+class _ErrorView extends StatelessWidget {
+  const _ErrorView({this.error, this.onRetry});
+
+  final Object? error;
+  final VoidCallback? onRetry;
 
   void _showPreview(BuildContext context) {
     showDialog<void>(
