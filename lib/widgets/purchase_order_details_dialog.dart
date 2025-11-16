@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:http/http.dart' show Response, get;
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../app/app_state_scope.dart';
@@ -18,12 +18,65 @@ class PurchaseOrderDetailsDialog extends StatefulWidget {
       _PurchaseOrderDetailsDialogState();
 }
 
+class _ErrorView extends StatelessWidget {
+  const _ErrorView({this.error, this.onRetry});
+
+  final Object? error;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            color: theme.colorScheme.error,
+            size: 48,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Something went wrong',
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            error?.toString() ?? 'Unable to load purchase order details.',
+            style: theme.textTheme.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              ),
+              if (onRetry != null) ...[
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: onRetry,
+                  child: const Text('Retry'),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PurchaseOrderDetailsDialogState
     extends State<PurchaseOrderDetailsDialog> {
+  late Future<PurchaseOrderDetail> _future;
   final _service = PurchaseOrderDetailService();
   final _itemsScrollController = ScrollController();
-
-  late Future<PurchaseOrderDetail> _future;
   bool _initialized = false;
   Map<String, String>? _attachmentPreviewHeaders;
 
@@ -718,6 +771,282 @@ class _RichTextSection extends StatelessWidget {
   }
 }
 
+class _ItemsSection extends StatelessWidget {
+  const _ItemsSection({
+    required this.detail,
+    required this.controller,
+  });
+
+  final PurchaseOrderDetail detail;
+  final ScrollController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (detail.items.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Items',
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No items were returned for this purchase order.',
+            style: theme.textTheme.bodyMedium,
+          ),
+        ],
+      );
+    }
+
+    const tablePadding = EdgeInsets.symmetric(horizontal: 16, vertical: 12);
+    final headerTextStyle =
+        theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600) ??
+            theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600) ??
+            const TextStyle(fontWeight: FontWeight.w600);
+    final cellStyle = theme.textTheme.bodyMedium;
+    final dividerColor = theme.dividerColor;
+
+    TableRow buildHeaderRow() {
+      return TableRow(
+        children: const [
+          'Item',
+          'Description',
+          'Quantity',
+          'Rate',
+          'Amount',
+        ].map((label) {
+          return Padding(
+            padding: tablePadding,
+            child: Text(
+              label,
+              style: headerTextStyle,
+            ),
+          );
+        }).toList(),
+      );
+    }
+
+    TableRow buildDataRow(PurchaseOrderItem item) {
+      return TableRow(
+        children: [
+          item.name,
+          item.description,
+          item.quantityLabel,
+          item.rateLabel,
+          item.amountLabel,
+        ].map((value) {
+          return Padding(
+            padding: tablePadding,
+            child: Text(
+              value,
+              style: cellStyle,
+              softWrap: true,
+            ),
+          );
+        }).toList(),
+      );
+    }
+
+    Table buildTable() {
+      return Table(
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        columnWidths: const {
+          0: FlexColumnWidth(2),
+          1: FlexColumnWidth(3),
+          2: FlexColumnWidth(1.4),
+          3: FlexColumnWidth(1.4),
+          4: FlexColumnWidth(1.4),
+        },
+        border: TableBorder.all(color: dividerColor),
+        children: [
+          buildHeaderRow(),
+          ...detail.items.map(buildDataRow),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Items',
+          style: theme.textTheme.titleMedium,
+        ),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const minTableWidth = 900.0;
+            return Scrollbar(
+              controller: controller,
+              thumbVisibility: true,
+              notificationPredicate: (notification) =>
+                  notification.metrics.axis == Axis.horizontal,
+              child: SingleChildScrollView(
+                controller: controller,
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minWidth: math.max(constraints.maxWidth, minTableWidth),
+                  ),
+                  child: buildTable(),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _TotalRow extends StatelessWidget {
+  const _TotalRow({
+    required this.label,
+    required this.value,
+    required this.theme,
+    this.emphasize = false,
+  });
+
+  final String label;
+  final String value;
+  final ThemeData theme;
+  final bool emphasize;
+
+  @override
+  Widget build(BuildContext context) {
+    final labelStyle = theme.textTheme.bodyMedium;
+    final valueStyle = emphasize
+        ? theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)
+        : theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600);
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Text.rich(
+        TextSpan(
+          text: '$label: ',
+          style: labelStyle,
+          children: [
+            TextSpan(
+              text: value,
+              style: valueStyle,
+            ),
+          ],
+        ),
+        textAlign: TextAlign.right,
+      ),
+    );
+  }
+}
+
+class _EmptyTabMessage extends StatelessWidget {
+  const _EmptyTabMessage({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 36, color: color),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            style: theme.textTheme.bodyMedium?.copyWith(color: color),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentsTab extends StatelessWidget {
+  const _PaymentsTab({required this.detail});
+
+  final PurchaseOrderDetail detail;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ..._buildTotalRows(),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildTotalRows() {
+    final rows = <Widget>[];
+
+    void addRow(String label, String value, {bool emphasize = false}) {
+      if (rows.isNotEmpty) {
+        rows.add(const SizedBox(height: 8));
+      }
+      rows.add(
+        _TotalRow(
+          label: label,
+          value: value,
+          theme: theme,
+          emphasize: emphasize,
+        ),
+      );
+    }
+
+    addRow('Subtotal', detail.subtotalLabel);
+
+    if (detail.hasDiscount && detail.discountLabel != null) {
+      addRow('Discount', detail.discountLabel!);
+    }
+
+    if (detail.hasShippingFee && detail.shippingFeeLabel != null) {
+      addRow('Shipping Fee', detail.shippingFeeLabel!);
+    }
+
+    addRow('Total', detail.totalLabel, emphasize: true);
+
+    return rows;
+  }
+}
+
+class _RichTextSection extends StatelessWidget {
+  const _RichTextSection({required this.title, required this.value});
+
+  final String title;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: theme.textTheme.bodyMedium,
+        ),
+      ],
+    );
+  }
+}
+
+
 class _DetailsTab extends StatelessWidget {
   const _DetailsTab({
     required this.detail,
@@ -1141,14 +1470,14 @@ class _AttachmentPreviewDialog extends StatelessWidget {
     final theme = Theme.of(context);
     final type = _resolveAttachmentType(attachment);
 
-    Widget preview;
+    late final Widget preview;
     if (!attachment.hasDownloadUrl) {
       preview = const _AttachmentPreviewMessage(
         icon: Icons.link_off,
         message: 'This attachment does not provide a downloadable preview.',
       );
     } else {
-      final url = attachment.downloadUrl!.trim();
+      final url = _normalizeAttachmentPreviewUrl(attachment.downloadUrl!);
       switch (type) {
         case _AttachmentPreviewType.image:
           preview = _ImageAttachmentPreview(url: url, headers: headers);
@@ -1218,7 +1547,7 @@ class _AttachmentPreviewDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 SelectableText(
-                  attachment.downloadUrl!.trim(),
+                  _normalizeAttachmentPreviewUrl(attachment.downloadUrl!),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.primary,
                   ),
