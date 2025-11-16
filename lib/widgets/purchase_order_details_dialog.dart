@@ -392,8 +392,8 @@ _PillStyle _buildDeliveryStatusPillStyle(
 
   switch (id) {
     case 1:
-      background = colorScheme.primaryContainer;
-      foreground = colorScheme.onPrimaryContainer;
+      background = Colors.green.shade100;
+      foreground = Colors.green.shade900;
       break;
     case 0:
       background = colorScheme.errorContainer;
