@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
 import '../services/inventory_items_service.dart';
 import '../services/purchase_orders_service.dart';
@@ -186,7 +187,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
   double get _total => _subtotal;
 
-  Map<String, String> _buildAuthHeaders(AppStateScope appState, String token) {
+  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
     final rawToken = (appState.rawAuthToken ?? token).trim();
     final sanitizedToken =
         token.replaceFirst(RegExp('^Bearer\s+', caseSensitive: false), '').trim();
