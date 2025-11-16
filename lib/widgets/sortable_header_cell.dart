@@ -35,13 +35,16 @@ class SortableHeaderCell extends StatelessWidget {
           mainAxisAlignment: mainAxisAlignment,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              label,
-              textAlign: textAlign ?? TextAlign.start,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-              style:
-                  theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+            Flexible(
+              child: Text(
+                label,
+                textAlign: textAlign ?? TextAlign.start,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+                softWrap: true,
+                style: theme.textTheme.labelLarge
+                    ?.copyWith(fontWeight: FontWeight.w600, height: 1.1),
+              ),
             ),
             if (isActive) ...[
               const SizedBox(width: 4),
