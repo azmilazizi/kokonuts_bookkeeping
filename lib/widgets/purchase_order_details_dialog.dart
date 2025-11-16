@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/purchase_order_detail_service.dart';
@@ -926,6 +927,8 @@ class _AttachmentCard extends StatelessWidget {
     final normalizedDownloadUrl = attachment.hasDownloadUrl
         ? _normalizeAttachmentDownloadUrl(attachment.downloadUrl!)
         : null;
+    final previewType =
+        normalizedDownloadUrl != null ? _resolvePreviewType(attachment) : null;
 
     final children = <Widget>[
       Row(
@@ -998,6 +1001,27 @@ class _AttachmentCard extends StatelessWidget {
       ]);
     }
 
+    if (previewType != null && normalizedDownloadUrl != null) {
+      children.addAll([
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.icon(
+            icon: const Icon(Icons.visibility),
+            label: const Text('Preview'),
+            onPressed: () {
+              _showAttachmentPreview(
+                context: context,
+                attachment: attachment,
+                downloadUrl: normalizedDownloadUrl,
+                previewType: previewType,
+              );
+            },
+          ),
+        ),
+      ]);
+    }
+
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: theme.dividerColor),
@@ -1009,5 +1033,188 @@ class _AttachmentCard extends StatelessWidget {
         children: children,
       ),
     );
+  }
+}
+
+enum _AttachmentPreviewType { image, pdf }
+
+_AttachmentPreviewType? _resolvePreviewType(PurchaseOrderAttachment attachment) {
+  if (!attachment.hasDownloadUrl) {
+    return null;
+  }
+
+  if (_matchesExtension(attachment.fileName, _imageExtensions) ||
+      _matchesExtension(attachment.downloadUrl, _imageExtensions)) {
+    return _AttachmentPreviewType.image;
+  }
+
+  if (_matchesExtension(attachment.fileName, _pdfExtensions) ||
+      _matchesExtension(attachment.downloadUrl, _pdfExtensions)) {
+    return _AttachmentPreviewType.pdf;
+  }
+
+  return null;
+}
+
+const _imageExtensions = <String>{
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.bmp',
+  '.webp',
+  '.heic',
+};
+
+const _pdfExtensions = <String>{'.pdf'};
+
+bool _matchesExtension(String? value, Set<String> extensions) {
+  if (value == null || value.trim().isEmpty) {
+    return false;
+  }
+
+  bool match(String candidate) {
+    final lower = candidate.toLowerCase();
+    for (final ext in extensions) {
+      final normalizedExt = ext.startsWith('.') ? ext : '.$ext';
+      if (lower.endsWith(normalizedExt)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  final trimmed = value.trim();
+  if (match(trimmed)) {
+    return true;
+  }
+
+  final parsed = Uri.tryParse(trimmed);
+  if (parsed != null && match(parsed.path)) {
+    return true;
+  }
+
+  return false;
+}
+
+void _showAttachmentPreview({
+  required BuildContext context,
+  required PurchaseOrderAttachment attachment,
+  required String downloadUrl,
+  required _AttachmentPreviewType previewType,
+}) {
+  showDialog<void>(
+    context: context,
+    builder: (context) => _AttachmentPreviewDialog(
+      attachment: attachment,
+      downloadUrl: downloadUrl,
+      previewType: previewType,
+    ),
+  );
+}
+
+class _AttachmentPreviewDialog extends StatelessWidget {
+  const _AttachmentPreviewDialog({
+    required this.attachment,
+    required this.downloadUrl,
+    required this.previewType,
+  });
+
+  final PurchaseOrderAttachment attachment;
+  final String downloadUrl;
+  final _AttachmentPreviewType previewType;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = '${attachment.fileName} preview';
+    final theme = Theme.of(context);
+    Widget content;
+
+    switch (previewType) {
+      case _AttachmentPreviewType.image:
+        content = _ImagePreview(downloadUrl: downloadUrl);
+        break;
+      case _AttachmentPreviewType.pdf:
+        content = _PdfPreview(downloadUrl: downloadUrl);
+        break;
+    }
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: SizedBox(
+        width: 720,
+        height: 560,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close preview',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(child: content),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ImagePreview extends StatelessWidget {
+  const _ImagePreview({required this.downloadUrl});
+
+  final String downloadUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return InteractiveViewer(
+      child: Center(
+        child: Image.network(
+          downloadUrl,
+          fit: BoxFit.contain,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) {
+              return child;
+            }
+            return const Center(child: CircularProgressIndicator());
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Unable to load image preview.'),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _PdfPreview extends StatelessWidget {
+  const _PdfPreview({required this.downloadUrl});
+
+  final String downloadUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return SfPdfViewer.network(downloadUrl);
   }
 }
