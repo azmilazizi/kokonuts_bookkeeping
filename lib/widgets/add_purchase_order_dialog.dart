@@ -595,32 +595,45 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
               ],
             ),
             const SizedBox(height: 12),
-            InputDecorator(
-              decoration: const InputDecoration(
-                labelText: 'Item name',
-                border: OutlineInputBorder(),
-              ),
-              child: Text(
-                item.itemName ??
-                    (isPlaceholder
-                        ? 'Select an item from the dropdown above'
-                        : 'Item unavailable'),
-                style: (item.itemName == null)
-                    ? theme.textTheme.bodyMedium
-                        ?.copyWith(color: theme.hintColor)
-                    : theme.textTheme.bodyMedium,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: item.descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Description (optional)',
-              ),
-              maxLines: 2,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Item name',
+                      border: OutlineInputBorder(),
+                    ),
+                    child: Text(
+                      item.itemName ??
+                          (isPlaceholder
+                              ? 'Select an item from the dropdown above'
+                              : 'Item unavailable'),
+                      style: (item.itemName == null)
+                          ? theme.textTheme.bodyMedium
+                              ?.copyWith(color: theme.hintColor)
+                          : theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: item.descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Description (optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.multiline,
+                    minLines: 2,
+                    maxLines: null,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: TextFormField(
@@ -669,11 +682,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                         _validateDiscountField(item, isPlaceholder: isPlaceholder),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
+                const SizedBox(width: 12),
                 Expanded(
                   child: _SystemValueField(
                     label: 'Unit price (RM)',
@@ -689,6 +698,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
           ],
         ),
       ),
