@@ -464,6 +464,13 @@ String _resolvePillLabel({
 }) {
   final trimmed = explicit.trim();
   if (trimmed.isNotEmpty && trimmed != '—') {
+    final numericLabel = int.tryParse(trimmed);
+    if (numericLabel != null) {
+      final mapped = lookup[numericLabel];
+      if (mapped != null) {
+        return mapped;
+      }
+    }
     return trimmed;
   }
   if (id != null) {
