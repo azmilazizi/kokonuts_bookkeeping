@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../app/app_state_scope.dart';
@@ -18,12 +17,105 @@ class PurchaseOrderDetailsDialog extends StatefulWidget {
       _PurchaseOrderDetailsDialogState();
 }
 
+class _ErrorView extends StatelessWidget {
+  const _ErrorView({this.error, this.onRetry});
+
+  final Object? error;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, color: theme.colorScheme.error, size: 48),
+          const SizedBox(height: 16),
+          Text('Something went wrong', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Text(
+            error?.toString() ?? 'Unable to load purchase order details.',
+            style: theme.textTheme.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              ),
+              if (onRetry != null) ...[
+                const SizedBox(width: 12),
+                ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentsTab extends StatelessWidget {
+  const _PaymentsTab({required this.detail, required this.theme});
+
+  final PurchaseOrderDetail detail;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [..._buildTotalRows()],
+      ),
+    );
+  }
+
+  List<Widget> _buildTotalRows() {
+    final rows = <Widget>[];
+
+    void addRow(String label, String value, {bool emphasize = false}) {
+      if (rows.isNotEmpty) {
+        rows.add(const SizedBox(height: 8));
+      }
+      rows.add(
+        _TotalRow(
+          label: label,
+          value: value,
+          theme: theme,
+          emphasize: emphasize,
+        ),
+      );
+    }
+
+    addRow('Subtotal', detail.subtotalLabel);
+
+    if (detail.hasDiscount && detail.discountLabel != null) {
+      addRow('Discount', detail.discountLabel!);
+    }
+
+    if (detail.hasShippingFee && detail.shippingFeeLabel != null) {
+      addRow('Shipping Fee', detail.shippingFeeLabel!);
+    }
+
+    addRow('Total', detail.totalLabel, emphasize: true);
+
+    return rows;
+  }
+}
+
 class _PurchaseOrderDetailsDialogState
     extends State<PurchaseOrderDetailsDialog> {
+  late Future<PurchaseOrderDetail> _future;
   final _service = PurchaseOrderDetailService();
   final _itemsScrollController = ScrollController();
-
-  late Future<PurchaseOrderDetail> _future;
   bool _initialized = false;
   Map<String, String>? _attachmentPreviewHeaders;
 
@@ -56,15 +148,18 @@ class _PurchaseOrderDetailsDialogState
     }
 
     final rawToken = (appState.rawAuthToken ?? token).trim();
-    final sanitizedToken =
-        token.replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '').trim();
-    final normalizedAuth =
-        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
     final autoTokenValue = rawToken
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
-    final authtokenHeader =
-        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
 
     final previewHeaders = <String, String>{};
     if (authtokenHeader.isNotEmpty) {
@@ -74,8 +169,9 @@ class _PurchaseOrderDetailsDialogState
     if (normalizedAuth.isNotEmpty) {
       previewHeaders['Authorization'] = normalizedAuth;
     }
-    _attachmentPreviewHeaders =
-        previewHeaders.isEmpty ? null : Map.unmodifiable(previewHeaders);
+    _attachmentPreviewHeaders = previewHeaders.isEmpty
+        ? null
+        : Map.unmodifiable(previewHeaders);
 
     return _service.fetchPurchaseOrder(
       id: widget.orderId,
@@ -108,10 +204,7 @@ class _PurchaseOrderDetailsDialogState
             }
 
             if (snapshot.hasError) {
-              return _ErrorView(
-                error: snapshot.error,
-                onRetry: _retry,
-              );
+              return _ErrorView(error: snapshot.error, onRetry: _retry);
             }
 
             if (!snapshot.hasData) {
@@ -143,7 +236,7 @@ class _PurchaseOrderDetailsDialogState
                             detail: detail,
                             itemsController: _itemsScrollController,
                           ),
-                          _PaymentsTab(detail: detail),
+                          _PaymentsTab(detail: detail, theme: null),
                           _AttachmentsTab(
                             detail: detail,
                             previewHeaders: _attachmentPreviewHeaders,
@@ -171,10 +264,7 @@ class _PurchaseOrderDetailsDialogState
 }
 
 class _DialogHeader extends StatelessWidget {
-  const _DialogHeader({
-    required this.orderNumber,
-    required this.onClose,
-  });
+  const _DialogHeader({required this.orderNumber, required this.onClose});
 
   final String orderNumber;
   final VoidCallback onClose;
@@ -366,7 +456,8 @@ _PillStyle _buildDeliveryStatusPillStyle(
   );
 
   final id =
-      detail.deliveryStatusId ?? _findIdForLabel(label, purchaseOrderDeliveryStatusLabels);
+      detail.deliveryStatusId ??
+      _findIdForLabel(label, purchaseOrderDeliveryStatusLabels);
   final colorScheme = theme.colorScheme;
 
   Color background;
@@ -405,7 +496,8 @@ _PillStyle _buildApprovalPillStyle(
   );
 
   final id =
-      detail.approvalStatusId ?? _findIdForLabel(label, purchaseOrderApprovalStatusLabels);
+      detail.approvalStatusId ??
+      _findIdForLabel(label, purchaseOrderApprovalStatusLabels);
   final colorScheme = theme.colorScheme;
 
   Color background;
@@ -482,6 +574,8 @@ class _ItemsSection extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text('Items', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
           Text(
             'Items',
             style: theme.textTheme.titleMedium,
@@ -714,10 +808,7 @@ class _RichTextSection extends StatelessWidget {
 }
 
 class _DetailsTab extends StatelessWidget {
-  const _DetailsTab({
-    required this.detail,
-    required this.itemsController,
-  });
+  const _DetailsTab({required this.detail, required this.itemsController});
 
   final PurchaseOrderDetail detail;
   final ScrollController itemsController;
@@ -731,25 +822,16 @@ class _DetailsTab extends StatelessWidget {
         children: [
           _SummarySection(detail: detail),
           const SizedBox(height: 24),
-          _ItemsSection(
-            detail: detail,
-            controller: itemsController,
-          ),
+          _ItemsSection(detail: detail, controller: itemsController),
           const SizedBox(height: 24),
           _TotalsSection(detail: detail, theme: theme),
           if (detail.hasNotes) ...[
             const SizedBox(height: 24),
-            _RichTextSection(
-              title: 'Notes',
-              value: detail.notes!,
-            ),
+            _RichTextSection(title: 'Notes', value: detail.notes!),
           ],
           if (detail.hasTerms) ...[
             const SizedBox(height: 24),
-            _RichTextSection(
-              title: 'Terms & Conditions',
-              value: detail.terms!,
-            ),
+            _RichTextSection(title: 'Terms & Conditions', value: detail.terms!),
           ],
         ],
       ),
@@ -1067,6 +1149,7 @@ class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
       headers.entries.map((entry) => Object.hash(entry.key, entry.value)),
     );
   }
+  return null;
 }
 
 enum _AttachmentPreviewType { image, pdf, unsupported }
@@ -1165,7 +1248,7 @@ class _AttachmentPreviewDialog extends StatelessWidget {
     final theme = Theme.of(context);
     final type = _resolveAttachmentType(attachment);
 
-    Widget preview;
+    late final Widget preview;
     if (!attachment.hasDownloadUrl) {
       preview = const _AttachmentPreviewMessage(
         icon: Icons.link_off,
@@ -1415,49 +1498,12 @@ class _ErrorView extends StatelessWidget {
   final Object? error;
   final VoidCallback? onRetry;
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            color: theme.colorScheme.error,
-            size: 48,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Something went wrong',
-            style: theme.textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            error?.toString() ?? 'Unable to load purchase order details.',
-            style: theme.textTheme.bodyMedium,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Close'),
-              ),
-              if (onRetry != null) ...[
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: onRetry,
-                  child: const Text('Retry'),
-                ),
-              ],
-            ],
-          ),
-        ],
+  void _showPreview(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => _AttachmentPreviewDialog(
+        attachment: attachment,
+        headers: previewHeaders,
       ),
     );
   }
