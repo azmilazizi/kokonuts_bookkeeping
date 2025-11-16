@@ -595,106 +595,85 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            _ResponsiveFieldsRow(
               children: [
-                Expanded(
-                  child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Item name',
-                      border: OutlineInputBorder(),
-                    ),
-                    child: Text(
-                      item.itemName ??
-                          (isPlaceholder
-                              ? 'Select an item from the dropdown above'
-                              : 'Item unavailable'),
-                      style: (item.itemName == null)
-                          ? theme.textTheme.bodyMedium
-                              ?.copyWith(color: theme.hintColor)
-                          : theme.textTheme.bodyMedium,
-                    ),
+                InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Item name',
+                    border: OutlineInputBorder(),
+                  ),
+                  child: Text(
+                    item.itemName ??
+                        (isPlaceholder
+                            ? 'Select an item from the dropdown above'
+                            : 'Item unavailable'),
+                    style: (item.itemName == null)
+                        ? theme.textTheme.bodyMedium
+                            ?.copyWith(color: theme.hintColor)
+                        : theme.textTheme.bodyMedium,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: item.descriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Description (optional)',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.multiline,
-                    minLines: 2,
-                    maxLines: null,
+                TextFormField(
+                  controller: item.descriptionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Description (optional)',
+                    border: OutlineInputBorder(),
                   ),
+                  keyboardType: TextInputType.multiline,
+                  minLines: 2,
+                  maxLines: null,
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            _ResponsiveFieldsRow(
               children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: item.quantityController,
-                    decoration: const InputDecoration(labelText: 'Quantity'),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                      signed: false,
-                    ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                    ],
-                    validator: (value) =>
-                        _validateQuantityField(item, isPlaceholder: isPlaceholder),
+                TextFormField(
+                  controller: item.quantityController,
+                  decoration: const InputDecoration(labelText: 'Quantity'),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                    signed: false,
                   ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  ],
+                  validator: (value) =>
+                      _validateQuantityField(item, isPlaceholder: isPlaceholder),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: item.subtotalController,
-                    decoration: const InputDecoration(labelText: 'Subtotal (RM)'),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                      signed: false,
-                    ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                    ],
-                    validator: (value) =>
-                        _validateSubtotalField(item, isPlaceholder: isPlaceholder),
+                TextFormField(
+                  controller: item.subtotalController,
+                  decoration: const InputDecoration(labelText: 'Subtotal (RM)'),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                    signed: false,
                   ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  ],
+                  validator: (value) =>
+                      _validateSubtotalField(item, isPlaceholder: isPlaceholder),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: item.discountController,
-                    decoration: const InputDecoration(labelText: 'Discount (RM)'),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                      signed: false,
-                    ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                    ],
-                    validator: (value) =>
-                        _validateDiscountField(item, isPlaceholder: isPlaceholder),
+                TextFormField(
+                  controller: item.discountController,
+                  decoration: const InputDecoration(labelText: 'Discount (RM)'),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                    signed: false,
                   ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  ],
+                  validator: (value) =>
+                      _validateDiscountField(item, isPlaceholder: isPlaceholder),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _SystemValueField(
-                    label: 'Unit price (RM)',
-                    value: item.unitPrice,
-                  ),
+                _SystemValueField(
+                  label: 'Unit price (RM)',
+                  value: item.unitPrice,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _SystemValueField(
-                    label: 'Total (RM)',
-                    value: item.total,
-                  ),
+                _SystemValueField(
+                  label: 'Total (RM)',
+                  value: item.total,
                 ),
               ],
             ),
@@ -803,6 +782,48 @@ class _TotalsSummary extends StatelessWidget {
           style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
       ],
+    );
+  }
+}
+
+class _ResponsiveFieldsRow extends StatelessWidget {
+  const _ResponsiveFieldsRow({
+    required this.children,
+    this.breakpoint = 640,
+    this.spacing = 12,
+  });
+
+  final List<Widget> children;
+  final double breakpoint;
+  final double spacing;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < breakpoint;
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                children[i],
+                if (i < children.length - 1) SizedBox(height: spacing),
+              ],
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < children.length; i++) ...[
+              Expanded(child: children[i]),
+              if (i < children.length - 1) SizedBox(width: spacing),
+            ],
+          ],
+        );
+      },
     );
   }
 }
