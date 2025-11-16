@@ -7,7 +7,7 @@ class InventoryItemsService {
 
   final http.Client _client;
 
-  static const _itemsUrl = 'https://crm.kokonuts.my/inventory/api/v1/items';
+  static const _itemsUrl = 'https://crm.kokonuts.my/warehouse/api/v1/items';
 
   Future<List<InventoryItem>> fetchItems({
     required Map<String, String> headers,
