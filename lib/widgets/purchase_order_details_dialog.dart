@@ -59,56 +59,6 @@ class _ErrorView extends StatelessWidget {
   }
 }
 
-class _PaymentsTab extends StatelessWidget {
-  const _PaymentsTab({required this.detail, required this.theme});
-
-  final PurchaseOrderDetail detail;
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [..._buildTotalRows()],
-      ),
-    );
-  }
-
-  List<Widget> _buildTotalRows() {
-    final rows = <Widget>[];
-
-    void addRow(String label, String value, {bool emphasize = false}) {
-      if (rows.isNotEmpty) {
-        rows.add(const SizedBox(height: 8));
-      }
-      rows.add(
-        _TotalRow(
-          label: label,
-          value: value,
-          theme: theme,
-          emphasize: emphasize,
-        ),
-      );
-    }
-
-    addRow('Subtotal', detail.subtotalLabel);
-
-    if (detail.hasDiscount && detail.discountLabel != null) {
-      addRow('Discount', detail.discountLabel!);
-    }
-
-    if (detail.hasShippingFee && detail.shippingFeeLabel != null) {
-      addRow('Shipping Fee', detail.shippingFeeLabel!);
-    }
-
-    addRow('Total', detail.totalLabel, emphasize: true);
-
-    return rows;
-  }
-}
-
 class _PurchaseOrderDetailsDialogState
     extends State<PurchaseOrderDetailsDialog> {
   late Future<PurchaseOrderDetail> _future;
@@ -220,7 +170,7 @@ class _PurchaseOrderDetailsDialogState
                             detail: detail,
                             itemsController: _itemsScrollController,
                           ),
-                          _PaymentsTab(detail: detail, theme: null),
+                          _PaymentsTab(detail: detail),
                           _AttachmentsTab(detail: detail),
                         ],
                       ),
@@ -311,10 +261,10 @@ class _SummaryField {
   const _SummaryField._(this.label, this.value, this.pillStyle);
 
   const _SummaryField.text(String label, String value)
-      : this._(label, value, null);
+    : this._(label, value, null);
 
   _SummaryField.pill({required String label, required _PillStyle pillStyle})
-      : this._(label, pillStyle.label, pillStyle);
+    : this._(label, pillStyle.label, pillStyle);
 
   final String label;
   final String value;
@@ -333,13 +283,11 @@ class _SummaryValue extends StatelessWidget {
     final value = field.value.trim().isEmpty ? '—' : field.value.trim();
 
     if (pill == null || value == '—') {
-      return Text(
-        value,
-        style: theme.textTheme.bodyMedium,
-      );
+      return Text(value, style: theme.textTheme.bodyMedium);
     }
 
-    final textStyle = theme.textTheme.labelSmall?.copyWith(
+    final textStyle =
+        theme.textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.w600,
           color: pill.foregroundColor,
         ) ??
@@ -354,10 +302,7 @@ class _SummaryValue extends StatelessWidget {
         color: pill.backgroundColor,
         borderRadius: BorderRadius.circular(999),
       ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Text(pill.label, style: textStyle),
     );
   }
@@ -540,10 +485,7 @@ int? _findIdForLabel(String label, Map<int, String> lookup) {
 }
 
 class _ItemsSection extends StatelessWidget {
-  const _ItemsSection({
-    required this.detail,
-    required this.controller,
-  });
+  const _ItemsSection({required this.detail, required this.controller});
 
   final PurchaseOrderDetail detail;
   final ScrollController controller;
@@ -557,10 +499,7 @@ class _ItemsSection extends StatelessWidget {
         children: [
           Text('Items', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
-          Text(
-            'Items',
-            style: theme.textTheme.titleMedium,
-          ),
+          Text('Items', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(
             'No items were returned for this purchase order.',
@@ -573,49 +512,39 @@ class _ItemsSection extends StatelessWidget {
     const tablePadding = EdgeInsets.symmetric(horizontal: 16, vertical: 12);
     final headerTextStyle =
         theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600) ??
-            theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600) ??
-            const TextStyle(fontWeight: FontWeight.w600);
+        theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600) ??
+        const TextStyle(fontWeight: FontWeight.w600);
     final cellStyle = theme.textTheme.bodyMedium;
     final dividerColor = theme.dividerColor;
 
     TableRow buildHeaderRow() {
       return TableRow(
-        children: const [
-          'Item',
-          'Description',
-          'Quantity',
-          'Rate',
-          'Amount',
-        ].map((label) {
-          return Padding(
-            padding: tablePadding,
-            child: Text(
-              label,
-              style: headerTextStyle,
-            ),
-          );
-        }).toList(),
+        children: const ['Item', 'Description', 'Quantity', 'Rate', 'Amount']
+            .map((label) {
+              return Padding(
+                padding: tablePadding,
+                child: Text(label, style: headerTextStyle),
+              );
+            })
+            .toList(),
       );
     }
 
     TableRow buildDataRow(PurchaseOrderItem item) {
       return TableRow(
-        children: [
-          item.name,
-          item.description,
-          item.quantityLabel,
-          item.rateLabel,
-          item.amountLabel,
-        ].map((value) {
-          return Padding(
-            padding: tablePadding,
-            child: Text(
-              value,
-              style: cellStyle,
-              softWrap: true,
-            ),
-          );
-        }).toList(),
+        children:
+            [
+              item.name,
+              item.description,
+              item.quantityLabel,
+              item.rateLabel,
+              item.amountLabel,
+            ].map((value) {
+              return Padding(
+                padding: tablePadding,
+                child: Text(value, style: cellStyle, softWrap: true),
+              );
+            }).toList(),
       );
     }
 
@@ -630,20 +559,14 @@ class _ItemsSection extends StatelessWidget {
           4: FlexColumnWidth(1.4),
         },
         border: TableBorder.all(color: dividerColor),
-        children: [
-          buildHeaderRow(),
-          ...detail.items.map(buildDataRow),
-        ],
+        children: [buildHeaderRow(), ...detail.items.map(buildDataRow)],
       );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Items',
-          style: theme.textTheme.titleMedium,
-        ),
+        Text('Items', style: theme.textTheme.titleMedium),
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, constraints) {
@@ -683,9 +606,7 @@ class _TotalsSection extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ..._buildTotalRows(),
-        ],
+        children: [..._buildTotalRows()],
       ),
     );
   }
@@ -749,12 +670,7 @@ class _TotalRow extends StatelessWidget {
         TextSpan(
           text: '$label: ',
           style: labelStyle,
-          children: [
-            TextSpan(
-              text: value,
-              style: valueStyle,
-            ),
-          ],
+          children: [TextSpan(text: value, style: valueStyle)],
         ),
         textAlign: TextAlign.right,
       ),
@@ -774,15 +690,9 @@ class _RichTextSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: theme.textTheme.titleMedium,
-        ),
+        Text(title, style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
-        Text(
-          value,
-          style: theme.textTheme.bodyMedium,
-        ),
+        Text(value, style: theme.textTheme.bodyMedium),
       ],
     );
   }
@@ -960,13 +870,7 @@ class _LabelValueRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: labelStyle,
-            ),
-          ),
+          SizedBox(width: 120, child: Text(label, style: labelStyle)),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -1042,7 +946,8 @@ class _AttachmentCard extends StatelessWidget {
       _LabelValueRow(label: 'Uploaded on', value: attachment.uploadedAtLabel),
     ];
 
-    if (attachment.uploadedBy != null && attachment.uploadedBy!.trim().isNotEmpty) {
+    if (attachment.uploadedBy != null &&
+        attachment.uploadedBy!.trim().isNotEmpty) {
       children.add(
         _LabelValueRow(
           label: 'Uploaded by',
@@ -1051,7 +956,8 @@ class _AttachmentCard extends StatelessWidget {
       );
     }
 
-    if (attachment.sizeLabel != null && attachment.sizeLabel!.trim().isNotEmpty) {
+    if (attachment.sizeLabel != null &&
+        attachment.sizeLabel!.trim().isNotEmpty) {
       children.add(
         _LabelValueRow(label: 'Size', value: attachment.sizeLabel!.trim()),
       );
@@ -1068,10 +974,7 @@ class _AttachmentCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          attachment.description!.trim(),
-          style: theme.textTheme.bodyMedium,
-        ),
+        Text(attachment.description!.trim(), style: theme.textTheme.bodyMedium),
       ]);
     }
 
