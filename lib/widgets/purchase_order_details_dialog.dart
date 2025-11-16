@@ -1,10 +1,10 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/purchase_order_detail_service.dart';
+import 'attachment_pdf_preview.dart';
 
 class PurchaseOrderDetailsDialog extends StatefulWidget {
   const PurchaseOrderDetailsDialog({super.key, required this.orderId});
@@ -1215,6 +1215,6 @@ class _PdfPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SfPdfViewer.network(downloadUrl);
+    return buildAttachmentPdfPreview(downloadUrl);
   }
 }
