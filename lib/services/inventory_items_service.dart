@@ -7,14 +7,17 @@ class InventoryItemsService {
 
   final http.Client _client;
 
-  static const _itemsUrl = 'https://crm.kokonuts.my/warehouse/api/v1/items';
+  static final _itemsUri = Uri.parse(
+    'https://crm.kokonuts.my/warehouse/api/v1/items'
+    '?can_be_inventory=can_be_inventory',
+  );
 
   Future<List<InventoryItem>> fetchItems({
     required Map<String, String> headers,
   }) async {
     http.Response response;
     try {
-      response = await _client.get(Uri.parse(_itemsUrl), headers: headers);
+      response = await _client.get(_itemsUri, headers: headers);
     } catch (error) {
       throw InventoryItemsException('Failed to reach server: $error');
     }
