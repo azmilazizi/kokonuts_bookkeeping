@@ -1,8 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/purchase_order_detail_service.dart';
@@ -117,7 +115,6 @@ class _PurchaseOrderDetailsDialogState
   final _service = PurchaseOrderDetailService();
   final _itemsScrollController = ScrollController();
   bool _initialized = false;
-  Map<String, String>? _attachmentPreviewHeaders;
 
   @override
   void didChangeDependencies() {
@@ -135,7 +132,6 @@ class _PurchaseOrderDetailsDialogState
   }
 
   Future<PurchaseOrderDetail> _loadDetails() async {
-    _attachmentPreviewHeaders = null;
     final appState = AppStateScope.of(context);
     final token = await appState.getValidAuthToken();
 
@@ -160,18 +156,6 @@ class _PurchaseOrderDetailsDialogState
     final authtokenHeader = autoTokenValue.isNotEmpty
         ? autoTokenValue
         : sanitizedToken;
-
-    final previewHeaders = <String, String>{};
-    if (authtokenHeader.isNotEmpty) {
-      previewHeaders['authtoken'] = authtokenHeader;
-      previewHeaders['Cookie'] = 'authtoken=$authtokenHeader';
-    }
-    if (normalizedAuth.isNotEmpty) {
-      previewHeaders['Authorization'] = normalizedAuth;
-    }
-    _attachmentPreviewHeaders = previewHeaders.isEmpty
-        ? null
-        : Map.unmodifiable(previewHeaders);
 
     return _service.fetchPurchaseOrder(
       id: widget.orderId,
@@ -237,10 +221,7 @@ class _PurchaseOrderDetailsDialogState
                             itemsController: _itemsScrollController,
                           ),
                           _PaymentsTab(detail: detail, theme: null),
-                          _AttachmentsTab(
-                            detail: detail,
-                            previewHeaders: _attachmentPreviewHeaders,
-                          ),
+                          _AttachmentsTab(detail: detail),
                         ],
                       ),
                     ),
@@ -932,10 +913,9 @@ class _PaymentsTab extends StatelessWidget {
 }
 
 class _AttachmentsTab extends StatelessWidget {
-  const _AttachmentsTab({required this.detail, this.previewHeaders});
+  const _AttachmentsTab({required this.detail});
 
   final PurchaseOrderDetail detail;
-  final Map<String, String>? previewHeaders;
 
   @override
   Widget build(BuildContext context) {
@@ -952,10 +932,7 @@ class _AttachmentsTab extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final attachment = detail.attachments[index];
-        return _AttachmentCard(
-          attachment: attachment,
-          previewHeaders: previewHeaders,
-        );
+        return _AttachmentCard(attachment: attachment);
       },
     );
   }
@@ -1004,197 +981,7 @@ class _LabelValueRow extends StatelessWidget {
   }
 }
 
-class _AttachmentPreviewMessage extends StatelessWidget {
-  const _AttachmentPreviewMessage({required this.icon, required this.message});
-
-  final IconData icon;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = theme.colorScheme.onSurfaceVariant;
-
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 48, color: color),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              message,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(color: color),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ImageAttachmentPreview extends StatelessWidget {
-  const _ImageAttachmentPreview({
-    required this.url,
-    this.headers,
-  });
-
-  final String url;
-  final Map<String, String>? headers;
-
-  @override
-  Widget build(BuildContext context) {
-    return InteractiveViewer(
-      maxScale: 5,
-      child: Center(
-        child: Image.network(
-          url,
-          fit: BoxFit.contain,
-          headers: headers,
-          errorBuilder: (context, error, stackTrace) => const _AttachmentPreviewMessage(
-            icon: Icons.broken_image_outlined,
-            message: 'Unable to load the image preview.',
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PdfAttachmentPreview extends StatefulWidget {
-  const _PdfAttachmentPreview({
-    required this.url,
-    this.headers,
-  });
-
-  final String url;
-  final Map<String, String>? headers;
-
-  @override
-  State<_PdfAttachmentPreview> createState() => _PdfAttachmentPreviewState();
-}
-
-class _PdfAttachmentPreviewState extends State<_PdfAttachmentPreview> {
-  final PdfViewerController _controller = PdfViewerController();
-  PdfDocumentLoadFailedDetails? _loadFailure;
-
-  @override
-  void didUpdateWidget(covariant _PdfAttachmentPreview oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.url != widget.url ||
-        !mapEquals(oldWidget.headers, widget.headers)) {
-      setState(() {
-        _loadFailure = null;
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final failure = _loadFailure;
-    if (failure != null) {
-      final buffer = StringBuffer(
-        'Unable to load the PDF preview. Try downloading the file to view it externally.',
-      );
-
-      final description = failure.description.trim();
-      if (description.isNotEmpty) {
-        buffer
-          ..write('\n\n')
-          ..write(description);
-      }
-
-      return _AttachmentPreviewMessage(
-        icon: Icons.picture_as_pdf_outlined,
-        message: buffer.toString(),
-      );
-    }
-
-    final headers = widget.headers == null
-        ? null
-        : Map<String, String>.from(widget.headers!);
-    final headersSignature = _headersSignature(headers);
-
-    return SfPdfViewer.network(
-      widget.url,
-      key: ValueKey('${widget.url}-$headersSignature'),
-      controller: _controller,
-      headers: headers,
-      onDocumentLoadFailed: (details) {
-        if (!mounted) {
-          return;
-        }
-
-        setState(() {
-          _loadFailure = details;
-        });
-      },
-    );
-  }
-
-  int _headersSignature(Map<String, String>? headers) {
-    if (headers == null || headers.isEmpty) {
-      return 0;
-    }
-
-    return Object.hashAllUnordered(
-      headers.entries.map((entry) => Object.hash(entry.key, entry.value)),
-    );
-  }
-  return null;
-}
-
-enum _AttachmentPreviewType { image, pdf, unsupported }
-
-_AttachmentPreviewType _resolveAttachmentType(PurchaseOrderAttachment attachment) {
-  final extension = _resolveAttachmentExtension(
-    [attachment.fileName, attachment.downloadUrl],
-  );
-
-  if (extension == null) {
-    return _AttachmentPreviewType.unsupported;
-  }
-
-  if (_imageAttachmentExtensions.contains(extension)) {
-    return _AttachmentPreviewType.image;
-  }
-
-  if (extension == 'pdf') {
-    return _AttachmentPreviewType.pdf;
-  }
-
-  return _AttachmentPreviewType.unsupported;
-}
-
-String? _resolveAttachmentExtension(List<Object?> candidates) {
-  for (final candidate in candidates) {
-    final value = switch (candidate) {
-      String s => s,
-      Uri u => u.toString(),
-      _ => null,
-    };
-    if (value == null || value.trim().isEmpty) {
-      continue;
-    }
-    final sanitized = value.split('?').first.split('#').first;
-    final dotIndex = sanitized.lastIndexOf('.');
-    if (dotIndex == -1 || dotIndex == sanitized.length - 1) {
-      continue;
-    }
-    return sanitized.substring(dotIndex + 1).toLowerCase();
-  }
-  return null;
-}
-
-String _normalizeAttachmentPreviewUrl(String url) {
+String _normalizeAttachmentDownloadUrl(String url) {
   final trimmed = url.trim();
   if (trimmed.isEmpty) {
     return trimmed;
@@ -1223,141 +1010,19 @@ String _normalizeAttachmentPreviewUrl(String url) {
   return uri.toString();
 }
 
-const _imageAttachmentExtensions = <String>{
-  'apng',
-  'avif',
-  'bmp',
-  'gif',
-  'jpeg',
-  'jpg',
-  'png',
-  'webp',
-};
-
-class _AttachmentPreviewDialog extends StatelessWidget {
-  const _AttachmentPreviewDialog({
-    required this.attachment,
-    this.headers,
-  });
-
-  final PurchaseOrderAttachment attachment;
-  final Map<String, String>? headers;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final type = _resolveAttachmentType(attachment);
-
-    late final Widget preview;
-    if (!attachment.hasDownloadUrl) {
-      preview = const _AttachmentPreviewMessage(
-        icon: Icons.link_off,
-        message: 'This attachment does not provide a downloadable preview.',
-      );
-    } else {
-      final url = _normalizeAttachmentPreviewUrl(attachment.downloadUrl!);
-      switch (type) {
-        case _AttachmentPreviewType.image:
-          preview = _ImageAttachmentPreview(url: url, headers: headers);
-          break;
-        case _AttachmentPreviewType.pdf:
-          preview = _PdfAttachmentPreview(url: url, headers: headers);
-          break;
-        case _AttachmentPreviewType.unsupported:
-          preview = _AttachmentPreviewMessage(
-            icon: Icons.visibility_off_outlined,
-            message:
-                'Preview is not available for this file type. Use the download URL to open it externally.',
-          );
-          break;
-      }
-    }
-
-    return Dialog(
-      insetPadding: const EdgeInsets.all(24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 640),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      attachment.fileName,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Close preview',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-                    ),
-                    child: preview,
-                  ),
-                ),
-              ),
-              if (attachment.hasDownloadUrl) ...[
-                const SizedBox(height: 16),
-                Text(
-                  'Download URL',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                SelectableText(
-                  _normalizeAttachmentPreviewUrl(attachment.downloadUrl!),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _AttachmentCard extends StatelessWidget {
-  const _AttachmentCard({
-    required this.attachment,
-    this.previewHeaders,
-  });
+  const _AttachmentCard({required this.attachment});
 
   final PurchaseOrderAttachment attachment;
-  final Map<String, String>? previewHeaders;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final labelColor = theme.colorScheme.onSurfaceVariant;
-    final previewType = _resolveAttachmentType(attachment);
-    final canPreview =
-        attachment.hasDownloadUrl && previewType != _AttachmentPreviewType.unsupported;
     final normalizedDownloadUrl = attachment.hasDownloadUrl
-        ? _normalizeAttachmentPreviewUrl(attachment.downloadUrl!)
+        ? _normalizeAttachmentDownloadUrl(attachment.downloadUrl!)
         : null;
+
     final children = <Widget>[
       Row(
         children: [
@@ -1371,18 +1036,6 @@ class _AttachmentCard extends StatelessWidget {
               ),
             ),
           ),
-          if (canPreview)
-            const SizedBox(width: 8),
-          if (canPreview)
-            Tooltip(
-              message: 'Preview attachment',
-              child: Icon(
-                previewType == _AttachmentPreviewType.pdf
-                    ? Icons.picture_as_pdf_outlined
-                    : Icons.image_outlined,
-                color: theme.colorScheme.primary,
-              ),
-            ),
         ],
       ),
       const SizedBox(height: 12),
@@ -1399,7 +1052,9 @@ class _AttachmentCard extends StatelessWidget {
     }
 
     if (attachment.sizeLabel != null && attachment.sizeLabel!.trim().isNotEmpty) {
-      children.add(_LabelValueRow(label: 'Size', value: attachment.sizeLabel!.trim()));
+      children.add(
+        _LabelValueRow(label: 'Size', value: attachment.sizeLabel!.trim()),
+      );
     }
 
     if (attachment.hasDescription) {
@@ -1420,7 +1075,7 @@ class _AttachmentCard extends StatelessWidget {
       ]);
     }
 
-    if (attachment.hasDownloadUrl) {
+    if (attachment.hasDownloadUrl && normalizedDownloadUrl != null) {
       children.addAll([
         const SizedBox(height: 12),
         Text(
@@ -1432,29 +1087,15 @@ class _AttachmentCard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         SelectableText(
-          normalizedDownloadUrl!,
+          normalizedDownloadUrl,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.primary,
           ),
         ),
-        const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerRight,
-          child: canPreview
-              ? OutlinedButton.icon(
-                  icon: const Icon(Icons.visibility_outlined),
-                  label: const Text('Preview'),
-                  onPressed: () => _showPreview(context),
-                )
-              : Text(
-                  'Preview is not available for this file type.',
-                  style: theme.textTheme.bodySmall?.copyWith(color: labelColor),
-                ),
-        ),
       ]);
     }
 
-    final card = Container(
+    return Container(
       decoration: BoxDecoration(
         border: Border.all(color: theme.dividerColor),
         borderRadius: BorderRadius.circular(12),
@@ -1463,47 +1104,6 @@ class _AttachmentCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: children,
-      ),
-    );
-
-    if (!canPreview) {
-      return card;
-    }
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        mouseCursor: SystemMouseCursors.click,
-        onTap: () => _showPreview(context),
-        child: card,
-      ),
-    );
-  }
-
-  void _showPreview(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => _AttachmentPreviewDialog(
-        attachment: attachment,
-        headers: previewHeaders,
-      ),
-    );
-  }
-}
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({this.error, this.onRetry});
-
-  final Object? error;
-  final VoidCallback? onRetry;
-
-  void _showPreview(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => _AttachmentPreviewDialog(
-        attachment: attachment,
-        headers: previewHeaders,
       ),
     );
   }
