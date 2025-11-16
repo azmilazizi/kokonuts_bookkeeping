@@ -45,6 +45,7 @@ class VendorsService {
         'name',
         'vendor_name',
         'vendorName',
+        'company',
         'company_name',
         'companyName',
       ];
