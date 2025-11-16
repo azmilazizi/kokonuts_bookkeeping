@@ -41,7 +41,13 @@ class VendorsService {
 
   void _collectVendorNames(dynamic source, Set<String> results) {
     if (source is Map<String, dynamic>) {
-      final candidateKeys = ['name', 'vendor_name', 'company_name'];
+      final candidateKeys = [
+        'name',
+        'vendor_name',
+        'vendorName',
+        'company_name',
+        'companyName',
+      ];
       for (final key in candidateKeys) {
         final value = source[key];
         if (value is String && value.trim().isNotEmpty) {
