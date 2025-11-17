@@ -31,10 +31,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   final _purchaseOptionsService = PurchaseOptionsService();
   final _inventoryItemsService = InventoryItemsService();
   final TextEditingController _itemSearchController = TextEditingController();
-  final TextEditingController _orderDiscountController =
-      TextEditingController(text: '0');
-  final TextEditingController _shippingFeeController =
-      TextEditingController(text: '0');
+  final TextEditingController _orderDiscountController = TextEditingController(
+    text: '0',
+  );
+  final TextEditingController _shippingFeeController = TextEditingController(
+    text: '0',
+  );
 
   late DateTime _orderDate;
   late _PurchaseOrderItemDraft _pendingItem;
@@ -216,18 +218,21 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     setState(() {});
   }
 
-  double get _itemsSubtotal => _items
-      .fold(0.0, (total, item) => total + item.subtotal.clamp(0, double.infinity));
+  double get _itemsSubtotal => _items.fold(
+    0.0,
+    (total, item) => total + item.subtotal.clamp(0, double.infinity),
+  );
 
-  double get _itemsDiscount => _items
-      .fold(0.0, (total, item) => total + item.discount.clamp(0, double.infinity));
+  double get _itemsDiscount => _items.fold(
+    0.0,
+    (total, item) => total + item.discount.clamp(0, double.infinity),
+  );
 
   double get _itemsNetSubtotal =>
       (_itemsSubtotal - _itemsDiscount).clamp(0, double.infinity);
 
-  double get _orderDiscountValue => double.tryParse(
-          _orderDiscountController.text.replaceAll(',', '.')) ??
-      0;
+  double get _orderDiscountValue =>
+      double.tryParse(_orderDiscountController.text.replaceAll(',', '.')) ?? 0;
 
   double get _orderDiscountAmount {
     final value = _orderDiscountValue;
@@ -244,12 +249,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   double get _totalDiscount =>
       (_itemsDiscount + _orderDiscountAmount).clamp(0, _itemsSubtotal);
 
-  double get _shippingFee => double.tryParse(
-          _shippingFeeController.text.replaceAll(',', '.')) ??
-      0;
+  double get _shippingFee =>
+      double.tryParse(_shippingFeeController.text.replaceAll(',', '.')) ?? 0;
 
-  double get _grandTotal =>
-      (_itemsSubtotal - _totalDiscount + _shippingFee).clamp(0, double.infinity);
+  double get _grandTotal => (_itemsSubtotal - _totalDiscount + _shippingFee)
+      .clamp(0, double.infinity);
 
   void _addPaymentEntry() {
     setState(() {
@@ -281,18 +285,19 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
   Map<String, String> _buildAuthHeaders(AppState appState, String token) {
     final rawToken = (appState.rawAuthToken ?? token).trim();
-    final sanitizedToken =
-        token.replaceFirst(RegExp('^Bearer\s+', caseSensitive: false), '').trim();
-    final normalizedAuth =
-        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
-    final autoTokenValue =
-        rawToken.replaceFirst(RegExp('^Bearer\s+', caseSensitive: false), '').trim();
-    final authtokenHeader =
-        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
-    return {
-      'authtoken': authtokenHeader,
-      'Authorization': normalizedAuth,
-    };
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
+    final autoTokenValue = rawToken
+        .replaceFirst(RegExp('^Bearer\s+', caseSensitive: false), '')
+        .trim();
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
+    return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
   }
 
   Future<void> _pickOrderDate() async {
@@ -433,8 +438,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final dialogWidth =
-        (MediaQuery.of(context).size.width * 0.92).clamp(420.0, 1200.0);
+    final dialogWidth = (MediaQuery.of(context).size.width * 0.92).clamp(
+      420.0,
+      1200.0,
+    );
 
     return AlertDialog(
       title: const Text('Add Purchase Order'),
@@ -448,10 +455,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'Attachments',
-                  style: theme.textTheme.titleMedium,
-                ),
+                Text('Attachments', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 8),
                 Text(
                   'Attach supporting documents for invoices and payment receipts.',
@@ -460,11 +464,13 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                 const SizedBox(height: 12),
                 _AttachmentPicker(
                   label: 'Invoice attachment',
-                  description: 'Drag and drop files or tap to browse for invoice documents.',
+                  description:
+                      'Drag and drop files or tap to browse for invoice documents.',
                   file: _invoiceAttachment,
                   onPick: () => _pickAttachment(isInvoice: true),
                   onClear: () => setState(() => _invoiceAttachment = null),
-                  onFileSelected: (file) => setState(() => _invoiceAttachment = file),
+                  onFileSelected: (file) =>
+                      setState(() => _invoiceAttachment = file),
                 ),
                 const SizedBox(height: 12),
                 _AttachmentPicker(
@@ -473,8 +479,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                       'Drag and drop files or tap to browse for payment receipt documents.',
                   file: _paymentReceiptAttachment,
                   onPick: () => _pickAttachment(isInvoice: false),
-                  onClear: () => setState(() => _paymentReceiptAttachment = null),
-                  onFileSelected: (file) => setState(() => _paymentReceiptAttachment = file),
+                  onClear: () =>
+                      setState(() => _paymentReceiptAttachment = null),
+                  onFileSelected: (file) =>
+                      setState(() => _paymentReceiptAttachment = file),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -531,45 +539,33 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   decoration: InputDecoration(
                     labelText: 'Order number',
                     hintText: 'System generated',
-                    helperText:
-                        _orderNumberStatus.isEmpty ? null : _orderNumberStatus,
+                    helperText: _orderNumberStatus.isEmpty
+                        ? null
+                        : _orderNumberStatus,
                   ),
                   readOnly: true,
                   enableInteractiveSelection: false,
                 ),
                 const SizedBox(height: 12),
-                _OrderDateField(
-                  date: _orderDate,
-                  onTap: _pickOrderDate,
-                ),
+                _OrderDateField(date: _orderDate, onTap: _pickOrderDate),
                 const SizedBox(height: 24),
-                Text(
-                  'Items',
-                  style: theme.textTheme.titleMedium,
-                ),
+                Text('Items', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 12),
                 _buildItemsDropdown(theme),
                 const SizedBox(height: 12),
-                _buildItemCard(
-                  theme,
-                  item: _pendingItem,
-                  isPlaceholder: true,
-                ),
+                _buildItemCard(theme, item: _pendingItem, isPlaceholder: true),
                 if (_pendingItemError != null) ...[
                   const SizedBox(height: 8),
                   Text(
                     _pendingItemError!,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.error),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 16),
                 for (var i = 0; i < _items.length; i++) ...[
-                  _buildItemCard(
-                    theme,
-                    item: _items[i],
-                    index: i,
-                  ),
+                  _buildItemCard(theme, item: _items[i], index: i),
                   const SizedBox(height: 12),
                 ],
                 const SizedBox(height: 16),
@@ -592,8 +588,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   const SizedBox(height: 16),
                   Text(
                     _submitError!,
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(color: theme.colorScheme.error),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
                   ),
                 ],
               ],
@@ -755,7 +752,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           children: const [
             Icon(Icons.info_outline),
             SizedBox(width: 12),
-            Expanded(child: Text('No inventory items found. Refresh to try again.')),
+            Expanded(
+              child: Text('No inventory items found. Refresh to try again.'),
+            ),
           ],
         ),
         onRetry: _isLoadingReferenceData ? null : _loadReferenceData,
@@ -764,10 +763,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
     final entries = _inventoryItems
         .map(
-          (item) => DropdownMenuEntry<InventoryItem>(
-            value: item,
-            label: item.name,
-          ),
+          (item) =>
+              DropdownMenuEntry<InventoryItem>(value: item, label: item.name),
         )
         .toList(growable: false);
 
@@ -803,12 +800,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           children: [
             Row(
               children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: theme.textTheme.titleSmall,
-                  ),
-                ),
+                Expanded(child: Text(title, style: theme.textTheme.titleSmall)),
                 if (canRemove)
                   IconButton(
                     tooltip: 'Remove item',
@@ -843,8 +835,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                             ? 'Select an item from the dropdown above'
                             : 'Item unavailable'),
                     style: (item.itemName == null)
-                        ? theme.textTheme.bodyMedium
-                            ?.copyWith(color: theme.hintColor)
+                        ? theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.hintColor,
+                          )
                         : theme.textTheme.bodyMedium,
                   ),
                 ),
@@ -873,8 +866,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
                   ],
-                  validator: (value) =>
-                      _validateQuantityField(item, isPlaceholder: isPlaceholder),
+                  validator: (value) => _validateQuantityField(
+                    item,
+                    isPlaceholder: isPlaceholder,
+                  ),
                 ),
                 TextFormField(
                   controller: item.subtotalController,
@@ -886,8 +881,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
                   ],
-                  validator: (value) =>
-                      _validateSubtotalField(item, isPlaceholder: isPlaceholder),
+                  validator: (value) => _validateSubtotalField(
+                    item,
+                    isPlaceholder: isPlaceholder,
+                  ),
                 ),
                 TextFormField(
                   controller: item.discountController,
@@ -899,17 +896,16 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
                   ],
-                  validator: (value) =>
-                      _validateDiscountField(item, isPlaceholder: isPlaceholder),
+                  validator: (value) => _validateDiscountField(
+                    item,
+                    isPlaceholder: isPlaceholder,
+                  ),
                 ),
                 _SystemValueField(
                   label: 'Unit price (RM)',
                   value: item.unitPrice,
                 ),
-                _SystemValueField(
-                  label: 'Total (RM)',
-                  value: item.total,
-                ),
+                _SystemValueField(label: 'Total (RM)', value: item.total),
               ],
             ),
             const SizedBox(height: 12),
@@ -983,10 +979,7 @@ class _PaymentEntriesTable extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'No payments added yet.',
-            style: theme.textTheme.bodyMedium,
-          ),
+          Text('No payments added yet.', style: theme.textTheme.bodyMedium),
           const SizedBox(height: 8),
           TextButton.icon(
             onPressed: onAdd,
@@ -1047,7 +1040,9 @@ class _PaymentEntriesTable extends StatelessWidget {
                 labelText: 'Amount',
                 isDense: true,
               ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
           ),
         ),
@@ -1178,7 +1173,9 @@ class _TotalsSummary extends StatelessWidget {
         _TotalsRow(
           label: 'Grand Total',
           amount: grandTotal,
-          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -1228,11 +1225,7 @@ class _ResponsiveFieldsRow extends StatelessWidget {
 }
 
 class _TotalsRow extends StatelessWidget {
-  const _TotalsRow({
-    required this.label,
-    required this.amount,
-    this.style,
-  });
+  const _TotalsRow({required this.label, required this.amount, this.style});
 
   final String label;
   final double amount;
@@ -1277,9 +1270,7 @@ class _DiscountRow extends StatelessWidget {
 
     return Row(
       children: [
-        Expanded(
-          child: Text('Discount', style: theme.textTheme.bodyMedium),
-        ),
+        Expanded(child: Text('Discount', style: theme.textTheme.bodyMedium)),
         const SizedBox(width: 12),
         Row(
           mainAxisSize: MainAxisSize.min,
@@ -1469,8 +1460,9 @@ class _ReferenceErrorField extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           error,
-          style:
-              theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.error,
+          ),
         ),
         Align(
           alignment: Alignment.centerLeft,
@@ -1487,10 +1479,10 @@ class _ReferenceErrorField extends StatelessWidget {
 
 class _PaymentEntryDraft {
   _PaymentEntryDraft({VoidCallback? onChanged})
-      : amountController = TextEditingController(),
-        methodController = TextEditingController(),
-        _onChanged = onChanged,
-        date = DateTime.now() {
+    : amountController = TextEditingController(),
+      methodController = TextEditingController(),
+      _onChanged = onChanged,
+      date = DateTime.now() {
     amountController.addListener(_notifyChange);
     methodController.addListener(_notifyChange);
   }
@@ -1526,13 +1518,13 @@ class _PurchaseOrderItemDraft {
     String initialQuantity = '1',
     String initialSubtotal = '0',
     String initialDiscount = '0',
-  })  : descriptionController = TextEditingController(text: initialDescription),
-        quantityController = TextEditingController(text: initialQuantity),
-        subtotalController = TextEditingController(text: initialSubtotal),
-        discountController = TextEditingController(text: initialDiscount),
-        itemId = initialItemId,
-        itemName = initialItemName,
-        _onChanged = onChanged {
+  }) : descriptionController = TextEditingController(text: initialDescription),
+       quantityController = TextEditingController(text: initialQuantity),
+       subtotalController = TextEditingController(text: initialSubtotal),
+       discountController = TextEditingController(text: initialDiscount),
+       itemId = initialItemId,
+       itemName = initialItemName,
+       _onChanged = onChanged {
     descriptionController.addListener(onChanged);
     quantityController.addListener(onChanged);
     subtotalController.addListener(onChanged);
@@ -1627,10 +1619,12 @@ class _AttachmentPickerState extends State<_AttachmentPicker> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final borderColor =
-        _isDragging ? theme.colorScheme.primary : theme.colorScheme.outlineVariant;
-    final surfaceColor =
-        _isDragging ? theme.colorScheme.primary.withOpacity(0.08) : null;
+    final borderColor = _isDragging
+        ? theme.colorScheme.primary
+        : theme.colorScheme.outlineVariant;
+    final surfaceColor = _isDragging
+        ? theme.colorScheme.primary.withOpacity(0.08)
+        : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1675,8 +1669,9 @@ class _AttachmentPickerState extends State<_AttachmentPicker> {
                         else
                           Text(
                             'No file selected. Drag and drop here or tap to choose.',
-                            style:
-                                theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.hintColor,
+                            ),
                           ),
                         if (_isProcessingDrop) ...[
                           const SizedBox(height: 8),
@@ -1727,16 +1722,18 @@ class _AttachmentPickerState extends State<_AttachmentPicker> {
       _isProcessingDrop = true;
     });
 
-    _convertFile(details.files.first).then((file) {
-      if (!mounted || file == null) {
-        return;
-      }
-      widget.onFileSelected(file);
-    }).whenComplete(() {
-      if (mounted) {
-        setState(() => _isProcessingDrop = false);
-      }
-    });
+    _convertFile(details.files.first)
+        .then((file) {
+          if (!mounted || file == null) {
+            return;
+          }
+          widget.onFileSelected(file);
+        })
+        .whenComplete(() {
+          if (mounted) {
+            setState(() => _isProcessingDrop = false);
+          }
+        });
   }
 
   Future<PlatformFile?> _convertFile(XFile xfile) async {

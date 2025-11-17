@@ -1,6 +1,6 @@
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
-import 'dart:ui' as ui;
+import 'dart:ui_web' as ui;
 
 import 'package:flutter/widgets.dart';
 
@@ -24,7 +24,8 @@ class _HtmlPdfPreviewState extends State<_HtmlPdfPreview> {
   @override
   void initState() {
     super.initState();
-    _viewType = 'attachment-pdf-preview-${DateTime.now().microsecondsSinceEpoch}-${hashCode}';
+    _viewType =
+        'attachment-pdf-preview-${DateTime.now().microsecondsSinceEpoch}-${hashCode}';
     ui.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
       _iframe = html.IFrameElement()
         ..src = widget.downloadUrl
