@@ -8,6 +8,8 @@ import '../services/purchase_options_service.dart';
 import '../services/purchase_orders_service.dart';
 import '../services/vendors_service.dart';
 
+enum DiscountType { percentage, amount }
+
 class AddPurchaseOrderDialog extends StatefulWidget {
   const AddPurchaseOrderDialog({super.key});
 
@@ -24,10 +26,15 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   final _purchaseOptionsService = PurchaseOptionsService();
   final _inventoryItemsService = InventoryItemsService();
   final TextEditingController _itemSearchController = TextEditingController();
+  final TextEditingController _orderDiscountController =
+      TextEditingController(text: '0');
+  final TextEditingController _shippingFeeController =
+      TextEditingController(text: '0');
 
   late DateTime _orderDate;
   late _PurchaseOrderItemDraft _pendingItem;
   final List<_PurchaseOrderItemDraft> _items = [];
+  DiscountType _orderDiscountType = DiscountType.amount;
 
   bool _isSubmitting = false;
   String? _submitError;
@@ -47,6 +54,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     super.initState();
     _orderDate = DateTime.now();
     _pendingItem = _PurchaseOrderItemDraft(onChanged: _handleItemsChanged);
+    _orderDiscountController.addListener(_handleItemsChanged);
+    _shippingFeeController.addListener(_handleItemsChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _loadReferenceData();
@@ -61,6 +70,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     }
     _orderNumberController.dispose();
     _orderNameController.dispose();
+    _orderDiscountController.dispose();
+    _shippingFeeController.dispose();
     _pendingItem.dispose();
     _itemSearchController.dispose();
     super.dispose();
@@ -193,10 +204,40 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     setState(() {});
   }
 
-  double get _subtotal =>
-      _items.fold(0, (total, item) => total + item.total.clamp(0, double.infinity));
+  double get _itemsSubtotal => _items
+      .fold(0.0, (total, item) => total + item.subtotal.clamp(0, double.infinity));
 
-  double get _total => _subtotal;
+  double get _itemsDiscount => _items
+      .fold(0.0, (total, item) => total + item.discount.clamp(0, double.infinity));
+
+  double get _itemsNetSubtotal =>
+      (_itemsSubtotal - _itemsDiscount).clamp(0, double.infinity);
+
+  double get _orderDiscountValue => double.tryParse(
+          _orderDiscountController.text.replaceAll(',', '.')) ??
+      0;
+
+  double get _orderDiscountAmount {
+    final value = _orderDiscountValue;
+    if (value <= 0) {
+      return 0;
+    }
+    final baseAmount = _itemsNetSubtotal;
+    final rawDiscount = _orderDiscountType == DiscountType.percentage
+        ? baseAmount * (value / 100)
+        : value;
+    return rawDiscount.clamp(0, baseAmount);
+  }
+
+  double get _totalDiscount =>
+      (_itemsDiscount + _orderDiscountAmount).clamp(0, _itemsSubtotal);
+
+  double get _shippingFee => double.tryParse(
+          _shippingFeeController.text.replaceAll(',', '.')) ??
+      0;
+
+  double get _grandTotal =>
+      (_itemsSubtotal - _totalDiscount + _shippingFee).clamp(0, double.infinity);
 
   Map<String, String> _buildAuthHeaders(AppState appState, String token) {
     final rawToken = (appState.rawAuthToken ?? token).trim();
@@ -431,7 +472,21 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   const SizedBox(height: 12),
                 ],
                 const SizedBox(height: 16),
-                _TotalsSummary(subtotal: _subtotal, total: _total),
+                _TotalsSummary(
+                  subtotal: _itemsSubtotal,
+                  orderDiscountAmount: _orderDiscountAmount,
+                  totalDiscount: _totalDiscount,
+                  shippingFee: _shippingFee,
+                  grandTotal: _grandTotal,
+                  discountController: _orderDiscountController,
+                  discountType: _orderDiscountType,
+                  onDiscountTypeChanged: (type) {
+                    setState(() {
+                      _orderDiscountType = type;
+                    });
+                  },
+                  shippingFeeController: _shippingFeeController,
+                ),
                 if (_submitError != null) ...[
                   const SizedBox(height: 16),
                   Text(
@@ -819,10 +874,27 @@ class _OrderDateField extends StatelessWidget {
 }
 
 class _TotalsSummary extends StatelessWidget {
-  const _TotalsSummary({required this.subtotal, required this.total});
+  const _TotalsSummary({
+    required this.subtotal,
+    required this.orderDiscountAmount,
+    required this.totalDiscount,
+    required this.shippingFee,
+    required this.grandTotal,
+    required this.discountController,
+    required this.discountType,
+    required this.onDiscountTypeChanged,
+    required this.shippingFeeController,
+  });
 
   final double subtotal;
-  final double total;
+  final double orderDiscountAmount;
+  final double totalDiscount;
+  final double shippingFee;
+  final double grandTotal;
+  final TextEditingController discountController;
+  final DiscountType discountType;
+  final ValueChanged<DiscountType> onDiscountTypeChanged;
+  final TextEditingController shippingFeeController;
 
   @override
   Widget build(BuildContext context) {
@@ -832,12 +904,35 @@ class _TotalsSummary extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _TotalsRow(label: 'Subtotal', amount: subtotal),
+        const SizedBox(height: 12),
+        _DiscountRow(
+          controller: discountController,
+          discountType: discountType,
+          onDiscountTypeChanged: onDiscountTypeChanged,
+          computedDiscount: orderDiscountAmount,
+        ),
         const SizedBox(height: 8),
         Divider(color: theme.colorScheme.outlineVariant),
         const SizedBox(height: 8),
         _TotalsRow(
-          label: 'Total',
-          amount: total,
+          label: 'Total Discount',
+          amount: -totalDiscount,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.error,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _ShippingRow(
+          controller: shippingFeeController,
+          computedShipping: shippingFee,
+        ),
+        const SizedBox(height: 12),
+        Divider(color: theme.colorScheme.outlineVariant),
+        const SizedBox(height: 8),
+        _TotalsRow(
+          label: 'Grand Total',
+          amount: grandTotal,
           style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
       ],
@@ -907,7 +1002,115 @@ class _TotalsRow extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: effectiveStyle),
-        Text(amount.toStringAsFixed(2), style: effectiveStyle),
+        Text(_formatCurrency(amount), style: effectiveStyle),
+      ],
+    );
+  }
+
+  String _formatCurrency(double value) {
+    final sign = value < 0 ? '-' : '';
+    return '$signRM${value.abs().toStringAsFixed(2)}';
+  }
+}
+
+class _DiscountRow extends StatelessWidget {
+  const _DiscountRow({
+    required this.controller,
+    required this.discountType,
+    required this.onDiscountTypeChanged,
+    required this.computedDiscount,
+  });
+
+  final TextEditingController controller;
+  final DiscountType discountType;
+  final ValueChanged<DiscountType> onDiscountTypeChanged;
+  final double computedDiscount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text('Discount', style: theme.textTheme.bodyMedium),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 120,
+          child: TextField(
+            controller: controller,
+            decoration: const InputDecoration(labelText: 'Amount'),
+            keyboardType: const TextInputType.numberWithOptions(
+              decimal: true,
+              signed: false,
+            ),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        DropdownButton<DiscountType>(
+          value: discountType,
+          items: const [
+            DropdownMenuItem(
+              value: DiscountType.percentage,
+              child: Text('%'),
+            ),
+            DropdownMenuItem(
+              value: DiscountType.amount,
+              child: Text('Amount'),
+            ),
+          ],
+          onChanged: (value) {
+            if (value != null) {
+              onDiscountTypeChanged(value);
+            }
+          },
+        ),
+        const Spacer(),
+        Text('RM${computedDiscount.toStringAsFixed(2)}'),
+      ],
+    );
+  }
+}
+
+class _ShippingRow extends StatelessWidget {
+  const _ShippingRow({
+    required this.controller,
+    required this.computedShipping,
+  });
+
+  final TextEditingController controller;
+  final double computedShipping;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text('Shipping Fee', style: theme.textTheme.bodyMedium),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 120,
+          child: TextField(
+            controller: controller,
+            decoration: const InputDecoration(labelText: 'Amount'),
+            keyboardType: const TextInputType.numberWithOptions(
+              decimal: true,
+              signed: false,
+            ),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+            ],
+          ),
+        ),
+        const Spacer(),
+        Text('RM${computedShipping.toStringAsFixed(2)}'),
       ],
     );
   }
