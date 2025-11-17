@@ -292,6 +292,7 @@ class CreatePurchaseOrderRequest {
     required this.items,
     required this.subtotal,
     required this.total,
+    required this.totalDiscount,
     required this.shippingFee,
     required this.discountValue,
     required this.isDiscountPercentage,
@@ -307,6 +308,7 @@ class CreatePurchaseOrderRequest {
   final List<CreatePurchaseOrderItem> items;
   final double subtotal;
   final double total;
+  final double totalDiscount;
   final double shippingFee;
   final double discountValue;
   final bool isDiscountPercentage;
@@ -315,7 +317,6 @@ class CreatePurchaseOrderRequest {
 
   Map<String, dynamic> toJson() {
     final discountPercent = isDiscountPercentage ? discountValue : 0;
-    final discountTotal = isDiscountPercentage ? 0 : discountValue;
     return <String, dynamic>{
       'pur_order_name': orderName,
       'vendor': vendorId ?? '',
@@ -330,7 +331,7 @@ class CreatePurchaseOrderRequest {
       'total': total,
       'added_from': userId ?? '',
       'discount_percent': discountPercent,
-      'discount_total': discountTotal,
+      'discount_total': totalDiscount,
       'discount_type': 'after_tax',
       'buyer': userId ?? '',
       'status_goods': 1,
