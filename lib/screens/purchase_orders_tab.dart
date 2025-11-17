@@ -282,75 +282,80 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
           final isCompactLayout = maxWidth < _minTableWidth;
           final tableWidth = isCompactLayout ? _minTableWidth : maxWidth;
 
-          return Scrollbar(
-            controller: _horizontalController,
-            thumbVisibility: true,
-            notificationPredicate: (notification) =>
-                notification.metrics.axis == Axis.horizontal,
-            child: SingleChildScrollView(
-              controller: _horizontalController,
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: tableWidth,
-                child: CustomScrollView(
-                  controller: _scrollController,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: TabPageHeaderDelegate(
-                        title: 'Purchase Orders',
-                        horizontalController: _horizontalController,
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: TableFilterBar(
-                        controller: _filterController,
-                        onChanged: _handleFilterChanged,
-                        hintText: 'Search by number, vendor, or total',
-                        isFiltering: _filterController.text.isNotEmpty,
-                        trailing: DateRangeFilterButton(
-                          label: 'Order date',
-                          startDate: _filterStartDate,
-                          endDate: _filterEndDate,
-                          onRangeSelected: _handleDateRangeSelected,
-                          onClear: _clearDateRange,
-                        ),
-                      ),
-                    ),
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: _PurchaseOrdersHeaderDelegate(
-                        theme: theme,
-                        isCompactLayout: isCompactLayout,
-                        sortColumn: _sortColumn,
-                        sortAscending: _sortAscending,
-                        onSort: _handleSort,
-                      ),
-                    ),
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final order = _orders[index];
-                      return _PurchaseOrderRow(
-                        order: order,
-                        theme: theme,
-                        showTopBorder: index == 0,
-                        isCompactLayout: isCompactLayout,
-                        onDelete: () => _confirmDelete(order),
-                        isDeleting: _isDeleting,
-                      );
-                    },
-                    childCount: _orders.length,
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: _buildFooter(theme),
-                    ),
-                  ],
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TableFilterBar(
+                controller: _filterController,
+                onChanged: _handleFilterChanged,
+                hintText: 'Search by number, vendor, or total',
+                isFiltering: _filterController.text.isNotEmpty,
+                trailing: DateRangeFilterButton(
+                  label: 'Order date',
+                  startDate: _filterStartDate,
+                  endDate: _filterEndDate,
+                  onRangeSelected: _handleDateRangeSelected,
+                  onClear: _clearDateRange,
                 ),
               ),
-            ),
+              Expanded(
+                child: Scrollbar(
+                  controller: _horizontalController,
+                  thumbVisibility: true,
+                  notificationPredicate: (notification) =>
+                      notification.metrics.axis == Axis.horizontal,
+                  child: SingleChildScrollView(
+                    controller: _horizontalController,
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: tableWidth,
+                      child: CustomScrollView(
+                        controller: _scrollController,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: TabPageHeaderDelegate(
+                              title: 'Purchase Orders',
+                              horizontalController: _horizontalController,
+                            ),
+                          ),
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: _PurchaseOrdersHeaderDelegate(
+                              theme: theme,
+                              isCompactLayout: isCompactLayout,
+                              sortColumn: _sortColumn,
+                              sortAscending: _sortAscending,
+                              onSort: _handleSort,
+                            ),
+                          ),
+                          SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                final order = _orders[index];
+                                return _PurchaseOrderRow(
+                                  order: order,
+                                  theme: theme,
+                                  showTopBorder: index == 0,
+                                  isCompactLayout: isCompactLayout,
+                                  onDelete: () => _confirmDelete(order),
+                                  isDeleting: _isDeleting,
+                                );
+                              },
+                              childCount: _orders.length,
+                            ),
+                          ),
+                          SliverToBoxAdapter(
+                            child: _buildFooter(theme),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),
