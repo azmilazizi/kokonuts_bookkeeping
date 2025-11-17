@@ -1260,7 +1260,10 @@ class _DiscountRow extends StatelessWidget {
           width: 120,
           child: TextField(
             controller: controller,
-            decoration: const InputDecoration(labelText: 'Amount'),
+            decoration: const InputDecoration(
+              labelText: 'Amount',
+              border: OutlineInputBorder(),
+            ),
             keyboardType: const TextInputType.numberWithOptions(
               decimal: true,
               signed: false,
@@ -1268,6 +1271,7 @@ class _DiscountRow extends StatelessWidget {
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
             ],
+            textAlign: TextAlign.right,
           ),
         ),
         const SizedBox(width: 12),
@@ -1319,7 +1323,10 @@ class _ShippingRow extends StatelessWidget {
           width: 120,
           child: TextField(
             controller: controller,
-            decoration: const InputDecoration(labelText: 'Amount'),
+            decoration: const InputDecoration(
+              labelText: 'Amount',
+              border: OutlineInputBorder(),
+            ),
             keyboardType: const TextInputType.numberWithOptions(
               decimal: true,
               signed: false,
@@ -1327,6 +1334,7 @@ class _ShippingRow extends StatelessWidget {
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
             ],
+            textAlign: TextAlign.right,
           ),
         ),
         const Spacer(),
