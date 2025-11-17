@@ -287,20 +287,28 @@ class PurchaseOrdersService {
 class CreatePurchaseOrderRequest {
   const CreatePurchaseOrderRequest({
     required this.vendorName,
+    this.vendorId,
     required this.orderName,
     required this.orderNumber,
     required this.orderDate,
     required this.items,
+    this.subtotal,
+    this.total,
+    this.userId,
     this.reference,
     this.notes,
     this.terms,
   });
 
   final String vendorName;
+  final String? vendorId;
   final String orderName;
   final String orderNumber;
   final DateTime orderDate;
   final List<CreatePurchaseOrderItem> items;
+  final double? subtotal;
+  final double? total;
+  final String? userId;
   final String? reference;
   final String? notes;
   final String? terms;
@@ -311,6 +319,7 @@ class CreatePurchaseOrderRequest {
 
     return <String, dynamic>{
       'vendor_name': vendorName,
+      if (vendorId != null && vendorId!.isNotEmpty) 'vendor_id': vendorId,
       'pur_order_name': orderName,
       if (orderNumber.isNotEmpty) 'pur_order_number': orderNumber,
       'order_date': _formatDate(orderDate),
@@ -318,8 +327,9 @@ class CreatePurchaseOrderRequest {
       if (notes != null && notes!.isNotEmpty) 'notes': notes,
       if (terms != null && terms!.isNotEmpty) 'terms': terms,
       'items': itemsJson,
-      'subtotal': totals,
-      'total': totals,
+      'subtotal': subtotal ?? totals,
+      'total': total ?? totals,
+      if (userId != null && userId!.isNotEmpty) 'user_id': userId,
     };
   }
 
@@ -334,14 +344,20 @@ class CreatePurchaseOrderRequest {
 class CreatePurchaseOrderItem {
   const CreatePurchaseOrderItem({
     required this.name,
+    this.unitId,
     required this.quantity,
     required this.rate,
+    this.unitPrice,
+    this.total,
     this.description,
   });
 
   final String name;
+  final String? unitId;
   final double quantity;
   final double rate;
+  final double? unitPrice;
+  final double? total;
   final String? description;
 
   double get amount => quantity * rate;
@@ -349,9 +365,12 @@ class CreatePurchaseOrderItem {
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'name': name,
+      if (unitId != null && unitId!.isNotEmpty) 'unit_id': unitId,
       'quantity': quantity,
       'rate': rate,
       'amount': amount,
+      if (unitPrice != null) 'unit_price': unitPrice,
+      if (total != null) 'total': total,
       if (description != null && description!.isNotEmpty)
         'description': description,
     };
