@@ -57,8 +57,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   List<VendorSummary> _vendors = const [];
   List<InventoryItem> _inventoryItems = const [];
   final List<_PaymentEntryDraft> _payments = [];
-  PlatformFile? _invoiceAttachment;
-  PlatformFile? _paymentReceiptAttachment;
+  PlatformFile? _supportingAttachment;
 
   @override
   void initState() {
@@ -458,31 +457,19 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                 Text('Attachments', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 8),
                 Text(
-                  'Attach supporting documents for invoices and payment receipts.',
+                  'Attach supporting documents for invoices or payment receipts.',
                   style: theme.textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 12),
                 _AttachmentPicker(
-                  label: 'Invoice attachment',
+                  label: 'Supporting attachment',
                   description:
-                      'Drag and drop files or tap to browse for invoice documents.',
-                  file: _invoiceAttachment,
-                  onPick: () => _pickAttachment(isInvoice: true),
-                  onClear: () => setState(() => _invoiceAttachment = null),
+                      'Drag and drop files or tap to browse for invoice or payment receipt documents.',
+                  file: _supportingAttachment,
+                  onPick: _pickAttachment,
+                  onClear: () => setState(() => _supportingAttachment = null),
                   onFileSelected: (file) =>
-                      setState(() => _invoiceAttachment = file),
-                ),
-                const SizedBox(height: 12),
-                _AttachmentPicker(
-                  label: 'Payment receipt attachment',
-                  description:
-                      'Drag and drop files or tap to browse for payment receipt documents.',
-                  file: _paymentReceiptAttachment,
-                  onPick: () => _pickAttachment(isInvoice: false),
-                  onClear: () =>
-                      setState(() => _paymentReceiptAttachment = null),
-                  onFileSelected: (file) =>
-                      setState(() => _paymentReceiptAttachment = file),
+                      setState(() => _supportingAttachment = file),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -517,6 +504,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   ),
                   const SizedBox(height: 24),
                 ],
+                const SizedBox(height: 12),
                 _buildVendorField(theme),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -617,7 +605,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     );
   }
 
-  Future<void> _pickAttachment({required bool isInvoice}) async {
+  Future<void> _pickAttachment() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: false,
       withData: false,
@@ -628,13 +616,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       return;
     }
 
-    setState(() {
-      if (isInvoice) {
-        _invoiceAttachment = result.files.first;
-      } else {
-        _paymentReceiptAttachment = result.files.first;
-      }
-    });
+    setState(() => _supportingAttachment = result.files.first);
   }
 
   Widget _buildVendorField(ThemeData theme) {
@@ -993,32 +975,62 @@ class _PaymentEntriesTable extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                child: DataTable(
-                  columnSpacing: 24,
-                  headingRowHeight: 40,
-                  dataRowHeight: 68,
-                  columns: const [
-                    DataColumn(label: Text('Amount (RM)')),
-                    DataColumn(label: Text('Payment Mode')),
-                    DataColumn(label: Text('Date')),
-                    DataColumn(label: Text('Actions')),
-                  ],
-                  rows: [
-                    for (var i = 0; i < entries.length; i++)
-                      _buildRow(entries[i], i, theme),
-                  ],
-                ),
+        for (var i = 0; i < entries.length; i++) ...[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Payment ${i + 1}',
+                          style: theme.textTheme.titleSmall,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Remove payment',
+                        icon: const Icon(Icons.delete_outline),
+                        color: theme.colorScheme.error,
+                        onPressed: () => onRemove(i),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _ResponsiveFieldsRow(
+                    children: [
+                      TextFormField(
+                        controller: entries[i].amountController,
+                        decoration: const InputDecoration(
+                          labelText: 'Amount (RM)',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                      TextFormField(
+                        controller: entries[i].methodController,
+                        decoration: const InputDecoration(
+                          labelText: 'Payment mode',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      _PaymentDateField(
+                        label: 'Payment date',
+                        dateLabel: entries[i].dateLabel,
+                        onTap: () => onPickDate(entries[i]),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            );
-          },
-        ),
-        const SizedBox(height: 8),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         TextButton.icon(
           onPressed: onAdd,
           icon: const Icon(Icons.add),
@@ -1027,56 +1039,40 @@ class _PaymentEntriesTable extends StatelessWidget {
       ],
     );
   }
+}
 
-  DataRow _buildRow(_PaymentEntryDraft entry, int index, ThemeData theme) {
-    return DataRow(
-      cells: [
-        DataCell(
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 140),
-            child: TextFormField(
-              controller: entry.amountController,
-              decoration: const InputDecoration(
-                labelText: 'Amount',
-                isDense: true,
-              ),
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-            ),
-          ),
+class _PaymentDateField extends StatelessWidget {
+  const _PaymentDateField({
+    required this.label,
+    required this.dateLabel,
+    required this.onTap,
+  });
+
+  final String label;
+  final String dateLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
         ),
-        DataCell(
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 200),
-            child: TextFormField(
-              controller: entry.methodController,
-              decoration: const InputDecoration(
-                labelText: 'Payment mode',
-                isDense: true,
-              ),
-            ),
-          ),
+        child: Row(
+          children: [
+            Icon(Icons.event, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            Expanded(child: Text(dateLabel)),
+            const Icon(Icons.expand_more),
+          ],
         ),
-        DataCell(
-          OutlinedButton.icon(
-            onPressed: () => onPickDate(entry),
-            icon: const Icon(Icons.event, size: 16),
-            label: Text(entry.dateLabel),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            ),
-          ),
-        ),
-        DataCell(
-          IconButton(
-            tooltip: 'Remove payment',
-            icon: const Icon(Icons.delete_outline),
-            color: theme.colorScheme.error,
-            onPressed: () => onRemove(index),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
