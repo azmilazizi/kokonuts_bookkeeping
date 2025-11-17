@@ -1009,7 +1009,7 @@ class _TotalsRow extends StatelessWidget {
 
   String _formatCurrency(double value) {
     final sign = value < 0 ? '-' : '';
-    return '$signRM${value.abs().toStringAsFixed(2)}';
+    return '${sign}RM${value.abs().toStringAsFixed(2)}';
   }
 }
 
