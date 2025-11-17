@@ -169,19 +169,6 @@ class _ExpensesTabState extends State<ExpensesTab> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TableFilterBar(
-                controller: _filterController,
-                onChanged: _handleFilterChanged,
-                hintText: 'Search by vendor, name, or category',
-                isFiltering: _filterController.text.isNotEmpty,
-                trailing: DateRangeFilterButton(
-                  label: 'Expense date',
-                  startDate: _filterStartDate,
-                  endDate: _filterEndDate,
-                  onRangeSelected: _handleDateRangeSelected,
-                  onClear: _clearDateRange,
-                ),
-              ),
               Expanded(
                 child: Scrollbar(
                   controller: _horizontalController,
@@ -202,6 +189,21 @@ class _ExpensesTabState extends State<ExpensesTab> {
                             delegate: TabPageHeaderDelegate(
                               title: 'Expenses',
                               horizontalController: _horizontalController,
+                            ),
+                          ),
+                          SliverToBoxAdapter(
+                            child: TableFilterBar(
+                              controller: _filterController,
+                              onChanged: _handleFilterChanged,
+                              hintText: 'Search by vendor, name, or category',
+                              isFiltering: _filterController.text.isNotEmpty,
+                              trailing: DateRangeFilterButton(
+                                label: 'Expense date',
+                                startDate: _filterStartDate,
+                                endDate: _filterEndDate,
+                                onRangeSelected: _handleDateRangeSelected,
+                                onClear: _clearDateRange,
+                              ),
                             ),
                           ),
                           SliverPersistentHeader(
