@@ -42,9 +42,10 @@ class VendorsService {
   void _collectVendors(dynamic source, Map<String, VendorSummary> results) {
     if (source is Map<String, dynamic>) {
       final name = _extractVendorName(source);
-      if (name != null) {
+      final id = _extractVendorId(source);
+      if (name != null && id != null) {
         final code = _extractVendorCode(source);
-        results[name] = VendorSummary(name: name, code: code);
+        results[name] = VendorSummary(id: id, name: name, code: code);
       }
       for (final value in source.values) {
         _collectVendors(value, results);
@@ -88,6 +89,24 @@ class VendorsService {
     }
     return null;
   }
+
+  String? _extractVendorId(Map<String, dynamic> source) {
+    const candidateKeys = [
+      'vendor_id',
+      'vendorId',
+      'id',
+    ];
+    for (final key in candidateKeys) {
+      final value = source[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+      if (value is int) {
+        return value.toString();
+      }
+    }
+    return null;
+  }
 }
 
 class VendorsServiceException implements Exception {
@@ -100,8 +119,9 @@ class VendorsServiceException implements Exception {
 }
 
 class VendorSummary {
-  const VendorSummary({required this.name, this.code});
+  const VendorSummary({required this.id, required this.name, this.code});
 
+  final String id;
   final String name;
   final String? code;
 }

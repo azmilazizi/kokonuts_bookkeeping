@@ -48,12 +48,25 @@ class InventoryItemsService {
 
   void _collectItems(dynamic source, List<InventoryItem> target) {
     if (source is Map<String, dynamic>) {
-      final name = _readString(source,
-          const ['name', 'item_name', 'itemName', 'title', 'sku_name', 'skuName']);
-      final id =
-          _readString(source, const ['id', 'item_id', 'itemId', 'uid']);
+      final name = _readString(source, const [
+        'name',
+        'item_name',
+        'itemName',
+        'title',
+        'sku_name',
+        'skuName'
+      ]);
+      final id = _readString(source, const ['id', 'item_id', 'itemId', 'uid']);
+      final skuCode = _readString(source, const ['sku_code', 'skuCode', 'sku']);
+      final skuName =
+          _readString(source, const ['sku_name', 'skuName', 'name']);
       if (name != null && id != null) {
-        target.add(InventoryItem(id: id, name: name));
+        target.add(InventoryItem(
+          id: id,
+          name: name,
+          skuCode: skuCode,
+          skuName: skuName,
+        ));
       }
       for (final value in source.values) {
         _collectItems(value, target);
@@ -80,10 +93,17 @@ class InventoryItemsService {
 }
 
 class InventoryItem {
-  const InventoryItem({required this.id, required this.name});
+  const InventoryItem({
+    required this.id,
+    required this.name,
+    this.skuCode,
+    this.skuName,
+  });
 
   final String id;
   final String name;
+  final String? skuCode;
+  final String? skuName;
 }
 
 class InventoryItemsException implements Exception {
