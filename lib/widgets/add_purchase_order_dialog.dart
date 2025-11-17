@@ -34,6 +34,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   bool _isLoadingReferenceData = false;
   String? _referenceDataError;
   String? _pendingItemError;
+  String _orderNumberStatus = '';
   String? _selectedVendorName;
   String? _selectedVendorCode;
   int? _nextPurchaseOrderNumber;
@@ -76,6 +77,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     setState(() {
       _isLoadingReferenceData = true;
       _referenceDataError = null;
+      _orderNumberStatus = 'Generating...';
     });
 
     final appState = AppStateScope.of(context);
@@ -117,6 +119,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       }
       setState(() {
         _referenceDataError = 'Failed to load reference data: $error';
+        _orderNumberStatus = 'Unable to generate order number';
       });
     } finally {
       if (mounted) {
@@ -230,7 +233,13 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
   void _updateOrderNumber() {
     final generated = _buildOrderNumber();
-    _orderNumberController.text = generated;
+    if (generated.isEmpty) {
+      _orderNumberStatus = 'Generating...';
+      _orderNumberController.text = '';
+    } else {
+      _orderNumberStatus = '';
+      _orderNumberController.text = generated;
+    }
   }
 
   String _buildOrderNumber() {
@@ -381,7 +390,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                     labelText: 'Order number',
                     hintText: 'System generated',
                   ),
-                  enabled: false,
+                  readOnly: true,
+                  enableInteractiveSelection: false,
+                  helperText:
+                      _orderNumberStatus.isEmpty ? null : _orderNumberStatus,
                 ),
                 const SizedBox(height: 12),
                 _OrderDateField(
