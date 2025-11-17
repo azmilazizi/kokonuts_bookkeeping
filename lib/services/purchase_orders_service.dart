@@ -9,8 +9,11 @@ class PurchaseOrdersService {
 
   static const _baseUrl =
       'https://crm.kokonuts.my/purchase/api/v1/purchase_orders';
+  // Some environments expose deletion on the pluralized collection route.
+  // Using the same base as listing avoids hitting the singular endpoint that
+  // currently responds with a 500 error.
   static const _deleteBaseUrl =
-      'https://crm.kokonuts.my/purchase/api/v1/purchase_order';
+      'https://crm.kokonuts.my/purchase/api/v1/purchase_orders';
 
   Future<PurchaseOrdersPage> fetchPurchaseOrders({
     required int page,
