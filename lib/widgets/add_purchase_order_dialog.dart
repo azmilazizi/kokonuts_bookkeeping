@@ -49,6 +49,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   bool _isLoadingReferenceData = false;
   String? _referenceDataError;
   String? _pendingItemError;
+  String? _orderNumber;
   String _orderNumberStatus = '';
   String? _selectedVendorName;
   String? _selectedVendorCode;
@@ -330,9 +331,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       _orderNumberStatus = _isLoadingReferenceData
           ? 'Generating...'
           : 'Unable to generate order number';
+      _orderNumber = null;
       _orderNumberController.text = '';
     } else {
       _orderNumberStatus = '';
+      _orderNumber = generated;
       _orderNumberController.text = generated;
     }
   }
