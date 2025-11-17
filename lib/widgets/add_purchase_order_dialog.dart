@@ -328,15 +328,23 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   }
 
   String _buildOrderNumber() {
+    final baseOrderNumber = _buildBaseOrderNumber();
+    if (baseOrderNumber.isEmpty) {
+      return '';
+    }
+    final vendorCode = (_selectedVendorCode ?? '').trim();
+    final vendorSegment = vendorCode.isNotEmpty ? '-$vendorCode' : '';
+    return '$baseOrderNumber$vendorSegment';
+  }
+
+  String _buildBaseOrderNumber() {
     final nextNumber = _nextPurchaseOrderNumber;
     if (nextNumber == null) {
       return '';
     }
     final paddedNumber = nextNumber.toString().padLeft(5, '0');
     final datePart = _formatDate(_orderDate);
-    final vendorCode = (_selectedVendorCode ?? '').trim();
-    final vendorSegment = vendorCode.isNotEmpty ? '-$vendorCode' : '';
-    return '#PO-$paddedNumber-$datePart$vendorSegment';
+    return '#PO-$paddedNumber-$datePart';
   }
 
   String _formatDate(DateTime date) {
