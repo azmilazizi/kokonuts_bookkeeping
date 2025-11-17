@@ -1256,41 +1256,50 @@ class _DiscountRow extends StatelessWidget {
           child: Text('Discount', style: theme.textTheme.bodyMedium),
         ),
         const SizedBox(width: 12),
-        SizedBox(
-          width: 120,
-          child: TextField(
-            controller: controller,
-            decoration: const InputDecoration(labelText: 'Amount'),
-            keyboardType: const TextInputType.numberWithOptions(
-              decimal: true,
-              signed: false,
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 120,
+              child: TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  labelText: 'Amount',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                  signed: false,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                ],
+                textAlign: TextAlign.right,
+              ),
             ),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        DropdownButton<DiscountType>(
-          value: discountType,
-          items: const [
-            DropdownMenuItem(
-              value: DiscountType.percentage,
-              child: Text('%'),
+            const SizedBox(width: 12),
+            DropdownButton<DiscountType>(
+              value: discountType,
+              items: const [
+                DropdownMenuItem(
+                  value: DiscountType.percentage,
+                  child: Text('%'),
+                ),
+                DropdownMenuItem(
+                  value: DiscountType.amount,
+                  child: Text('Amount'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  onDiscountTypeChanged(value);
+                }
+              },
             ),
-            DropdownMenuItem(
-              value: DiscountType.amount,
-              child: Text('Amount'),
-            ),
+            const SizedBox(width: 12),
+            Text('RM${computedDiscount.toStringAsFixed(2)}'),
           ],
-          onChanged: (value) {
-            if (value != null) {
-              onDiscountTypeChanged(value);
-            }
-          },
         ),
-        const Spacer(),
-        Text('RM${computedDiscount.toStringAsFixed(2)}'),
       ],
     );
   }
@@ -1315,22 +1324,31 @@ class _ShippingRow extends StatelessWidget {
           child: Text('Shipping Fee', style: theme.textTheme.bodyMedium),
         ),
         const SizedBox(width: 12),
-        SizedBox(
-          width: 120,
-          child: TextField(
-            controller: controller,
-            decoration: const InputDecoration(labelText: 'Amount'),
-            keyboardType: const TextInputType.numberWithOptions(
-              decimal: true,
-              signed: false,
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 120,
+              child: TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  labelText: 'Amount',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                  signed: false,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                ],
+                textAlign: TextAlign.right,
+              ),
             ),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-            ],
-          ),
+            const SizedBox(width: 12),
+            Text('RM${computedShipping.toStringAsFixed(2)}'),
+          ],
         ),
-        const Spacer(),
-        Text('RM${computedShipping.toStringAsFixed(2)}'),
       ],
     );
   }
