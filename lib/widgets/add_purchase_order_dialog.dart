@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
 import '../services/inventory_items_service.dart';
+import '../services/purchase_options_service.dart';
 import '../services/purchase_orders_service.dart';
 import '../services/vendors_service.dart';
 
@@ -20,6 +21,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   final _orderNameController = TextEditingController();
   final _service = PurchaseOrdersService();
   final _vendorsService = VendorsService();
+  final _purchaseOptionsService = PurchaseOptionsService();
   final _inventoryItemsService = InventoryItemsService();
   final TextEditingController _itemSearchController = TextEditingController();
 
@@ -32,9 +34,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   bool _isLoadingReferenceData = false;
   String? _referenceDataError;
   String? _pendingItemError;
+  String _orderNumberStatus = '';
   String? _selectedVendorName;
+  String? _selectedVendorCode;
+  int? _nextPurchaseOrderNumber;
   InventoryItem? _selectedInventoryItem;
-  List<String> _vendorNames = const [];
+  List<VendorSummary> _vendors = const [];
   List<InventoryItem> _inventoryItems = const [];
 
   @override
@@ -72,6 +77,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     setState(() {
       _isLoadingReferenceData = true;
       _referenceDataError = null;
+      _orderNumberStatus = 'Generating...';
     });
 
     final appState = AppStateScope.of(context);
@@ -91,8 +97,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
     try {
       final results = await Future.wait([
-        _vendorsService.fetchVendorNames(headers: headers),
+        _vendorsService.fetchVendors(headers: headers),
         _inventoryItemsService.fetchItems(headers: headers),
+        _purchaseOptionsService.fetchNextPurchaseOrderNumber(headers: headers),
       ]);
 
       if (!mounted) {
@@ -100,8 +107,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       }
 
       setState(() {
-        _vendorNames = results[0] as List<String>;
+        _vendors = results[0] as List<VendorSummary>;
         _inventoryItems = results[1] as List<InventoryItem>;
+        _nextPurchaseOrderNumber = results[2] as int?;
+        _selectedVendorCode = _findVendorByName(_selectedVendorName)?.code;
+        _updateOrderNumber();
       });
     } catch (error) {
       if (!mounted) {
@@ -109,6 +119,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       }
       setState(() {
         _referenceDataError = 'Failed to load reference data: $error';
+        _orderNumberStatus = 'Unable to generate order number';
       });
     } finally {
       if (mounted) {
@@ -215,8 +226,39 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     if (selected != null) {
       setState(() {
         _orderDate = selected;
+        _updateOrderNumber();
       });
     }
+  }
+
+  void _updateOrderNumber() {
+    final generated = _buildOrderNumber();
+    if (generated.isEmpty) {
+      _orderNumberStatus = 'Generating...';
+      _orderNumberController.text = '';
+    } else {
+      _orderNumberStatus = '';
+      _orderNumberController.text = generated;
+    }
+  }
+
+  String _buildOrderNumber() {
+    final nextNumber = _nextPurchaseOrderNumber;
+    if (nextNumber == null) {
+      return '';
+    }
+    final paddedNumber = nextNumber.toString().padLeft(5, '0');
+    final datePart = _formatDate(_orderDate);
+    final vendorCode = (_selectedVendorCode ?? '').trim();
+    final vendorSegment = vendorCode.isNotEmpty ? '-$vendorCode' : '';
+    return '#PO-$paddedNumber-$datePart$vendorSegment';
+  }
+
+  String _formatDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString().padLeft(4, '0');
+    return '$day$month$year';
   }
 
   Future<void> _submit() async {
@@ -344,11 +386,14 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _orderNumberController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Order number',
                     hintText: 'System generated',
+                    helperText:
+                        _orderNumberStatus.isEmpty ? null : _orderNumberStatus,
                   ),
-                  enabled: false,
+                  readOnly: true,
+                  enableInteractiveSelection: false,
                 ),
                 const SizedBox(height: 12),
                 _OrderDateField(
@@ -420,7 +465,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   }
 
   Widget _buildVendorField(ThemeData theme) {
-    if (_isLoadingReferenceData && _vendorNames.isEmpty) {
+    if (_isLoadingReferenceData && _vendors.isEmpty) {
       return _ReferenceStatusField(
         label: 'Vendor name',
         child: Row(
@@ -437,7 +482,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       );
     }
 
-    if (_referenceDataError != null && _vendorNames.isEmpty) {
+    if (_referenceDataError != null && _vendors.isEmpty) {
       return _ReferenceErrorField(
         label: 'Vendor name',
         error: _referenceDataError!,
@@ -445,7 +490,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       );
     }
 
-    if (_vendorNames.isEmpty) {
+    if (_vendors.isEmpty) {
       return _ReferenceStatusField(
         label: 'Vendor name',
         child: Row(
@@ -465,17 +510,19 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         labelText: 'Vendor name',
         hintText: 'Select a vendor',
       ),
-      items: _vendorNames
+      items: _vendors
           .map(
-            (name) => DropdownMenuItem<String>(
-              value: name,
-              child: Text(name),
+            (vendor) => DropdownMenuItem<String>(
+              value: vendor.name,
+              child: Text(vendor.name),
             ),
           )
           .toList(growable: false),
       onChanged: (value) {
         setState(() {
           _selectedVendorName = value;
+          _selectedVendorCode = _findVendorByName(value)?.code;
+          _updateOrderNumber();
         });
       },
       validator: (value) {
@@ -485,6 +532,18 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         return null;
       },
     );
+  }
+
+  VendorSummary? _findVendorByName(String? name) {
+    if (name == null) {
+      return null;
+    }
+    for (final vendor in _vendors) {
+      if (vendor.name == name) {
+        return vendor;
+      }
+    }
+    return null;
   }
 
   Widget _buildItemsDropdown(ThemeData theme) {
