@@ -552,15 +552,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _orderNumberController,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Order number',
-                    hintText: 'System generated',
-                    helperText: _orderNumberStatus.isEmpty
-                        ? null
-                        : _orderNumberStatus,
                   ),
-                  readOnly: true,
-                  enableInteractiveSelection: false,
                 ),
                 const SizedBox(height: 12),
                 _OrderDateField(date: _orderDate, onTap: _pickOrderDate),
