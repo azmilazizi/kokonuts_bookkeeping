@@ -434,6 +434,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       items: items,
       subtotal: _itemsSubtotal,
       total: _grandTotal,
+      totalDiscount: _totalDiscount,
       shippingFee: _shippingFee,
       discountValue: _orderDiscountValue,
       isDiscountPercentage: _orderDiscountType == DiscountType.percentage,
