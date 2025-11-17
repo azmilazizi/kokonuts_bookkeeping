@@ -1,3 +1,7 @@
+import 'package:cross_file/cross_file.dart';
+import 'package:desktop_drop/desktop_drop.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -22,8 +26,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   final _formKey = GlobalKey<FormState>();
   final _orderNumberController = TextEditingController();
   final _orderNameController = TextEditingController();
-  final _invoiceAttachmentController = TextEditingController();
-  final _paymentReceiptAttachmentController = TextEditingController();
   final _service = PurchaseOrdersService();
   final _vendorsService = VendorsService();
   final _purchaseOptionsService = PurchaseOptionsService();
@@ -53,6 +55,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   List<VendorSummary> _vendors = const [];
   List<InventoryItem> _inventoryItems = const [];
   final List<_PaymentEntryDraft> _payments = [];
+  PlatformFile? _invoiceAttachment;
+  PlatformFile? _paymentReceiptAttachment;
 
   @override
   void initState() {
@@ -75,8 +79,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     }
     _orderNumberController.dispose();
     _orderNameController.dispose();
-    _invoiceAttachmentController.dispose();
-    _paymentReceiptAttachmentController.dispose();
     _orderDiscountController.dispose();
     _shippingFeeController.dispose();
     _pendingItem.dispose();
@@ -456,20 +458,23 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   style: theme.textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _invoiceAttachmentController,
-                  decoration: const InputDecoration(
-                    labelText: 'Invoice attachment',
-                    hintText: 'Link or file reference for the invoice',
-                  ),
+                _AttachmentPicker(
+                  label: 'Invoice attachment',
+                  description: 'Drag and drop files or tap to browse for invoice documents.',
+                  file: _invoiceAttachment,
+                  onPick: () => _pickAttachment(isInvoice: true),
+                  onClear: () => setState(() => _invoiceAttachment = null),
+                  onFileSelected: (file) => setState(() => _invoiceAttachment = file),
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _paymentReceiptAttachmentController,
-                  decoration: const InputDecoration(
-                    labelText: 'Payment receipt attachment',
-                    hintText: 'Link or file reference for the payment receipt',
-                  ),
+                _AttachmentPicker(
+                  label: 'Payment receipt attachment',
+                  description:
+                      'Drag and drop files or tap to browse for payment receipt documents.',
+                  file: _paymentReceiptAttachment,
+                  onPick: () => _pickAttachment(isInvoice: false),
+                  onClear: () => setState(() => _paymentReceiptAttachment = null),
+                  onFileSelected: (file) => setState(() => _paymentReceiptAttachment = file),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -613,6 +618,26 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         ),
       ],
     );
+  }
+
+  Future<void> _pickAttachment({required bool isInvoice}) async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: false,
+      withData: false,
+      type: FileType.any,
+    );
+
+    if (!mounted || result == null || result.files.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      if (isInvoice) {
+        _invoiceAttachment = result.files.first;
+      } else {
+        _paymentReceiptAttachment = result.files.first;
+      }
+    });
   }
 
   Widget _buildVendorField(ThemeData theme) {
@@ -1553,5 +1578,215 @@ class _PurchaseOrderItemDraft {
     quantityController.dispose();
     subtotalController.dispose();
     discountController.dispose();
+  }
+}
+
+class _AttachmentPicker extends StatefulWidget {
+  const _AttachmentPicker({
+    required this.label,
+    required this.description,
+    required this.file,
+    required this.onPick,
+    required this.onClear,
+    required this.onFileSelected,
+  });
+
+  final String label;
+  final String description;
+  final PlatformFile? file;
+  final VoidCallback onPick;
+  final VoidCallback onClear;
+  final ValueChanged<PlatformFile> onFileSelected;
+
+  @override
+  State<_AttachmentPicker> createState() => _AttachmentPickerState();
+}
+
+class _AttachmentPickerState extends State<_AttachmentPicker> {
+  bool _isDragging = false;
+  bool _isProcessingDrop = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final borderColor =
+        _isDragging ? theme.colorScheme.primary : theme.colorScheme.outlineVariant;
+    final surfaceColor =
+        _isDragging ? theme.colorScheme.primary.withOpacity(0.08) : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(widget.label, style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        DropTarget(
+          onDragEntered: (_) => setState(() => _isDragging = true),
+          onDragExited: (_) => setState(() => _isDragging = false),
+          onDragDone: _handleDrop,
+          child: InkWell(
+            onTap: widget.onPick,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: borderColor, width: 1.2),
+                color: surfaceColor,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _isDragging ? Icons.file_upload : Icons.attach_file,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.description,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        if (widget.file != null)
+                          _SelectedFileChip(
+                            file: widget.file!,
+                            onClear: widget.onClear,
+                          )
+                        else
+                          Text(
+                            'No file selected. Drag and drop here or tap to choose.',
+                            style:
+                                theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                          ),
+                        if (_isProcessingDrop) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Processing dropped file...',
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton.icon(
+                    onPressed: widget.onPick,
+                    icon: const Icon(Icons.folder_open),
+                    label: const Text('Browse files'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _handleDrop(DropDoneDetails details) {
+    if (details.files.isEmpty) {
+      setState(() => _isDragging = false);
+      return;
+    }
+
+    setState(() {
+      _isDragging = false;
+      _isProcessingDrop = true;
+    });
+
+    _convertFile(details.files.first).then((file) {
+      if (!mounted || file == null) {
+        return;
+      }
+      widget.onFileSelected(file);
+    }).whenComplete(() {
+      if (mounted) {
+        setState(() => _isProcessingDrop = false);
+      }
+    });
+  }
+
+  Future<PlatformFile?> _convertFile(XFile xfile) async {
+    try {
+      final size = await xfile.length();
+      final bytes = kIsWeb ? await xfile.readAsBytes() : null;
+      return PlatformFile(
+        name: xfile.name,
+        size: size,
+        path: xfile.path,
+        bytes: bytes,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+class _SelectedFileChip extends StatelessWidget {
+  const _SelectedFileChip({required this.file, required this.onClear});
+
+  final PlatformFile file;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sizeLabel = _formatBytes(file.size);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: theme.colorScheme.surfaceVariant,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.insert_drive_file, size: 18),
+          const SizedBox(width: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 220),
+            child: Text(
+              '${file.name} ($sizeLabel)',
+              style: theme.textTheme.bodySmall,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          IconButton(
+            tooltip: 'Remove attachment',
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: onClear,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatBytes(int bytes) {
+    const suffixes = ['B', 'KB', 'MB', 'GB'];
+    double size = bytes.toDouble();
+    int suffixIndex = 0;
+
+    while (size >= 1024 && suffixIndex < suffixes.length - 1) {
+      size /= 1024;
+      suffixIndex++;
+    }
+
+    return '${size.toStringAsFixed(size < 10 ? 1 : 0)} ${suffixes[suffixIndex]}';
   }
 }

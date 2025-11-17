@@ -36,6 +36,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   http: ^1.2.2
   shared_preferences: ^2.2.3
+  file_picker: ^8.1.2
+  desktop_drop: ^0.4.4
   syncfusion_flutter_pdfviewer: ^24.2.8
 
 dev_dependencies:
