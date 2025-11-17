@@ -9,7 +9,7 @@ class VendorsService {
 
   static const _vendorsUrl = 'https://crm.kokonuts.my/purchase/api/v1/vendors';
 
-  Future<List<String>> fetchVendorNames({
+  Future<List<VendorSummary>> fetchVendors({
     required Map<String, String> headers,
   }) async {
     http.Response response;
@@ -32,38 +32,61 @@ class VendorsService {
       throw VendorsServiceException('Unable to parse vendor response: $error');
     }
 
-    final results = <String>{};
-    _collectVendorNames(decoded, results);
-    final sorted = results.where((name) => name.trim().isNotEmpty).toList()
-      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final Map<String, VendorSummary> vendorsByName = {};
+    _collectVendors(decoded, vendorsByName);
+    final sorted = vendorsByName.values.toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     return sorted;
   }
 
-  void _collectVendorNames(dynamic source, Set<String> results) {
+  void _collectVendors(dynamic source, Map<String, VendorSummary> results) {
     if (source is Map<String, dynamic>) {
-      final candidateKeys = [
-        'name',
-        'vendor_name',
-        'vendorName',
-        'company',
-        'company_name',
-        'companyName',
-      ];
-      for (final key in candidateKeys) {
-        final value = source[key];
-        if (value is String && value.trim().isNotEmpty) {
-          results.add(value.trim());
-          break;
-        }
+      final name = _extractVendorName(source);
+      if (name != null) {
+        final code = _extractVendorCode(source);
+        results[name] = VendorSummary(name: name, code: code);
       }
       for (final value in source.values) {
-        _collectVendorNames(value, results);
+        _collectVendors(value, results);
       }
     } else if (source is List) {
       for (final item in source) {
-        _collectVendorNames(item, results);
+        _collectVendors(item, results);
       }
     }
+  }
+
+  String? _extractVendorName(Map<String, dynamic> source) {
+    const candidateKeys = [
+      'name',
+      'vendor_name',
+      'vendorName',
+      'company',
+      'company_name',
+      'companyName',
+    ];
+    for (final key in candidateKeys) {
+      final value = source[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  String? _extractVendorCode(Map<String, dynamic> source) {
+    const candidateKeys = [
+      'vendor_code',
+      'vendorCode',
+      'code',
+    ];
+    for (final key in candidateKeys) {
+      final value = source[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    return null;
   }
 }
 
@@ -74,4 +97,11 @@ class VendorsServiceException implements Exception {
 
   @override
   String toString() => 'VendorsServiceException: $message';
+}
+
+class VendorSummary {
+  const VendorSummary({required this.name, this.code});
+
+  final String name;
+  final String? code;
 }
