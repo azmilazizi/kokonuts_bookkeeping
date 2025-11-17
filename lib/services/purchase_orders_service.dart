@@ -9,6 +9,8 @@ class PurchaseOrdersService {
 
   static const _baseUrl =
       'https://crm.kokonuts.my/purchase/api/v1/purchase_orders';
+  static const _deleteBaseUrl =
+      'https://crm.kokonuts.my/purchase/api/v1/purchase_order';
 
   Future<PurchaseOrdersPage> fetchPurchaseOrders({
     required int page,
@@ -95,6 +97,27 @@ class PurchaseOrdersService {
     }
 
     return PurchaseOrder.fromJson(orderJson);
+  }
+
+  Future<void> deletePurchaseOrder({
+    required String id,
+    required Map<String, String> headers,
+  }) async {
+    http.Response response;
+    try {
+      response = await _client.delete(
+        Uri.parse('$_deleteBaseUrl/$id'),
+        headers: headers,
+      );
+    } catch (error) {
+      throw PurchaseOrdersException('Failed to delete purchase order: $error');
+    }
+
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw PurchaseOrdersException(
+        'Delete failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
   }
 
   List<dynamic> _extractOrdersList(dynamic decoded) {

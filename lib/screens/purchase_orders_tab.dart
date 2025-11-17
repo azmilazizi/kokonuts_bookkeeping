@@ -33,6 +33,7 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   final _filterController = TextEditingController();
   DateTime? _filterStartDate;
   DateTime? _filterEndDate;
+  bool _isDeleting = false;
 
   PurchaseOrderSortColumn _sortColumn = PurchaseOrderSortColumn.orderDate;
   bool _sortAscending = false;
@@ -91,30 +92,17 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       }
     });
 
-    final appState = AppStateScope.of(context);
-    final token = await appState.getValidAuthToken();
+    final headers = await _buildAuthHeaders();
     if (!mounted) {
       return;
     }
 
-    if (token == null || token.isEmpty) {
+    if (headers == null) {
       setState(() {
         _isLoading = false;
-        _error = 'You are not logged in.';
       });
       return;
     }
-
-    final rawToken = (appState.rawAuthToken ?? token).trim();
-    final sanitizedToken =
-        token.replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '').trim();
-    final normalizedAuth =
-        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
-    final autoTokenValue = rawToken
-        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
-        .trim();
-
-    final authtokenHeader = autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
 
     final pageToLoad = reset ? 1 : _nextPage;
 
@@ -122,11 +110,7 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       final result = await _service.fetchPurchaseOrders(
         page: pageToLoad,
         perPage: _perPage,
-        headers: {
-          'Accept': 'application/json',
-          'authtoken': authtokenHeader,
-          'Authorization': normalizedAuth,
-        },
+        headers: headers,
       );
 
       if (!mounted) {
@@ -167,6 +151,119 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       if (mounted) {
         setState(() {
           _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<Map<String, String>?> _buildAuthHeaders() async {
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+    if (!mounted) {
+      return null;
+    }
+
+    if (token == null || token.isEmpty) {
+      setState(() {
+        _error = 'You are not logged in.';
+      });
+      return null;
+    }
+
+    final rawToken = (appState.rawAuthToken ?? token).trim();
+    final sanitizedToken =
+        token.replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '').trim();
+    final normalizedAuth =
+        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final autoTokenValue = rawToken
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+
+    final authtokenHeader = autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+
+    return {
+      'Accept': 'application/json',
+      'authtoken': authtokenHeader,
+      'Authorization': normalizedAuth,
+    };
+  }
+
+  Future<void> _confirmDelete(PurchaseOrder order) async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Delete purchase order?'),
+            content: Text(
+              'Are you sure you want to delete purchase order "${order.number}"?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (confirmed) {
+      await _deletePurchaseOrder(order);
+    }
+  }
+
+  Future<void> _deletePurchaseOrder(PurchaseOrder order) async {
+    if (_isDeleting) {
+      return;
+    }
+
+    final headers = await _buildAuthHeaders();
+    if (!mounted || headers == null) {
+      return;
+    }
+
+    setState(() {
+      _isDeleting = true;
+    });
+
+    ScaffoldMessenger.of(context).clearSnackBars();
+
+    try {
+      await _service.deletePurchaseOrder(id: order.id, headers: headers);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _allOrders.removeWhere((element) => element.id == order.id);
+        _applyFilters();
+        _error = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Purchase order "${order.number}" deleted.'),
+        ),
+      );
+    } on PurchaseOrdersException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete purchase order: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
         });
       }
     }
@@ -235,14 +332,16 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
                           final order = _orders[index];
-                          return _PurchaseOrderRow(
-                            order: order,
-                            theme: theme,
-                            showTopBorder: index == 0,
-                            isCompactLayout: isCompactLayout,
-                          );
-                        },
-                        childCount: _orders.length,
+                      return _PurchaseOrderRow(
+                        order: order,
+                        theme: theme,
+                        showTopBorder: index == 0,
+                        isCompactLayout: isCompactLayout,
+                        onDelete: () => _confirmDelete(order),
+                        isDeleting: _isDeleting,
+                      );
+                    },
+                    childCount: _orders.length,
                       ),
                     ),
                     SliverToBoxAdapter(
@@ -683,12 +782,16 @@ class _PurchaseOrderRow extends StatefulWidget {
     required this.theme,
     required this.showTopBorder,
     required this.isCompactLayout,
+    required this.onDelete,
+    required this.isDeleting,
   });
 
   final PurchaseOrder order;
   final ThemeData theme;
   final bool showTopBorder;
   final bool isCompactLayout;
+  final VoidCallback onDelete;
+  final bool isDeleting;
 
   @override
   State<_PurchaseOrderRow> createState() => _PurchaseOrderRowState();
@@ -809,7 +912,7 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
                         padding: iconPadding,
                         constraints: iconConstraints,
                         visualDensity: iconDensity,
-                        onPressed: () {},
+                        onPressed: widget.isDeleting ? null : widget.onDelete,
                       ),
                     ],
                   ),
