@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 
 import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
@@ -21,6 +22,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   final _formKey = GlobalKey<FormState>();
   final _orderNumberController = TextEditingController();
   final _orderNameController = TextEditingController();
+  final _invoiceAttachmentController = TextEditingController();
+  final _paymentReceiptAttachmentController = TextEditingController();
   final _service = PurchaseOrdersService();
   final _vendorsService = VendorsService();
   final _purchaseOptionsService = PurchaseOptionsService();
@@ -35,6 +38,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   late _PurchaseOrderItemDraft _pendingItem;
   final List<_PurchaseOrderItemDraft> _items = [];
   DiscountType _orderDiscountType = DiscountType.amount;
+  bool _isPaid = false;
 
   bool _isSubmitting = false;
   String? _submitError;
@@ -48,6 +52,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   InventoryItem? _selectedInventoryItem;
   List<VendorSummary> _vendors = const [];
   List<InventoryItem> _inventoryItems = const [];
+  final List<_PaymentEntryDraft> _payments = [];
 
   @override
   void initState() {
@@ -70,10 +75,15 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     }
     _orderNumberController.dispose();
     _orderNameController.dispose();
+    _invoiceAttachmentController.dispose();
+    _paymentReceiptAttachmentController.dispose();
     _orderDiscountController.dispose();
     _shippingFeeController.dispose();
     _pendingItem.dispose();
     _itemSearchController.dispose();
+    for (final payment in _payments) {
+      payment.dispose();
+    }
     super.dispose();
   }
 
@@ -238,6 +248,34 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
   double get _grandTotal =>
       (_itemsSubtotal - _totalDiscount + _shippingFee).clamp(0, double.infinity);
+
+  void _addPaymentEntry() {
+    setState(() {
+      _payments.add(_PaymentEntryDraft(onChanged: () => setState(() {})));
+    });
+  }
+
+  void _removePaymentEntry(int index) {
+    setState(() {
+      final removed = _payments.removeAt(index);
+      removed.dispose();
+    });
+  }
+
+  Future<void> _pickPaymentDate(_PaymentEntryDraft entry) async {
+    final selected = await showDatePicker(
+      context: context,
+      firstDate: DateTime(DateTime.now().year - 10),
+      lastDate: DateTime(DateTime.now().year + 10),
+      initialDate: entry.date,
+    );
+
+    if (selected != null) {
+      setState(() {
+        entry.setDate(selected);
+      });
+    }
+  }
 
   Map<String, String> _buildAuthHeaders(AppState appState, String token) {
     final rawToken = (appState.rawAuthToken ?? token).trim();
@@ -408,6 +446,64 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Text(
+                  'Attachments',
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Attach supporting documents for invoices and payment receipts.',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _invoiceAttachmentController,
+                  decoration: const InputDecoration(
+                    labelText: 'Invoice attachment',
+                    hintText: 'Link or file reference for the invoice',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _paymentReceiptAttachmentController,
+                  decoration: const InputDecoration(
+                    labelText: 'Payment receipt attachment',
+                    hintText: 'Link or file reference for the payment receipt',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Checkbox(
+                      value: _isPaid,
+                      onChanged: (value) {
+                        setState(() {
+                          _isPaid = value ?? false;
+                          if (!_isPaid) {
+                            for (final payment in _payments) {
+                              payment.dispose();
+                            }
+                            _payments.clear();
+                          } else if (_payments.isEmpty) {
+                            _addPaymentEntry();
+                          }
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('Paid'),
+                  ],
+                ),
+                if (_isPaid) ...[
+                  const SizedBox(height: 12),
+                  _PaymentEntriesTable(
+                    entries: _payments,
+                    onAdd: _addPaymentEntry,
+                    onRemove: _removePaymentEntry,
+                    onPickDate: _pickPaymentDate,
+                  ),
+                  const SizedBox(height: 24),
+                ],
                 _buildVendorField(theme),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -841,6 +937,130 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   }
 }
 
+class _PaymentEntriesTable extends StatelessWidget {
+  const _PaymentEntriesTable({
+    required this.entries,
+    required this.onAdd,
+    required this.onRemove,
+    required this.onPickDate,
+  });
+
+  final List<_PaymentEntryDraft> entries;
+  final VoidCallback onAdd;
+  final void Function(int index) onRemove;
+  final void Function(_PaymentEntryDraft entry) onPickDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    if (entries.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'No payments added yet.',
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add),
+            label: const Text('Add payment'),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                child: DataTable(
+                  columnSpacing: 24,
+                  headingRowHeight: 40,
+                  dataRowHeight: 68,
+                  columns: const [
+                    DataColumn(label: Text('Amount (RM)')),
+                    DataColumn(label: Text('Payment Mode')),
+                    DataColumn(label: Text('Date')),
+                    DataColumn(label: Text('Actions')),
+                  ],
+                  rows: [
+                    for (var i = 0; i < entries.length; i++)
+                      _buildRow(entries[i], i, theme),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        TextButton.icon(
+          onPressed: onAdd,
+          icon: const Icon(Icons.add),
+          label: const Text('Add payment'),
+        ),
+      ],
+    );
+  }
+
+  DataRow _buildRow(_PaymentEntryDraft entry, int index, ThemeData theme) {
+    return DataRow(
+      cells: [
+        DataCell(
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 140),
+            child: TextFormField(
+              controller: entry.amountController,
+              decoration: const InputDecoration(
+                labelText: 'Amount',
+                isDense: true,
+              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            ),
+          ),
+        ),
+        DataCell(
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 200),
+            child: TextFormField(
+              controller: entry.methodController,
+              decoration: const InputDecoration(
+                labelText: 'Payment mode',
+                isDense: true,
+              ),
+            ),
+          ),
+        ),
+        DataCell(
+          OutlinedButton.icon(
+            onPressed: () => onPickDate(entry),
+            icon: const Icon(Icons.event, size: 16),
+            label: Text(entry.dateLabel),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+          ),
+        ),
+        DataCell(
+          IconButton(
+            tooltip: 'Remove payment',
+            icon: const Icon(Icons.delete_outline),
+            color: theme.colorScheme.error,
+            onPressed: () => onRemove(index),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _OrderDateField extends StatelessWidget {
   const _OrderDateField({required this.date, required this.onTap});
 
@@ -1219,6 +1439,38 @@ class _ReferenceErrorField extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _PaymentEntryDraft {
+  _PaymentEntryDraft({VoidCallback? onChanged})
+      : amountController = TextEditingController(),
+        methodController = TextEditingController(),
+        _onChanged = onChanged,
+        date = DateTime.now() {
+    amountController.addListener(_notifyChange);
+    methodController.addListener(_notifyChange);
+  }
+
+  final TextEditingController amountController;
+  final TextEditingController methodController;
+  final VoidCallback? _onChanged;
+  DateTime date;
+
+  String get dateLabel => DateFormat.yMMMd().format(date);
+
+  void setDate(DateTime newDate) {
+    date = newDate;
+    _notifyChange();
+  }
+
+  void _notifyChange() {
+    _onChanged?.call();
+  }
+
+  void dispose() {
+    amountController.dispose();
+    methodController.dispose();
   }
 }
 
