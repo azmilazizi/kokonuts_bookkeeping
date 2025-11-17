@@ -220,72 +220,77 @@ class _BillsTabState extends State<BillsTab> {
               constraints.maxWidth.isFinite ? constraints.maxWidth : _minTableWidth;
           final tableWidth = maxWidth < _minTableWidth ? _minTableWidth : maxWidth;
 
-          return Scrollbar(
-            controller: _horizontalController,
-            thumbVisibility: true,
-            notificationPredicate: (notification) =>
-                notification.metrics.axis == Axis.horizontal,
-            child: SingleChildScrollView(
-              controller: _horizontalController,
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: tableWidth,
-                child: CustomScrollView(
-                  controller: _scrollController,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: TabPageHeaderDelegate(
-                        title: 'Bills',
-                        horizontalController: _horizontalController,
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: TableFilterBar(
-                        controller: _filterController,
-                        onChanged: _handleFilterChanged,
-                        hintText: 'Search by vendor, status, or amount',
-                        isFiltering: _filterController.text.isNotEmpty,
-                        trailing: DateRangeFilterButton(
-                          label: 'Bill or due date',
-                          startDate: _filterStartDate,
-                          endDate: _filterEndDate,
-                          onRangeSelected: _handleDateRangeSelected,
-                          onClear: _clearDateRange,
-                        ),
-                      ),
-                    ),
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: _BillsHeaderDelegate(
-                        theme: theme,
-                        sortColumn: _sortColumn,
-                        sortAscending: _sortAscending,
-                        onSort: _handleSort,
-                      ),
-                    ),
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final bill = _bills[index];
-                          return _BillRow(
-                            bill: bill,
-                            vendorName: _vendorLabel(bill),
-                            theme: theme,
-                            showTopBorder: index == 0,
-                          );
-                        },
-                        childCount: _bills.length,
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: _buildFooter(theme),
-                    ),
-                  ],
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TableFilterBar(
+                controller: _filterController,
+                onChanged: _handleFilterChanged,
+                hintText: 'Search by vendor, status, or amount',
+                isFiltering: _filterController.text.isNotEmpty,
+                trailing: DateRangeFilterButton(
+                  label: 'Bill or due date',
+                  startDate: _filterStartDate,
+                  endDate: _filterEndDate,
+                  onRangeSelected: _handleDateRangeSelected,
+                  onClear: _clearDateRange,
                 ),
               ),
-            ),
+              Expanded(
+                child: Scrollbar(
+                  controller: _horizontalController,
+                  thumbVisibility: true,
+                  notificationPredicate: (notification) =>
+                      notification.metrics.axis == Axis.horizontal,
+                  child: SingleChildScrollView(
+                    controller: _horizontalController,
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: tableWidth,
+                      child: CustomScrollView(
+                        controller: _scrollController,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: TabPageHeaderDelegate(
+                              title: 'Bills',
+                              horizontalController: _horizontalController,
+                            ),
+                          ),
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: _BillsHeaderDelegate(
+                              theme: theme,
+                              sortColumn: _sortColumn,
+                              sortAscending: _sortAscending,
+                              onSort: _handleSort,
+                            ),
+                          ),
+                          SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                final bill = _bills[index];
+                                return _BillRow(
+                                  bill: bill,
+                                  vendorName: _vendorLabel(bill),
+                                  theme: theme,
+                                  showTopBorder: index == 0,
+                                );
+                              },
+                              childCount: _bills.length,
+                            ),
+                          ),
+                          SliverToBoxAdapter(
+                            child: _buildFooter(theme),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),

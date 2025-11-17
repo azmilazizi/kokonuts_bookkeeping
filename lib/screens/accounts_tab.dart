@@ -179,67 +179,72 @@ class _AccountsTabState extends State<AccountsTab> {
           final maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : _minTableWidth;
           final tableWidth = maxWidth < _minTableWidth ? _minTableWidth : maxWidth;
 
-          return Scrollbar(
-            controller: _horizontalController,
-            thumbVisibility: true,
-            notificationPredicate: (notification) =>
-                notification.metrics.axis == Axis.horizontal,
-            child: SingleChildScrollView(
-              controller: _horizontalController,
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: tableWidth,
-                child: CustomScrollView(
-                  controller: _scrollController,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: TabPageHeaderDelegate(
-                        title: 'Accounts',
-                        horizontalController: _horizontalController,
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TableFilterBar(
+                controller: _filterController,
+                onChanged: _handleFilterChanged,
+                hintText: 'Search by name, parent, or type',
+                isFiltering: _filterController.text.isNotEmpty,
+              ),
+              Expanded(
+                child: Scrollbar(
+                  controller: _horizontalController,
+                  thumbVisibility: true,
+                  notificationPredicate: (notification) =>
+                      notification.metrics.axis == Axis.horizontal,
+                  child: SingleChildScrollView(
+                    controller: _horizontalController,
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: tableWidth,
+                      child: CustomScrollView(
+                        controller: _scrollController,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: TabPageHeaderDelegate(
+                              title: 'Accounts',
+                              horizontalController: _horizontalController,
+                            ),
+                          ),
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: _AccountsHeaderDelegate(
+                              theme: theme,
+                              sortColumn: _sortColumn,
+                              sortAscending: _sortAscending,
+                              onSort: _handleSort,
+                            ),
+                          ),
+                          SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                final entry = _displayAccounts[index];
+                                final account = entry.account;
+                                return _AccountsRow(
+                                  account: account,
+                                  theme: theme,
+                                  showTopBorder: index == 0,
+                                  parentName: _resolveParentName(account),
+                                  indent: entry.depth * 24.0,
+                                );
+                              },
+                              childCount: _displayAccounts.length,
+                            ),
+                          ),
+                          SliverToBoxAdapter(
+                            child: _buildFooter(theme),
+                          ),
+                        ],
                       ),
                     ),
-                    SliverToBoxAdapter(
-                      child: TableFilterBar(
-                        controller: _filterController,
-                        onChanged: _handleFilterChanged,
-                        hintText: 'Search by name, parent, or type',
-                        isFiltering: _filterController.text.isNotEmpty,
-                      ),
-                    ),
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: _AccountsHeaderDelegate(
-                        theme: theme,
-                        sortColumn: _sortColumn,
-                        sortAscending: _sortAscending,
-                        onSort: _handleSort,
-                      ),
-                    ),
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final entry = _displayAccounts[index];
-                          final account = entry.account;
-                          return _AccountsRow(
-                            account: account,
-                            theme: theme,
-                            showTopBorder: index == 0,
-                            parentName: _resolveParentName(account),
-                            indent: entry.depth * 24.0,
-                          );
-                        },
-                        childCount: _displayAccounts.length,
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: _buildFooter(theme),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+            ],
           );
         },
       ),
