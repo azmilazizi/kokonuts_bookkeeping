@@ -182,12 +182,6 @@ class _AccountsTabState extends State<AccountsTab> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TableFilterBar(
-                controller: _filterController,
-                onChanged: _handleFilterChanged,
-                hintText: 'Search by name, parent, or type',
-                isFiltering: _filterController.text.isNotEmpty,
-              ),
               Expanded(
                 child: Scrollbar(
                   controller: _horizontalController,
@@ -208,6 +202,14 @@ class _AccountsTabState extends State<AccountsTab> {
                             delegate: TabPageHeaderDelegate(
                               title: 'Accounts',
                               horizontalController: _horizontalController,
+                            ),
+                          ),
+                          SliverToBoxAdapter(
+                            child: TableFilterBar(
+                              controller: _filterController,
+                              onChanged: _handleFilterChanged,
+                              hintText: 'Search by name, parent, or type',
+                              isFiltering: _filterController.text.isNotEmpty,
                             ),
                           ),
                           SliverPersistentHeader(
