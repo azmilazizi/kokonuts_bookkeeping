@@ -135,7 +135,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         _inventoryItems = results[1] as List<InventoryItem>;
         _nextPurchaseOrderNumber = results[2] as int?;
         _selectedVendorCode = _findVendorByName(_selectedVendorName)?.code;
-        _updateOrderNumber();
       });
     } catch (error) {
       if (!mounted) {
@@ -149,6 +148,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       if (mounted) {
         setState(() {
           _isLoadingReferenceData = false;
+          _updateOrderNumber();
         });
       }
     }
