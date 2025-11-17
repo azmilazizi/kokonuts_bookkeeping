@@ -286,40 +286,72 @@ class PurchaseOrdersService {
 
 class CreatePurchaseOrderRequest {
   const CreatePurchaseOrderRequest({
-    required this.vendorName,
     required this.orderName,
     required this.orderNumber,
     required this.orderDate,
     required this.items,
-    this.reference,
-    this.notes,
-    this.terms,
+    required this.subtotal,
+    required this.total,
+    required this.shippingFee,
+    required this.discountValue,
+    required this.isDiscountPercentage,
+    this.vendorId,
+    this.userId,
+    this.nextPurchaseOrderNumber,
   });
 
-  final String vendorName;
+  final String? vendorId;
   final String orderName;
   final String orderNumber;
   final DateTime orderDate;
   final List<CreatePurchaseOrderItem> items;
-  final String? reference;
-  final String? notes;
-  final String? terms;
+  final double subtotal;
+  final double total;
+  final double shippingFee;
+  final double discountValue;
+  final bool isDiscountPercentage;
+  final String? userId;
+  final int? nextPurchaseOrderNumber;
 
   Map<String, dynamic> toJson() {
-    final itemsJson = items.map((item) => item.toJson()).toList(growable: false);
-    final totals = items.fold<double>(0, (value, item) => value + item.amount);
-
+    final discountPercent = isDiscountPercentage ? discountValue : 0;
+    final discountTotal = isDiscountPercentage ? 0 : discountValue;
     return <String, dynamic>{
-      'vendor_name': vendorName,
       'pur_order_name': orderName,
-      if (orderNumber.isNotEmpty) 'pur_order_number': orderNumber,
+      'vendor': vendorId ?? '',
+      'estimate': 0,
+      'pur_order_number': orderNumber,
+      'status': 1,
+      'approve_status': 2,
+      'date_owed': 0,
+      'delivery_date': null,
+      'subtotal': subtotal,
+      'total_tax': 0,
+      'total': total,
+      'added_from': userId ?? '',
+      'discount_percent': discountPercent,
+      'discount_total': discountTotal,
+      'discount_type': 'after_tax',
+      'buyer': userId ?? '',
+      'status_goods': 1,
+      'delivery_status': 0,
+      'project': 0,
+      'pur_request': 0,
+      'department': 0,
+      'sale_invoice': 0,
+      'currency': 1,
+      'order_status': 'new',
+      'currency_rate': 1,
+      'from_currency': 1,
+      'to_currency': 1,
+      'number': nextPurchaseOrderNumber ?? 0,
+      'expense_convert': 0,
       'order_date': _formatDate(orderDate),
-      if (reference != null && reference!.isNotEmpty) 'reference': reference,
-      if (notes != null && notes!.isNotEmpty) 'notes': notes,
-      if (terms != null && terms!.isNotEmpty) 'terms': terms,
-      'items': itemsJson,
-      'subtotal': totals,
-      'total': totals,
+      'shipping_fee': shippingFee,
+      'shipping_country': 0,
+      'newitems': items
+          .map((item) => item.toJson(purchaseOrderNumber: nextPurchaseOrderNumber))
+          .toList(growable: false),
     };
   }
 
@@ -333,27 +365,44 @@ class CreatePurchaseOrderRequest {
 
 class CreatePurchaseOrderItem {
   const CreatePurchaseOrderItem({
-    required this.name,
+    required this.itemId,
+    required this.itemName,
     required this.quantity,
-    required this.rate,
+    required this.subtotal,
+    required this.discount,
+    required this.unitPrice,
+    required this.total,
+    this.unitId,
     this.description,
   });
 
-  final String name;
+  final String itemId;
+  final String itemName;
   final double quantity;
-  final double rate;
+  final double subtotal;
+  final double discount;
+  final double unitPrice;
+  final double total;
+  final String? unitId;
   final String? description;
 
-  double get amount => quantity * rate;
-
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toJson({required int? purchaseOrderNumber}) {
     return <String, dynamic>{
-      'name': name,
+      'pur_order': purchaseOrderNumber ?? 0,
+      'item_code': itemId,
+      'description': description,
+      'unit_id': unitId ?? itemId,
+      'unit_price': unitPrice,
       'quantity': quantity,
-      'rate': rate,
-      'amount': amount,
-      if (description != null && description!.isNotEmpty)
-        'description': description,
+      'into_money': subtotal,
+      'discount_%': 0,
+      'discount_money': discount,
+      'total_money': total,
+      'tax_value': 0,
+      'tax_rate': null,
+      'tax_name': null,
+      'item_name': itemName,
+      'wh_quantity_received': null,
     };
   }
 }

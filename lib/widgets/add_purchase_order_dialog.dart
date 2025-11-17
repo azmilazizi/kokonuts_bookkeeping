@@ -53,6 +53,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   String _orderNumberStatus = '';
   String? _selectedVendorName;
   String? _selectedVendorCode;
+  String? _selectedVendorId;
   String? _purchaseOrderPrefix;
   int? _nextPurchaseOrderNumber;
   String? _orderNumberSeed;
@@ -143,7 +144,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           _purchaseOrderPrefix,
           _nextPurchaseOrderNumber,
         );
-        _selectedVendorCode = _findVendorByName(_selectedVendorName)?.code;
+        final selectedVendor = _findVendorByName(_selectedVendorName);
+        _selectedVendorCode = selectedVendor?.code;
+        _selectedVendorId = selectedVendor?.id;
       });
     } catch (error) {
       if (!mounted) {
@@ -166,7 +169,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   void _updateSelectedItem(InventoryItem? item) {
     setState(() {
       _selectedInventoryItem = item;
-      _pendingItem.setItem(itemName: item?.name, itemId: item?.id);
+      final formattedName = item == null ? null : _formatInventoryItemName(item);
+      _pendingItem.setItem(itemName: formattedName, itemId: item?.id);
       _pendingItemError = null;
     });
   }
@@ -407,25 +411,34 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         .where((item) => (item.itemName ?? '').isNotEmpty)
         .map(
           (item) => CreatePurchaseOrderItem(
-            name: item.itemName ?? 'Item',
+            itemId: item.itemId ?? '',
+            itemName: item.itemName ?? 'Item',
             description: item.descriptionController.text.trim().isEmpty
                 ? null
                 : item.descriptionController.text.trim(),
             quantity: item.quantity,
-            rate: item.unitPrice,
+            subtotal: item.subtotal,
+            discount: item.discount,
+            unitPrice: item.unitPrice,
+            total: item.total,
+            unitId: item.itemId,
           ),
         )
         .toList(growable: false);
 
     final request = CreatePurchaseOrderRequest(
-      vendorName: _selectedVendorName?.trim() ?? '',
+      vendorId: _selectedVendorId,
       orderName: _orderNameController.text.trim(),
       orderNumber: _orderNumberController.text.trim(),
       orderDate: _orderDate,
-      reference: null,
-      notes: null,
-      terms: null,
       items: items,
+      subtotal: _itemsSubtotal,
+      total: _grandTotal,
+      shippingFee: _shippingFee,
+      discountValue: _orderDiscountValue,
+      isDiscountPercentage: _orderDiscountType == DiscountType.percentage,
+      userId: appState.username,
+      nextPurchaseOrderNumber: _nextPurchaseOrderNumber,
     );
 
     setState(() {
@@ -698,7 +711,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       onChanged: (value) {
         setState(() {
           _selectedVendorName = value;
-          _selectedVendorCode = _findVendorByName(value)?.code;
+          final selectedVendor = _findVendorByName(value);
+          _selectedVendorCode = selectedVendor?.code;
+          _selectedVendorId = selectedVendor?.id;
           _updateOrderNumber();
         });
       },
@@ -721,6 +736,18 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       }
     }
     return null;
+  }
+
+  String _formatInventoryItemName(InventoryItem item) {
+    final code = item.skuCode?.trim();
+    final skuName = item.skuName?.trim();
+    if ((code ?? '').isEmpty && (skuName ?? '').isEmpty) {
+      return item.name;
+    }
+    if (code != null && code.isNotEmpty && skuName != null && skuName.isNotEmpty) {
+      return '${code}_$skuName ';
+    }
+    return code?.isNotEmpty == true ? code! : skuName ?? item.name;
   }
 
   Widget _buildItemsDropdown(ThemeData theme) {
@@ -767,8 +794,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
     final entries = _inventoryItems
         .map(
-          (item) =>
-              DropdownMenuEntry<InventoryItem>(value: item, label: item.name),
+          (item) => DropdownMenuEntry<InventoryItem>(
+            value: item,
+            label: _formatInventoryItemName(item),
+          ),
         )
         .toList(growable: false);
 
