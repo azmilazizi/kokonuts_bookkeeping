@@ -411,32 +411,34 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         .where((item) => (item.itemName ?? '').isNotEmpty)
         .map(
           (item) => CreatePurchaseOrderItem(
-            name: item.itemName ?? 'Item',
-            unitId: item.itemId,
+            itemId: item.itemId ?? '',
+            itemName: item.itemName ?? 'Item',
             description: item.descriptionController.text.trim().isEmpty
                 ? null
                 : item.descriptionController.text.trim(),
             quantity: item.quantity,
-            rate: item.unitPrice,
+            subtotal: item.subtotal,
+            discount: item.discount,
             unitPrice: item.unitPrice,
             total: item.total,
+            unitId: item.itemId,
           ),
         )
         .toList(growable: false);
 
     final request = CreatePurchaseOrderRequest(
-      vendorName: _selectedVendorName?.trim() ?? '',
       vendorId: _selectedVendorId,
       orderName: _orderNameController.text.trim(),
       orderNumber: _orderNumberController.text.trim(),
       orderDate: _orderDate,
+      items: items,
       subtotal: _itemsSubtotal,
       total: _grandTotal,
+      shippingFee: _shippingFee,
+      discountValue: _orderDiscountValue,
+      isDiscountPercentage: _orderDiscountType == DiscountType.percentage,
       userId: appState.username,
-      reference: null,
-      notes: null,
-      terms: null,
-      items: items,
+      nextPurchaseOrderNumber: _nextPurchaseOrderNumber,
     );
 
     setState(() {
@@ -743,7 +745,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       return item.name;
     }
     if (code != null && code.isNotEmpty && skuName != null && skuName.isNotEmpty) {
-      return '${code}_$skuName';
+      return '${code}_$skuName ';
     }
     return code?.isNotEmpty == true ? code! : skuName ?? item.name;
   }
