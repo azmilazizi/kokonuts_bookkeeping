@@ -52,6 +52,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   String _orderNumberStatus = '';
   String? _selectedVendorName;
   String? _selectedVendorCode;
+  String? _purchaseOrderPrefix;
   int? _nextPurchaseOrderNumber;
   InventoryItem? _selectedInventoryItem;
   List<VendorSummary> _vendors = const [];
@@ -123,7 +124,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       final results = await Future.wait([
         _vendorsService.fetchVendors(headers: headers),
         _inventoryItemsService.fetchItems(headers: headers),
-        _purchaseOptionsService.fetchNextPurchaseOrderNumber(headers: headers),
+        _purchaseOptionsService.fetchPurchaseOptions(headers: headers),
       ]);
 
       if (!mounted) {
@@ -133,7 +134,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       setState(() {
         _vendors = results[0] as List<VendorSummary>;
         _inventoryItems = results[1] as List<InventoryItem>;
-        _nextPurchaseOrderNumber = results[2] as int?;
+        final options = results[2] as PurchaseOptions;
+        _purchaseOrderPrefix = options.purchaseOrderPrefix;
+        _nextPurchaseOrderNumber = options.nextPurchaseOrderNumber;
         _selectedVendorCode = _findVendorByName(_selectedVendorName)?.code;
       });
     } catch (error) {
@@ -341,12 +344,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
   String _buildBaseOrderNumber() {
     final nextNumber = _nextPurchaseOrderNumber;
-    if (nextNumber == null) {
+    final prefix = (_purchaseOrderPrefix ?? '').trim();
+    if (nextNumber == null || prefix.isEmpty) {
       return '';
     }
-    final paddedNumber = nextNumber.toString().padLeft(5, '0');
     final datePart = _formatDate(_orderDate);
-    return '#PO-$paddedNumber-$datePart';
+    return '$prefix-$nextNumber-$datePart';
   }
 
   String _formatDate(DateTime date) {

@@ -9,7 +9,7 @@ class PurchaseOptionsService {
 
   static const _optionsUrl = 'https://crm.kokonuts.my/purchase/api/v1/options';
 
-  Future<int?> fetchNextPurchaseOrderNumber({
+  Future<PurchaseOptions> fetchPurchaseOptions({
     required Map<String, String> headers,
   }) async {
     http.Response response;
@@ -32,7 +32,38 @@ class PurchaseOptionsService {
       throw PurchaseOptionsException('Unable to parse options response: $error');
     }
 
-    return _extractNextPurchaseOrderNumber(decoded);
+    return PurchaseOptions(
+      purchaseOrderPrefix: _extractPurchaseOrderPrefix(decoded),
+      nextPurchaseOrderNumber: _extractNextPurchaseOrderNumber(decoded),
+    );
+  }
+
+  String? _extractPurchaseOrderPrefix(dynamic source) {
+    if (source is Map<String, dynamic>) {
+      for (final entry in source.entries) {
+        final key = entry.key.toLowerCase();
+        if (key == 'pur_order_prefix' ||
+            key == 'purchase_order_prefix' ||
+            key == 'po_prefix' ||
+            key == 'prefix') {
+          return _asString(entry.value);
+        }
+      }
+      for (final value in source.values) {
+        final result = _extractPurchaseOrderPrefix(value);
+        if (result != null) {
+          return result;
+        }
+      }
+    } else if (source is List) {
+      for (final item in source) {
+        final result = _extractPurchaseOrderPrefix(item);
+        if (result != null) {
+          return result;
+        }
+      }
+    }
+    return null;
   }
 
   int? _extractNextPurchaseOrderNumber(dynamic source) {
@@ -76,6 +107,23 @@ class PurchaseOptionsService {
     }
     return null;
   }
+
+  String? _asString(dynamic value) {
+    if (value is String) {
+      return value.trim();
+    }
+    return value?.toString();
+  }
+}
+
+class PurchaseOptions {
+  const PurchaseOptions({
+    required this.purchaseOrderPrefix,
+    required this.nextPurchaseOrderNumber,
+  });
+
+  final String? purchaseOrderPrefix;
+  final int? nextPurchaseOrderNumber;
 }
 
 class PurchaseOptionsException implements Exception {
