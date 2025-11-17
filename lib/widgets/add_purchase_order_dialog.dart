@@ -49,11 +49,13 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   bool _isLoadingReferenceData = false;
   String? _referenceDataError;
   String? _pendingItemError;
+  String? _orderNumber;
   String _orderNumberStatus = '';
   String? _selectedVendorName;
   String? _selectedVendorCode;
   String? _purchaseOrderPrefix;
   int? _nextPurchaseOrderNumber;
+  String? _orderNumberSeed;
   InventoryItem? _selectedInventoryItem;
   List<VendorSummary> _vendors = const [];
   List<InventoryItem> _inventoryItems = const [];
@@ -137,6 +139,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         final options = results[2] as PurchaseOptions;
         _purchaseOrderPrefix = options.purchaseOrderPrefix;
         _nextPurchaseOrderNumber = options.nextPurchaseOrderNumber;
+        _orderNumberSeed = _buildOrderNumberSeed(
+          _purchaseOrderPrefix,
+          _nextPurchaseOrderNumber,
+        );
         _selectedVendorCode = _findVendorByName(_selectedVendorName)?.code;
       });
     } catch (error) {
@@ -325,9 +331,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       _orderNumberStatus = _isLoadingReferenceData
           ? 'Generating...'
           : 'Unable to generate order number';
+      _orderNumber = null;
       _orderNumberController.text = '';
     } else {
       _orderNumberStatus = '';
+      _orderNumber = generated;
       _orderNumberController.text = generated;
     }
   }
@@ -343,13 +351,20 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   }
 
   String _buildBaseOrderNumber() {
-    final nextNumber = _nextPurchaseOrderNumber;
-    final prefix = (_purchaseOrderPrefix ?? '').trim();
-    if (nextNumber == null || prefix.isEmpty) {
+    final seed = _orderNumberSeed;
+    if (seed == null || seed.isEmpty) {
       return '';
     }
     final datePart = _formatDate(_orderDate);
-    return '$prefix-$nextNumber-$datePart';
+    return '$seed-$datePart';
+  }
+
+  String? _buildOrderNumberSeed(String? prefix, int? nextNumber) {
+    final sanitizedPrefix = (prefix ?? '').trim();
+    if (nextNumber == null || sanitizedPrefix.isEmpty) {
+      return null;
+    }
+    return '$sanitizedPrefix-$nextNumber';
   }
 
   String _formatDate(DateTime date) {
