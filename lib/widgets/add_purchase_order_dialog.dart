@@ -319,7 +319,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   void _updateOrderNumber() {
     final generated = _buildOrderNumber();
     if (generated.isEmpty) {
-      _orderNumberStatus = 'Generating...';
+      _orderNumberStatus = _isLoadingReferenceData
+          ? 'Generating...'
+          : 'Unable to generate order number';
       _orderNumberController.text = '';
     } else {
       _orderNumberStatus = '';
