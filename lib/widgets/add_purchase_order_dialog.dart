@@ -319,7 +319,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   void _updateOrderNumber() {
     final generated = _buildOrderNumber();
     if (generated.isEmpty) {
-      _orderNumberStatus = 'Generating...';
+      _orderNumberStatus = _isLoadingReferenceData
+          ? 'Generating...'
+          : 'Unable to generate order number';
       _orderNumberController.text = '';
     } else {
       _orderNumberStatus = '';
@@ -328,15 +330,23 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   }
 
   String _buildOrderNumber() {
+    final baseOrderNumber = _buildBaseOrderNumber();
+    if (baseOrderNumber.isEmpty) {
+      return '';
+    }
+    final vendorCode = (_selectedVendorCode ?? '').trim();
+    final vendorSegment = vendorCode.isNotEmpty ? '-$vendorCode' : '';
+    return '$baseOrderNumber$vendorSegment';
+  }
+
+  String _buildBaseOrderNumber() {
     final nextNumber = _nextPurchaseOrderNumber;
     if (nextNumber == null) {
       return '';
     }
     final paddedNumber = nextNumber.toString().padLeft(5, '0');
     final datePart = _formatDate(_orderDate);
-    final vendorCode = (_selectedVendorCode ?? '').trim();
-    final vendorSegment = vendorCode.isNotEmpty ? '-$vendorCode' : '';
-    return '#PO-$paddedNumber-$datePart$vendorSegment';
+    return '#PO-$paddedNumber-$datePart';
   }
 
   String _formatDate(DateTime date) {
