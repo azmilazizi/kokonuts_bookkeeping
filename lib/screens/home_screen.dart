@@ -9,6 +9,7 @@ import 'expenses_tab.dart';
 import 'purchase_orders_tab.dart';
 
 import '../services/purchase_orders_service.dart';
+import '../widgets/add_expense_dialog.dart';
 import '../widgets/add_purchase_order_dialog.dart';
 import '../widgets/post_dialog.dart';
 
@@ -103,22 +104,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       case 1:
         await showDialog<void>(
           context: context,
-          builder: (context) => const PostDialog(
-            title: 'Create Expense (POST)',
-            apiPath: 'https://crm.kokonuts.my/accounting/api/v1/expenses',
-            description:
-                'Use this endpoint to create a new expense. The fields below are '
-                'examples of the data the API accepts.',
-            samplePayload: {
-              'vendor': 'Example Vendor',
-              'name': 'Office supplies',
-              'amount': 125.50,
-              'category_id': 1,
-              'payment_mode': 'Cash',
-              'date': '2024-04-01',
-              'notes': 'Receipt attached in portal',
-            },
-          ),
+          builder: (context) => const AddExpenseDialog(),
         );
         break;
       case 2:
