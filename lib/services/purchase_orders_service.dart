@@ -12,6 +12,8 @@ class PurchaseOrdersService {
       'https://crm.kokonuts.my/purchase/api/v1/purchase_orders';
   static const _singleOrderBaseUrl =
       'https://crm.kokonuts.my/purchase/api/v1/purchase_order';
+  static const _attachmentsBaseUrl =
+      'https://crm.kokonuts.my/purchase/api/v1/purchase_order';
 
   Future<PurchaseOrdersPage> fetchPurchaseOrders({
     required int page,
@@ -143,7 +145,7 @@ class PurchaseOrdersService {
 
     final request = http.MultipartRequest(
       'POST',
-      Uri.parse('$_singleOrderBaseUrl/$id/attachments'),
+      Uri.parse('$_attachmentsBaseUrl/$id/attachments'),
     )
       ..headers.addAll({
         'Accept': 'application/json',
