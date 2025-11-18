@@ -584,7 +584,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                 Text('Attachments', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 12),
                 _AttachmentPicker(
-                  label: 'Supporting attachments',
                   description:
                       'Drag and drop files or tap to browse for invoice or payment receipt documents.',
                   files: _supportingAttachments,
@@ -1738,7 +1737,7 @@ class _PurchaseOrderItemDraft {
 
 class _AttachmentPicker extends StatefulWidget {
   const _AttachmentPicker({
-    required this.label,
+    this.label,
     required this.description,
     required this.files,
     required this.onPick,
@@ -1746,7 +1745,7 @@ class _AttachmentPicker extends StatefulWidget {
     required this.onFileRemoved,
   });
 
-  final String label;
+  final String? label;
   final String description;
   final List<PlatformFile> files;
   final VoidCallback onPick;
@@ -1775,8 +1774,10 @@ class _AttachmentPickerState extends State<_AttachmentPicker> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(widget.label, style: theme.textTheme.titleSmall),
-        const SizedBox(height: 8),
+        if (widget.label != null && widget.label!.isNotEmpty) ...[
+          Text(widget.label!, style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+        ],
         DropTarget(
           onDragEntered: (_) => setState(() => _isDragging = true),
           onDragExited: (_) => setState(() => _isDragging = false),
