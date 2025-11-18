@@ -790,15 +790,22 @@ class _BillRowState extends State<_BillRow> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.visibility_outlined),
-                      tooltip: 'View details',
-                      onPressed: () {},
+                      icon: const Icon(Icons.edit_outlined),
+                      tooltip: 'Edit bill',
+                      iconSize: 22,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                      onPressed: _handleEdit,
                     ),
                     const SizedBox(width: 8),
                     IconButton(
-                      icon: const Icon(Icons.payments_outlined),
-                      tooltip: 'View payments',
-                      onPressed: () {},
+                      icon: const Icon(Icons.delete_outline),
+                      tooltip: 'Delete bill',
+                      iconSize: 22,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                      color: widget.theme.colorScheme.error,
+                      onPressed: _handleDelete,
                     ),
                   ],
                 ),
@@ -808,6 +815,22 @@ class _BillRowState extends State<_BillRow> {
         ),
       ),
     );
+  }
+
+  void _handleEdit() {
+    final snackBar = SnackBar(
+      content: Text('Edit action for ${widget.vendorName} bill'),
+      duration: const Duration(seconds: 2),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
+  }
+
+  void _handleDelete() {
+    final snackBar = SnackBar(
+      content: Text('Delete action for ${widget.vendorName} bill'),
+      duration: const Duration(seconds: 2),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 }
 
