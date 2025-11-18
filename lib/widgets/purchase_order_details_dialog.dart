@@ -345,34 +345,83 @@ class _SummarySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final fields = <_SummaryField>[
-      _SummaryField.pill(
-        label: 'Approval status',
-        pillStyle: _buildApprovalPillStyle(theme, detail),
-      ),
-      _SummaryField.pill(
-        label: 'Delivery status',
-        pillStyle: _buildDeliveryStatusPillStyle(theme, detail),
-      ),
-      _SummaryField.text('Order name', detail.name),
-      _SummaryField.text('Vendor', detail.vendorName),
-      _SummaryField.text('Order date', detail.orderDateLabel),
-      _SummaryField.text('Delivery date', detail.deliveryDateLabel),
-    ];
+    final approvalStatusField = _SummaryField.pill(
+      label: 'Approval status',
+      pillStyle: _buildApprovalPillStyle(theme, detail),
+    );
+    final deliveryStatusField = _SummaryField.pill(
+      label: 'Delivery status',
+      pillStyle: _buildDeliveryStatusPillStyle(theme, detail),
+    );
+    final vendorField = _SummaryField.text('Vendor', detail.vendorName);
+    final orderNameField = _SummaryField.text('Order name', detail.name);
+    final orderDateField = _SummaryField.text('Order date', detail.orderDateLabel);
+    final deliveryDateField =
+        _SummaryField.text('Delivery date', detail.deliveryDateLabel);
+    final referenceField = detail.referenceLabel != null
+        ? _SummaryField.text('Reference', detail.referenceLabel!)
+        : null;
 
-    if (detail.referenceLabel != null) {
-      fields.add(_SummaryField.text('Reference', detail.referenceLabel!));
-    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 720;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < fields.length; i++)
-          Padding(
-            padding: EdgeInsets.only(bottom: i == fields.length - 1 ? 0 : 16),
-            child: _SummaryTile(field: fields[i]),
+        if (!isWide) {
+          final fields = <_SummaryField?>[
+            approvalStatusField,
+            deliveryStatusField,
+            vendorField,
+            orderNameField,
+            orderDateField,
+            deliveryDateField,
+            referenceField,
+          ].whereType<_SummaryField>().toList();
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < fields.length; i++)
+                Padding(
+                  padding:
+                      EdgeInsets.only(bottom: i == fields.length - 1 ? 0 : 16),
+                  child: _SummaryTile(field: fields[i]),
+                ),
+            ],
+          );
+        }
+
+        final rows = <Widget>[
+          Row(
+            children: [
+              Expanded(child: _SummaryTile(field: approvalStatusField)),
+              const SizedBox(width: 16),
+              Expanded(child: _SummaryTile(field: deliveryStatusField)),
+            ],
           ),
-      ],
+          const SizedBox(height: 16),
+          _SummaryTile(field: vendorField),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: _SummaryTile(field: orderNameField)),
+              const SizedBox(width: 16),
+              Expanded(child: _SummaryTile(field: orderDateField)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _SummaryTile(field: deliveryDateField),
+        ];
+
+        if (referenceField != null) {
+          rows..add(const SizedBox(height: 16))
+              ..add(_SummaryTile(field: referenceField));
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: rows,
+        );
+      },
     );
   }
 }
@@ -530,47 +579,67 @@ class _ItemsSection extends StatelessWidget {
     final cellStyle = theme.textTheme.bodyMedium;
     final dividerColor = theme.dividerColor;
 
+    final hasDiscountColumn = detail.items.any((item) => item.hasDiscount);
+
     TableRow buildHeaderRow() {
+      final headers = [
+        'Item',
+        'Description',
+        'Quantity',
+        'Rate',
+        if (hasDiscountColumn) 'Discount (RM)',
+        'Total',
+      ];
+
       return TableRow(
-        children: const ['Item', 'Description', 'Quantity', 'Rate', 'Total']
-            .map((label) {
-              return Padding(
-                padding: tablePadding,
-                child: Text(label, style: headerTextStyle),
-              );
-            })
+        children: headers
+            .map((label) => Padding(
+                  padding: tablePadding,
+                  child: Text(label, style: headerTextStyle),
+                ))
             .toList(),
       );
     }
 
     TableRow buildDataRow(PurchaseOrderItem item) {
+      final values = [
+        item.name,
+        item.description,
+        item.quantityLabel,
+        item.rateLabel,
+        if (hasDiscountColumn) item.discountLabel ?? '—',
+        item.amountLabel,
+      ];
+
       return TableRow(
-        children:
-            [
-              item.name,
-              item.description,
-              item.quantityLabel,
-              item.rateLabel,
-              item.amountLabel,
-            ].map((value) {
-              return Padding(
-                padding: tablePadding,
-                child: Text(value, style: cellStyle, softWrap: true),
-              );
-            }).toList(),
+        children: values
+            .map((value) => Padding(
+                  padding: tablePadding,
+                  child: Text(value, style: cellStyle, softWrap: true),
+                ))
+            .toList(),
       );
     }
 
     Table buildTable() {
+      final columnWidths = <int, TableColumnWidth>{
+        0: const FlexColumnWidth(2),
+        1: const FlexColumnWidth(3),
+        2: const FlexColumnWidth(1.4),
+        3: const FlexColumnWidth(1.4),
+      };
+
+      var columnIndex = 4;
+      if (hasDiscountColumn) {
+        columnWidths[columnIndex] = const FlexColumnWidth(1.4);
+        columnIndex++;
+      }
+
+      columnWidths[columnIndex] = const FlexColumnWidth(1.4);
+
       return Table(
         defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        columnWidths: const {
-          0: FlexColumnWidth(2),
-          1: FlexColumnWidth(3),
-          2: FlexColumnWidth(1.4),
-          3: FlexColumnWidth(1.4),
-          4: FlexColumnWidth(1.4),
-        },
+        columnWidths: columnWidths,
         border: TableBorder.all(color: dividerColor),
         children: [buildHeaderRow(), ...detail.items.map(buildDataRow)],
       );
