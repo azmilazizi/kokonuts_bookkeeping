@@ -346,16 +346,16 @@ class _SummarySection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final fields = <_SummaryField>[
-      _SummaryField.text('Order name', detail.name),
-      _SummaryField.text('Vendor', detail.vendorName),
-      _SummaryField.pill(
-        label: 'Delivery status',
-        pillStyle: _buildDeliveryStatusPillStyle(theme, detail),
-      ),
       _SummaryField.pill(
         label: 'Approval status',
         pillStyle: _buildApprovalPillStyle(theme, detail),
       ),
+      _SummaryField.pill(
+        label: 'Delivery status',
+        pillStyle: _buildDeliveryStatusPillStyle(theme, detail),
+      ),
+      _SummaryField.text('Order name', detail.name),
+      _SummaryField.text('Vendor', detail.vendorName),
       _SummaryField.text('Order date', detail.orderDateLabel),
       _SummaryField.text('Delivery date', detail.deliveryDateLabel),
     ];
@@ -364,10 +364,15 @@ class _SummarySection extends StatelessWidget {
       fields.add(_SummaryField.text('Reference', detail.referenceLabel!));
     }
 
-    return Wrap(
-      spacing: 24,
-      runSpacing: 16,
-      children: fields.map((field) => _SummaryTile(field: field)).toList(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < fields.length; i++)
+          Padding(
+            padding: EdgeInsets.only(bottom: i == fields.length - 1 ? 0 : 16),
+            child: _SummaryTile(field: fields[i]),
+          ),
+      ],
     );
   }
 }
@@ -527,7 +532,7 @@ class _ItemsSection extends StatelessWidget {
 
     TableRow buildHeaderRow() {
       return TableRow(
-        children: const ['Item', 'Description', 'Quantity', 'Rate', 'Amount']
+        children: const ['Item', 'Description', 'Quantity', 'Rate', 'Total']
             .map((label) {
               return Padding(
                 padding: tablePadding,
