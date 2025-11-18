@@ -370,6 +370,7 @@ class CreatePurchaseOrderRequest {
     required this.shippingFee,
     required this.discountValue,
     required this.isDiscountPercentage,
+    this.payments,
     this.vendorId,
     this.userId,
     this.nextPurchaseOrderNumber,
@@ -386,6 +387,7 @@ class CreatePurchaseOrderRequest {
   final double shippingFee;
   final double discountValue;
   final bool isDiscountPercentage;
+  final List<CreatePurchaseOrderPayment>? payments;
   final String? userId;
   final int? nextPurchaseOrderNumber;
 
@@ -393,7 +395,7 @@ class CreatePurchaseOrderRequest {
     final discountPercent = 0;
     final discountAmount =
         isDiscountPercentage ? subtotal * (discountValue / 100) : discountValue;
-    return <String, dynamic>{
+    final payload = <String, dynamic>{
       'pur_order_name': orderName,
       'vendor': vendorId ?? '',
       'estimate': 0,
@@ -431,14 +433,52 @@ class CreatePurchaseOrderRequest {
           .map((item) => item.toJson(purchaseOrderNumber: nextPurchaseOrderNumber))
           .toList(growable: false),
     };
+
+    final paymentEntries = payments;
+    if (paymentEntries != null && paymentEntries.isNotEmpty) {
+      payload['payments'] =
+          paymentEntries.map((payment) => payment.toJson()).toList(growable: false);
+    }
+
+    return payload;
   }
 
-  String _formatDate(DateTime value) {
-    final year = value.year.toString().padLeft(4, '0');
-    final month = value.month.toString().padLeft(2, '0');
-    final day = value.day.toString().padLeft(2, '0');
-    return '$year-$month-$day';
+}
+
+class CreatePurchaseOrderPayment {
+  const CreatePurchaseOrderPayment({
+    required this.purchaseOrderNumber,
+    required this.amount,
+    required this.paymentMode,
+    required this.date,
+    required this.requester,
+    this.approvalStatus = 2,
+  });
+
+  final int? purchaseOrderNumber;
+  final double amount;
+  final String paymentMode;
+  final DateTime date;
+  final String? requester;
+  final int approvalStatus;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'pur_invoice': purchaseOrderNumber ?? 0,
+      'amount': amount,
+      'payment_mode': paymentMode,
+      'date': _formatDate(date),
+      'approval_status': approvalStatus,
+      'requester': requester ?? '',
+    };
   }
+}
+
+String _formatDate(DateTime value) {
+  final year = value.year.toString().padLeft(4, '0');
+  final month = value.month.toString().padLeft(2, '0');
+  final day = value.day.toString().padLeft(2, '0');
+  return '$year-$month-$day';
 }
 
 class CreatePurchaseOrderItem {

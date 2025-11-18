@@ -453,6 +453,43 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         )
         .toList(growable: false);
 
+    List<CreatePurchaseOrderPayment>? payments;
+    if (_isPaid) {
+      if (_payments.isEmpty) {
+        setState(() {
+          _submitError = 'Add at least one payment entry when marking as paid.';
+        });
+        return;
+      }
+
+      final parsedPayments = <CreatePurchaseOrderPayment>[];
+      for (final payment in _payments) {
+        final amount =
+            double.tryParse(payment.amountController.text.replaceAll(',', '.')) ?? 0;
+        final paymentMode = payment.methodController.text.trim();
+
+        if (amount <= 0 || paymentMode.isEmpty) {
+          setState(() {
+            _submitError =
+                'Enter a payment mode and amount greater than zero for all payments.';
+          });
+          return;
+        }
+
+        parsedPayments.add(
+          CreatePurchaseOrderPayment(
+            purchaseOrderNumber: _nextPurchaseOrderNumber,
+            amount: amount,
+            paymentMode: paymentMode,
+            date: payment.date,
+            requester: appState.username,
+          ),
+        );
+      }
+
+      payments = parsedPayments;
+    }
+
     final request = CreatePurchaseOrderRequest(
       vendorId: _selectedVendorId,
       orderName: _orderNameController.text.trim(),
@@ -465,6 +502,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       shippingFee: _shippingFee,
       discountValue: _orderDiscountValue,
       isDiscountPercentage: _orderDiscountType == DiscountType.percentage,
+      payments: payments,
       userId: appState.username,
       nextPurchaseOrderNumber: _nextPurchaseOrderNumber,
     );
