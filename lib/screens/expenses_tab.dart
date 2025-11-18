@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app/app_state_scope.dart';
 import '../services/expenses_service.dart';
 import '../widgets/date_range_filter_button.dart';
+import '../widgets/expense_details_dialog.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/tab_page_header.dart';
 import '../widgets/table_filter_bar.dart';
@@ -741,6 +742,16 @@ class _ExpenseRowState extends State<_ExpenseRow> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     IconButton(
+                      tooltip: 'View details',
+                      icon: const Icon(Icons.visibility_outlined),
+                      iconSize: 22,
+                      visualDensity: VisualDensity.compact,
+                      constraints:
+                          const BoxConstraints.tightFor(width: 40, height: 40),
+                      onPressed: _handleView,
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
                       tooltip: 'Edit',
                       icon: const Icon(Icons.edit_outlined),
                       iconSize: 22,
@@ -774,6 +785,13 @@ class _ExpenseRowState extends State<_ExpenseRow> {
       duration: const Duration(seconds: 2),
     );
     ScaffoldMessenger.of(context).showSnackBar(snackBar);
+  }
+
+  void _handleView() {
+    showDialog(
+      context: context,
+      builder: (context) => ExpenseDetailsDialog(expense: widget.expense),
+    );
   }
 
   void _handleDelete() {
