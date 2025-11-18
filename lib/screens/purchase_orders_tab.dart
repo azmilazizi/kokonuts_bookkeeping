@@ -915,6 +915,9 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
                       IconButton(
                         icon: const Icon(Icons.delete_outline),
                         tooltip: 'Delete',
+                        style: IconButton.styleFrom(
+                          foregroundColor: widget.theme.colorScheme.error,
+                        ),
                         iconSize: iconSize,
                         padding: iconPadding,
                         constraints: iconConstraints,
