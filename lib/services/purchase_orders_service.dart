@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 
 class PurchaseOrdersService {
@@ -9,7 +10,7 @@ class PurchaseOrdersService {
 
   static const _baseUrl =
       'https://crm.kokonuts.my/purchase/api/v1/purchase_orders';
-  static const _deleteBaseUrl =
+  static const _singleOrderBaseUrl =
       'https://crm.kokonuts.my/purchase/api/v1/purchase_order';
 
   Future<PurchaseOrdersPage> fetchPurchaseOrders({
@@ -106,7 +107,7 @@ class PurchaseOrdersService {
     http.Response response;
     try {
       response = await _client.delete(
-        Uri.parse('$_deleteBaseUrl/$id'),
+        Uri.parse('$_singleOrderBaseUrl/$id'),
         headers: headers,
       );
     } catch (error) {
@@ -118,6 +119,79 @@ class PurchaseOrdersService {
         'Delete failed with status ${response.statusCode}: ${response.body}',
       );
     }
+  }
+
+  Future<void> uploadAttachments({
+    required String id,
+    required Map<String, String> headers,
+    required List<PlatformFile> attachments,
+  }) async {
+    if (attachments.isEmpty) {
+      return;
+    }
+
+    final files = await Future.wait(
+      attachments.map(_buildMultipartFile),
+      eagerError: false,
+    );
+
+    final uploadFiles =
+        files.whereType<http.MultipartFile>().toList(growable: false);
+    if (uploadFiles.isEmpty) {
+      return;
+    }
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$_singleOrderBaseUrl/$id/attachments'),
+    )
+      ..headers.addAll({
+        'Accept': 'application/json',
+        ...headers,
+      })
+      ..files.addAll(uploadFiles);
+
+    http.StreamedResponse response;
+    try {
+      response = await _client.send(request);
+    } catch (error) {
+      throw PurchaseOrdersException('Failed to upload attachments: $error');
+    }
+
+    final resolved = await http.Response.fromStream(response);
+    if (resolved.statusCode != 200 &&
+        resolved.statusCode != 201 &&
+        resolved.statusCode != 204) {
+      throw PurchaseOrdersException(
+        'Attachment upload failed with status ${resolved.statusCode}: ${resolved.body}',
+      );
+    }
+  }
+
+  Future<http.MultipartFile?> _buildMultipartFile(PlatformFile file) async {
+    final sanitizedName = file.name.trim();
+    if (sanitizedName.isEmpty) {
+      return null;
+    }
+
+    if (file.readStream != null) {
+      return http.MultipartFile(
+        'attachments[]',
+        file.readStream!,
+        file.size,
+        filename: sanitizedName,
+      );
+    }
+
+    if (file.bytes != null) {
+      return http.MultipartFile.fromBytes(
+        'attachments[]',
+        file.bytes!,
+        filename: sanitizedName,
+      );
+    }
+
+    return null;
   }
 
   List<dynamic> _extractOrdersList(dynamic decoded) {

@@ -484,6 +484,26 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         return;
       }
 
+      if (_supportingAttachments.isNotEmpty) {
+        try {
+          await _service.uploadAttachments(
+            id: created.id,
+            headers: headers,
+            attachments: _supportingAttachments,
+          );
+        } catch (error) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Purchase order created but failed to upload attachments: $error',
+                ),
+              ),
+            );
+          }
+        }
+      }
+
       Navigator.of(context).pop(created);
     } on PurchaseOrdersException catch (error) {
       setState(() {
@@ -674,7 +694,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   Future<void> _pickAttachment() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
-      withData: false,
+      withData: kIsWeb,
+      withReadStream: true,
       type: FileType.custom,
       allowedExtensions: _allowedAttachmentExtensions.toList(growable: false),
     );
@@ -1851,6 +1872,7 @@ class _AttachmentPickerState extends State<_AttachmentPicker> {
         name: xfile.name,
         size: size,
         path: xfile.path,
+        readStream: kIsWeb ? null : xfile.openRead(),
         bytes: bytes,
       );
     } catch (_) {
