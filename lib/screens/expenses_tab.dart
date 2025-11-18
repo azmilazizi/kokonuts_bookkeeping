@@ -572,7 +572,7 @@ class _ExpensesHeader extends StatelessWidget {
   final bool sortAscending;
   final ValueChanged<ExpensesSortColumn> onSort;
 
-  static const _columnFlex = [4, 4, 3, 2, 3, 2, 3];
+  static const _columnFlex = [4, 4, 3, 2, 3, 2, 3, 3];
 
   @override
   Widget build(BuildContext context) {
@@ -641,6 +641,16 @@ class _ExpensesHeader extends StatelessWidget {
             ascending: sortAscending,
             onTap: () => onSort(ExpensesSortColumn.paymentMode),
           ),
+          Expanded(
+            flex: _columnFlex[7],
+            child: Align(
+              alignment: Alignment.center,
+              child: Text(
+                'Actions',
+                style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -665,7 +675,7 @@ class _ExpenseRow extends StatefulWidget {
 class _ExpenseRowState extends State<_ExpenseRow> {
   bool _hovering = false;
 
-  static const _columnFlex = [4, 4, 3, 2, 3, 2, 3];
+  static const _columnFlex = [4, 4, 3, 2, 3, 2, 3, 3];
 
   @override
   Widget build(BuildContext context) {
@@ -721,10 +731,51 @@ class _ExpenseRowState extends State<_ExpenseRow> {
               flex: _columnFlex[6],
               textAlign: TextAlign.center,
             ),
+            Expanded(
+              flex: _columnFlex[7],
+              child: Align(
+                alignment: Alignment.center,
+                child: Wrap(
+                  spacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _handleEdit,
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text('Edit'),
+                    ),
+                    TextButton.icon(
+                      onPressed: _handleDelete,
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      label: const Text('Delete'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: widget.theme.colorScheme.error,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  void _handleEdit() {
+    final snackBar = SnackBar(
+      content: Text('Edit action for ${widget.expense.name}'),
+      duration: const Duration(seconds: 2),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
+  }
+
+  void _handleDelete() {
+    final snackBar = SnackBar(
+      content: Text('Delete action for ${widget.expense.name}'),
+      duration: const Duration(seconds: 2),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 }
 
