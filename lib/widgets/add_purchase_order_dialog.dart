@@ -582,11 +582,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text('Attachments', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 8),
-                Text(
-                  'Attach supporting documents for invoices or payment receipts.',
-                  style: theme.textTheme.bodyMedium,
-                ),
                 const SizedBox(height: 12),
                 _AttachmentPicker(
                   label: 'Supporting attachments',
@@ -1769,6 +1764,7 @@ class _AttachmentPickerState extends State<_AttachmentPicker> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    const iconSize = 24.0;
     final borderColor = _isDragging
         ? theme.colorScheme.primary
         : theme.colorScheme.outlineVariant;
@@ -1868,13 +1864,17 @@ class _AttachmentPickerState extends State<_AttachmentPicker> {
                                   ? Icons.file_upload
                                   : Icons.attach_file,
                               color: theme.colorScheme.primary,
+                              size: iconSize,
                             ),
                             const SizedBox(width: 12),
                             Expanded(child: descriptionSection),
                           ],
                         ),
                         const SizedBox(height: 12),
-                        browseButton,
+                        Padding(
+                          padding: const EdgeInsets.only(left: iconSize + 12),
+                          child: browseButton,
+                        ),
                       ],
                     );
                   }
@@ -1885,11 +1885,19 @@ class _AttachmentPickerState extends State<_AttachmentPicker> {
                       Icon(
                         _isDragging ? Icons.file_upload : Icons.attach_file,
                         color: theme.colorScheme.primary,
+                        size: iconSize,
                       ),
                       const SizedBox(width: 12),
-                      Expanded(child: descriptionSection),
-                      const SizedBox(width: 12),
-                      browseButton,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            descriptionSection,
+                            const SizedBox(height: 12),
+                            browseButton,
+                          ],
+                        ),
+                      ),
                     ],
                   );
                 },
@@ -1961,6 +1969,7 @@ class _SelectedFileChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final sizeLabel = _formatBytes(file.size);
+    final truncatedName = _truncateFileName(file.name);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -1976,7 +1985,7 @@ class _SelectedFileChip extends StatelessWidget {
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 220),
             child: Text(
-              '${file.name} ($sizeLabel)',
+              '$truncatedName ($sizeLabel)',
               style: theme.textTheme.bodySmall,
               overflow: TextOverflow.ellipsis,
             ),
@@ -2002,5 +2011,21 @@ class _SelectedFileChip extends StatelessWidget {
     }
 
     return '${size.toStringAsFixed(size < 10 ? 1 : 0)} ${suffixes[suffixIndex]}';
+  }
+
+  String _truncateFileName(String name, {int maxLength = 32}) {
+    if (name.length <= maxLength) {
+      return name;
+    }
+
+    final dotIndex = name.lastIndexOf('.');
+    final extension = dotIndex != -1 ? name.substring(dotIndex) : '';
+    final remainingLength = maxLength - extension.length - 3;
+
+    if (remainingLength <= 0) {
+      return '${name.substring(0, maxLength - 3)}...';
+    }
+
+    return '${name.substring(0, remainingLength)}...$extension';
   }
 }
