@@ -313,6 +313,7 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                               onChanged: _handleFilterChanged,
                               hintText: 'Search by number, vendor, or total',
                               isFiltering: _filterController.text.isNotEmpty,
+                              horizontalController: _horizontalController,
                               trailing: DateRangeFilterButton(
                                 label: 'Order date',
                                 startDate: _filterStartDate,
