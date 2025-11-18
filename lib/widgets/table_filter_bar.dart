@@ -66,15 +66,26 @@ class TableFilterBar extends StatelessWidget {
       return content;
     }
 
-    return AnimatedBuilder(
-      animation: newHorizontalController,
-      builder: (context, child) {
-        final offset = newHorizontalController.hasClients
-            ? newHorizontalController.offset
-            : 0.0;
-        return Transform.translate(offset: Offset(-offset, 0), child: child);
-      },
-      child: content,
+    return ClipRect(
+      child: AnimatedBuilder(
+        animation: newHorizontalController,
+        builder: (context, child) {
+          final offset = newHorizontalController.hasClients
+              ? newHorizontalController.offset
+              : 0.0;
+          return Align(
+            alignment: Alignment.centerLeft,
+            child: Transform.translate(
+              offset: Offset(offset, 0),
+              child: SizedBox(
+                width: MediaQuery.sizeOf(context).width,
+                child: child,
+              ),
+            ),
+          );
+        },
+        child: content,
+      ),
     );
   }
 }
