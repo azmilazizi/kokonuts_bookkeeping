@@ -14,6 +14,7 @@ class PurchaseOrdersService {
       'https://crm.kokonuts.my/purchase/api/v1/purchase_order';
   static const _attachmentsBaseUrl =
       'https://crm.kokonuts.my/purchase/api/v1/purchase_order';
+  static const _attachmentFieldName = 'file';
 
   Future<PurchaseOrdersPage> fetchPurchaseOrders({
     required int page,
@@ -178,7 +179,7 @@ class PurchaseOrdersService {
 
     if (file.readStream != null) {
       return http.MultipartFile(
-        'attachments[]',
+        _attachmentFieldName,
         file.readStream!,
         file.size,
         filename: sanitizedName,
@@ -187,7 +188,7 @@ class PurchaseOrdersService {
 
     if (file.bytes != null) {
       return http.MultipartFile.fromBytes(
-        'attachments[]',
+        _attachmentFieldName,
         file.bytes!,
         filename: sanitizedName,
       );
@@ -196,7 +197,7 @@ class PurchaseOrdersService {
     final path = file.path?.trim();
     if (path != null && path.isNotEmpty) {
       return http.MultipartFile.fromPath(
-        'attachments[]',
+        _attachmentFieldName,
         path,
         filename: sanitizedName,
       );
