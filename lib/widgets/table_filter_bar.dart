@@ -56,27 +56,23 @@ class TableFilterBar extends StatelessWidget {
               isDense: true,
             ),
           ),
-          if (trailing != null) ...[
-            const SizedBox(height: 12),
-            trailing!,
-          ],
+          if (trailing != null) ...[const SizedBox(height: 12), trailing!],
         ],
       ),
     );
 
-    final controller = horizontalController;
-    if (controller == null) {
+    final newHorizontalController = horizontalController;
+    if (newHorizontalController == null) {
       return content;
     }
 
     return AnimatedBuilder(
-      animation: controller,
+      animation: newHorizontalController,
       builder: (context, child) {
-        final offset = controller.hasClients ? controller.offset : 0.0;
-        return Transform.translate(
-          offset: Offset(-offset, 0),
-          child: child,
-        );
+        final offset = newHorizontalController.hasClients
+            ? newHorizontalController.offset
+            : 0.0;
+        return Transform.translate(offset: Offset(-offset, 0), child: child);
       },
       child: content,
     );
