@@ -735,22 +735,27 @@ class _ExpenseRowState extends State<_ExpenseRow> {
               flex: _columnFlex[7],
               child: Align(
                 alignment: Alignment.center,
-                child: Wrap(
-                  spacing: 8,
-                  alignment: WrapAlignment.center,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    TextButton.icon(
+                    IconButton(
+                      tooltip: 'Edit',
+                      icon: const Icon(Icons.edit_outlined),
+                      iconSize: 22,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
                       onPressed: _handleEdit,
-                      icon: const Icon(Icons.edit_outlined, size: 18),
-                      label: const Text('Edit'),
                     ),
-                    TextButton.icon(
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Delete',
+                      icon: const Icon(Icons.delete_outline),
+                      iconSize: 22,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                      color: widget.theme.colorScheme.error,
                       onPressed: _handleDelete,
-                      icon: const Icon(Icons.delete_outline, size: 18),
-                      label: const Text('Delete'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: widget.theme.colorScheme.error,
-                      ),
                     ),
                   ],
                 ),

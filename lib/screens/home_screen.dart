@@ -10,6 +10,7 @@ import 'purchase_orders_tab.dart';
 
 import '../services/purchase_orders_service.dart';
 import '../widgets/add_purchase_order_dialog.dart';
+import '../widgets/post_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -94,38 +95,67 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       return;
     }
 
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (context) {
-        final theme = Theme.of(context);
+    if (!mounted) {
+      return;
+    }
 
-        return Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Add new $tabTitle',
-                style: theme.textTheme.titleLarge,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'This is a placeholder for creating a new $tabTitle entry. '
-                'Replace this modal with the appropriate form or navigation when ready.',
-                style: theme.textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.add),
-                label: const Text('Close'),
-              ),
-            ],
+    switch (_controller.index) {
+      case 1:
+        await showDialog<void>(
+          context: context,
+          builder: (context) => const PostDialog(
+            title: 'Create Expense (POST)',
+            apiPath: 'https://crm.kokonuts.my/accounting/api/v1/expenses',
+            description:
+                'Use this endpoint to create a new expense. The fields below are '
+                'examples of the data the API accepts.',
+            samplePayload: {
+              'vendor': 'Example Vendor',
+              'name': 'Office supplies',
+              'amount': 125.50,
+              'category_id': 1,
+              'payment_mode': 'Cash',
+              'date': '2024-04-01',
+              'notes': 'Receipt attached in portal',
+            },
           ),
         );
-      },
-    );
+        break;
+      case 2:
+        await showDialog<void>(
+          context: context,
+          builder: (context) => const PostDialog(
+            title: 'Create Bill (POST)',
+            apiPath: 'https://crm.kokonuts.my/accounting/api/v1/bills',
+            description:
+                'Submit a POST request to record a new bill. Adjust the sample '
+                'payload to match your bill data before sending.',
+            samplePayload: {
+              'vendor_id': '123',
+              'bill_number': 'BILL-001',
+              'bill_date': '2024-04-01',
+              'due_date': '2024-04-15',
+              'status': 'pending',
+              'total_amount': 240.75,
+              'notes': 'Pay before due date to avoid surcharge',
+            },
+          ),
+        );
+        break;
+      default:
+        await showDialog<void>(
+          context: context,
+          builder: (context) => PostDialog(
+            title: 'Create $tabTitle',
+            apiPath: 'https://crm.kokonuts.my',
+            description:
+                'Add the correct endpoint and payload for this tab when ready.',
+            samplePayload: const {
+              'example': 'value',
+            },
+          ),
+        );
+    }
   }
 
   @override
