@@ -193,6 +193,15 @@ class PurchaseOrdersService {
       );
     }
 
+    final path = file.path?.trim();
+    if (path != null && path.isNotEmpty) {
+      return http.MultipartFile.fromPath(
+        'attachments[]',
+        path,
+        filename: sanitizedName,
+      );
+    }
+
     return null;
   }
 
