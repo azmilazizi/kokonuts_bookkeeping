@@ -15,6 +15,33 @@ import '../services/vendors_service.dart';
 
 enum DiscountType { percentage, amount }
 
+const Set<String> _allowedAttachmentExtensions = {
+  'pdf',
+  'jpg',
+  'jpeg',
+  'png',
+  'gif',
+  'bmp',
+  'heic',
+  'webp',
+};
+
+bool _isAllowedExtension(String? extension) {
+  final sanitized = extension?.toLowerCase();
+  if (sanitized == null || sanitized.isEmpty) {
+    return false;
+  }
+  return _allowedAttachmentExtensions.contains(sanitized);
+}
+
+String? _attachmentExtension(String name) {
+  final index = name.lastIndexOf('.');
+  if (index == -1 || index == name.length - 1) {
+    return null;
+  }
+  return name.substring(index + 1).toLowerCase();
+}
+
 class AddPurchaseOrderDialog extends StatefulWidget {
   const AddPurchaseOrderDialog({super.key});
 
@@ -61,7 +88,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   List<VendorSummary> _vendors = const [];
   List<InventoryItem> _inventoryItems = const [];
   final List<_PaymentEntryDraft> _payments = [];
-  PlatformFile? _supportingAttachment;
+  List<PlatformFile> _supportingAttachments = const [];
 
   @override
   void initState() {
@@ -504,14 +531,17 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                 ),
                 const SizedBox(height: 12),
                 _AttachmentPicker(
-                  label: 'Supporting attachment',
+                  label: 'Supporting attachments',
                   description:
                       'Drag and drop files or tap to browse for invoice or payment receipt documents.',
-                  file: _supportingAttachment,
+                  files: _supportingAttachments,
                   onPick: _pickAttachment,
-                  onClear: () => setState(() => _supportingAttachment = null),
-                  onFileSelected: (file) =>
-                      setState(() => _supportingAttachment = file),
+                  onFilesSelected: (files) =>
+                      setState(() => _supportingAttachments = files),
+                  onFileRemoved: (file) => setState(() {
+                    _supportingAttachments = List.of(_supportingAttachments)
+                      ..remove(file);
+                  }),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -643,17 +673,30 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
   Future<void> _pickAttachment() async {
     final result = await FilePicker.platform.pickFiles(
-      allowMultiple: false,
+      allowMultiple: true,
       withData: false,
-      type: FileType.any,
+      type: FileType.custom,
+      allowedExtensions: _allowedAttachmentExtensions.toList(growable: false),
     );
 
     if (!mounted || result == null || result.files.isEmpty) {
       return;
     }
 
-    setState(() => _supportingAttachment = result.files.first);
+    final newFiles = result.files
+        .where((file) =>
+            _isAllowedExtension(file.extension ?? _attachmentExtension(file.name)))
+        .toList(growable: false);
+
+    if (newFiles.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _supportingAttachments = [..._supportingAttachments, ...newFiles];
+    });
   }
+
 
   Widget _buildVendorField(ThemeData theme) {
     if (_isLoadingReferenceData && _vendors.isEmpty) {
@@ -1643,18 +1686,18 @@ class _AttachmentPicker extends StatefulWidget {
   const _AttachmentPicker({
     required this.label,
     required this.description,
-    required this.file,
+    required this.files,
     required this.onPick,
-    required this.onClear,
-    required this.onFileSelected,
+    required this.onFilesSelected,
+    required this.onFileRemoved,
   });
 
   final String label;
   final String description;
-  final PlatformFile? file;
+  final List<PlatformFile> files;
   final VoidCallback onPick;
-  final VoidCallback onClear;
-  final ValueChanged<PlatformFile> onFileSelected;
+  final ValueChanged<List<PlatformFile>> onFilesSelected;
+  final ValueChanged<PlatformFile> onFileRemoved;
 
   @override
   State<_AttachmentPicker> createState() => _AttachmentPickerState();
@@ -1709,14 +1752,22 @@ class _AttachmentPickerState extends State<_AttachmentPicker> {
                           style: theme.textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 8),
-                        if (widget.file != null)
-                          _SelectedFileChip(
-                            file: widget.file!,
-                            onClear: widget.onClear,
+                        if (widget.files.isNotEmpty)
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: widget.files
+                                .map(
+                                  (file) => _SelectedFileChip(
+                                    file: file,
+                                    onClear: () => widget.onFileRemoved(file),
+                                  ),
+                                )
+                                .toList(),
                           )
                         else
                           Text(
-                            'No file selected. Drag and drop here or tap to choose.',
+                            'No files selected. Drag and drop here or tap to choose.',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.hintColor,
                             ),
@@ -1770,21 +1821,29 @@ class _AttachmentPickerState extends State<_AttachmentPicker> {
       _isProcessingDrop = true;
     });
 
-    _convertFile(details.files.first)
-        .then((file) {
-          if (!mounted || file == null) {
-            return;
-          }
-          widget.onFileSelected(file);
-        })
-        .whenComplete(() {
-          if (mounted) {
-            setState(() => _isProcessingDrop = false);
-          }
-        });
+    Future.wait(
+      details.files
+          .where((file) => _isAllowedExtension(_attachmentExtension(file.name)))
+          .map(_convertFile),
+    ).then((files) {
+      if (!mounted) {
+        return;
+      }
+      final validFiles = files.whereType<PlatformFile>().toList();
+      if (validFiles.isNotEmpty) {
+        widget.onFilesSelected([...widget.files, ...validFiles]);
+      }
+    }).whenComplete(() {
+      if (mounted) {
+        setState(() => _isProcessingDrop = false);
+      }
+    });
   }
 
   Future<PlatformFile?> _convertFile(XFile xfile) async {
+    if (!_isAllowedExtension(_attachmentExtension(xfile.name))) {
+      return null;
+    }
     try {
       final size = await xfile.length();
       final bytes = kIsWeb ? await xfile.readAsBytes() : null;
