@@ -251,6 +251,7 @@ class _BillsTabState extends State<BillsTab> {
                               onChanged: _handleFilterChanged,
                               hintText: 'Search by vendor, status, or amount',
                               isFiltering: _filterController.text.isNotEmpty,
+                              horizontalController: _horizontalController,
                               trailing: DateRangeFilterButton(
                                 label: 'Bill or due date',
                                 startDate: _filterStartDate,

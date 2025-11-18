@@ -9,6 +9,7 @@ class TableFilterBar extends StatelessWidget {
     this.labelText = 'Filter',
     this.isFiltering = false,
     this.trailing,
+    this.horizontalController,
   });
 
   final TextEditingController controller;
@@ -17,13 +18,14 @@ class TableFilterBar extends StatelessWidget {
   final String labelText;
   final bool isFiltering;
   final Widget? trailing;
+  final ScrollController? horizontalController;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final background = theme.colorScheme.surfaceVariant.withOpacity(0.6);
 
-    return Container(
+    final content = Container(
       color: background,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Column(
@@ -60,6 +62,23 @@ class TableFilterBar extends StatelessWidget {
           ],
         ],
       ),
+    );
+
+    final controller = horizontalController;
+    if (controller == null) {
+      return content;
+    }
+
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, child) {
+        final offset = controller.hasClients ? controller.offset : 0.0;
+        return Transform.translate(
+          offset: Offset(-offset, 0),
+          child: child,
+        );
+      },
+      child: content,
     );
   }
 }

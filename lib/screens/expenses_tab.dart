@@ -197,6 +197,7 @@ class _ExpensesTabState extends State<ExpensesTab> {
                               onChanged: _handleFilterChanged,
                               hintText: 'Search by vendor, name, or category',
                               isFiltering: _filterController.text.isNotEmpty,
+                              horizontalController: _horizontalController,
                               trailing: DateRangeFilterButton(
                                 label: 'Expense date',
                                 startDate: _filterStartDate,

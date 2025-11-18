@@ -210,6 +210,7 @@ class _AccountsTabState extends State<AccountsTab> {
                               onChanged: _handleFilterChanged,
                               hintText: 'Search by name, parent, or type',
                               isFiltering: _filterController.text.isNotEmpty,
+                              horizontalController: _horizontalController,
                             ),
                           ),
                           SliverPersistentHeader(
