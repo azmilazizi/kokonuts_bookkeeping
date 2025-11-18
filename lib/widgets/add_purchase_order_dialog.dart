@@ -1795,72 +1795,104 @@ class _AttachmentPickerState extends State<_AttachmentPicker> {
                 border: Border.all(color: borderColor, width: 1.2),
                 color: surfaceColor,
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    _isDragging ? Icons.file_upload : Icons.attach_file,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.description,
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        if (widget.files.isNotEmpty)
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: widget.files
-                                .map(
-                                  (file) => _SelectedFileChip(
-                                    file: file,
-                                    onClear: () => widget.onFileRemoved(file),
-                                  ),
-                                )
-                                .toList(),
-                          )
-                        else
-                          Text(
-                            'No files selected. Drag and drop here or tap to choose.',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.hintColor,
-                            ),
-                          ),
-                        if (_isProcessingDrop) ...[
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: theme.colorScheme.primary,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isCompact = constraints.maxWidth < 520;
+
+                  final descriptionSection = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.description,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      if (widget.files.isNotEmpty)
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: widget.files
+                              .map(
+                                (file) => _SelectedFileChip(
+                                  file: file,
+                                  onClear: () => widget.onFileRemoved(file),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Processing dropped file...',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ],
+                              )
+                              .toList(),
+                        )
+                      else
+                        Text(
+                          'No files selected. Drag and drop here or tap to choose.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.hintColor,
                           ),
-                        ],
+                        ),
+                      if (_isProcessingDrop) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Processing dropped file...',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
                       ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  OutlinedButton.icon(
+                    ],
+                  );
+
+                  final browseButton = OutlinedButton.icon(
                     onPressed: widget.onPick,
                     icon: const Icon(Icons.folder_open),
                     label: const Text('Browse files'),
-                  ),
-                ],
+                  );
+
+                  if (isCompact) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              _isDragging
+                                  ? Icons.file_upload
+                                  : Icons.attach_file,
+                              color: theme.colorScheme.primary,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(child: descriptionSection),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        browseButton,
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        _isDragging ? Icons.file_upload : Icons.attach_file,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(child: descriptionSection),
+                      const SizedBox(width: 12),
+                      browseButton,
+                    ],
+                  );
+                },
               ),
             ),
           ),
