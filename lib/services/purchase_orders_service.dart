@@ -316,9 +316,9 @@ class CreatePurchaseOrderRequest {
   final int? nextPurchaseOrderNumber;
 
   Map<String, dynamic> toJson() {
-    final discountPercent = isDiscountPercentage ? discountValue : 0;
+    final discountPercent = 0;
     final discountAmount =
-        isDiscountPercentage ? discountValue * subtotal / 100 : discountValue;
+        isDiscountPercentage ? subtotal * (discountValue / 100) : discountValue;
     return <String, dynamic>{
       'pur_order_name': orderName,
       'vendor': vendorId ?? '',
