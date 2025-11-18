@@ -363,6 +363,7 @@ class PurchaseOrderItem {
     required this.quantityLabel,
     required this.rateLabel,
     required this.amountLabel,
+    this.discountLabel,
   });
 
   factory PurchaseOrderItem.fromJson(
@@ -387,6 +388,17 @@ class PurchaseOrderItem {
         _string(json['total_formatted']) ??
         _string(json['line_total_formatted']) ??
         _formatCurrency(currencySymbol, amountValue);
+
+    final discountValue = json['discount_money'] ??
+        json['discount'] ??
+        json['discount_amount'];
+    final discountFormatted =
+        _string(json['discount_formatted']) ?? _string(json['discount_money_formatted']);
+    final discountLabel = _resolveOptionalAmount(
+      currencySymbol,
+      rawValue: discountValue,
+      formattedValue: discountFormatted,
+    );
 
     final descriptions = <String>{};
     final descriptionKeys = [
@@ -415,6 +427,7 @@ class PurchaseOrderItem {
       quantityLabel: quantityLabel,
       rateLabel: rateLabel,
       amountLabel: amountLabel,
+      discountLabel: discountLabel,
     );
   }
 
@@ -423,6 +436,9 @@ class PurchaseOrderItem {
   final String quantityLabel;
   final String rateLabel;
   final String amountLabel;
+  final String? discountLabel;
+
+  bool get hasDiscount => discountLabel != null;
 }
 
 /// Represents a payment recorded against a purchase order.
