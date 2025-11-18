@@ -399,6 +399,7 @@ class CreatePurchaseOrderItem {
       'discount_%': 0,
       'discount_money': discount,
       'total_money': total,
+      'total': total,
       'tax_value': 0,
       'tax_rate': null,
       'tax_name': null,
