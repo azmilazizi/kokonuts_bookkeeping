@@ -190,6 +190,7 @@ class Expense {
     required this.date,
     required this.receipt,
     required this.paymentMode,
+    required this.createdBy,
   });
 
   factory Expense.fromJson(Map<String, dynamic> json) {
@@ -225,6 +226,18 @@ class Expense {
         _stringValue(json['payment_method']) ??
         '—';
 
+    final createdBy = _resolveCreatedBy(json['created_by']) ??
+        _resolveCreatedBy(json['createdBy']) ??
+        _resolveCreatedBy(json['staff']) ??
+        _resolveCreatedBy(json['user']) ??
+        _resolveCreatedBy(json['author']) ??
+        _stringValue(json['created_by']) ??
+        _stringValue(json['createdBy']) ??
+        _stringValue(json['created_by_name']) ??
+        _stringValue(json['staff_name']) ??
+        _stringValue(json['user_name']) ??
+        '—';
+
     return Expense(
       id: _stringValue(json['id']) ?? '',
       vendor: vendorName ??
@@ -248,6 +261,7 @@ class Expense {
       date: _parseDateString(dateString),
       receipt: receipt,
       paymentMode: paymentMode,
+      createdBy: createdBy,
     );
   }
 
@@ -261,6 +275,7 @@ class Expense {
   final DateTime? date;
   final String? receipt;
   final String paymentMode;
+  final String createdBy;
 
   String get formattedDate {
     final value = date;
@@ -405,6 +420,34 @@ List<int> _parseTimeComponents(String? value) {
   final minutes = segments.length > 1 ? int.tryParse(segments[1]) ?? 0 : 0;
   final seconds = segments.length > 2 ? int.tryParse(segments[2]) ?? 0 : 0;
   return [hours, minutes, seconds];
+}
+
+String? _resolveCreatedBy(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is String) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+  if (value is Map<String, dynamic>) {
+    return Expense._stringValue(
+          value['name'] ??
+              value['full_name'] ??
+              value['username'] ??
+              value['staff_name'],
+        ) ??
+        _resolveCreatedBy(value['data']);
+  }
+  if (value is List) {
+    for (final item in value) {
+      final resolved = _resolveCreatedBy(item);
+      if (resolved != null && resolved.isNotEmpty) {
+        return resolved;
+      }
+    }
+  }
+  return Expense._stringValue(value);
 }
 
 String? _resolveReceipt(dynamic value) {
