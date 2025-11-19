@@ -869,47 +869,176 @@ class _PaymentsTab extends StatefulWidget {
 }
 
 class _PaymentsTabState extends State<_PaymentsTab> {
-  final _dateFormat = DateFormat('d MMM y');
-  late final List<_EditablePaymentRow> _editablePayments;
-  bool _isEditing = false;
+  final _paymentModesService = PaymentModesService();
+  final _paymentDrafts = <_PaymentEntryDraft>[];
+  List<PaymentMode> _paymentModes = const [];
+  bool _isLoadingPaymentModes = false;
+  String? _paymentModesError;
+  bool _hasInitializedPaymentModes = false;
+  bool _isPaid = false;
 
   @override
   void initState() {
     super.initState();
-    _editablePayments = widget.detail.payments
-        .map((payment) => _EditablePaymentRow(payment: payment))
-        .toList();
+    _initializeDrafts();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PaymentsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.detail.payments != widget.detail.payments) {
+      _resetDrafts();
+      _initializeDrafts();
+      _applyPaymentModeMatches();
+    } else {
+      _isPaid = widget.detail.hasPayments;
+    }
   }
 
   @override
   void dispose() {
-    for (final entry in _editablePayments) {
-      entry.dispose();
-    }
+    _resetDrafts();
     super.dispose();
   }
 
-  Future<void> _pickDate(_EditablePaymentRow entry) async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: entry.date ?? now,
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 5),
-    );
-
-    if (picked != null) {
-      setState(() {
-        entry.date = picked;
-      });
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasInitializedPaymentModes) {
+      _hasInitializedPaymentModes = true;
+      _loadPaymentModes();
     }
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) {
-      return '—';
+  void _initializeDrafts() {
+    _isPaid = widget.detail.hasPayments;
+    for (final payment in widget.detail.payments) {
+      _paymentDrafts.add(
+        _PaymentEntryDraft(
+          amountText: payment.amountLabel,
+          initialDate: payment.date,
+          paymentModeLabel: payment.method,
+        ),
+      );
     }
-    return _dateFormat.format(date);
+  }
+
+  void _resetDrafts() {
+    for (final draft in _paymentDrafts) {
+      draft.dispose();
+    }
+    _paymentDrafts.clear();
+  }
+
+  Future<void> _loadPaymentModes() async {
+    setState(() {
+      _paymentModesError = null;
+      _isLoadingPaymentModes = true;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _paymentModesError = 'You are not logged in.';
+        _isLoadingPaymentModes = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      final modes = await _paymentModesService.fetchPaymentModes(
+        headers: headers,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _paymentModes = modes;
+        _applyPaymentModeMatches();
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _paymentModesError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingPaymentModes = false);
+      }
+    }
+  }
+
+  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
+    final rawToken = (appState.rawAuthToken ?? token).trim();
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
+    final autoTokenValue = rawToken
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final authtokenHeader =
+        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
+  }
+
+  void _applyPaymentModeMatches() {
+    if (_paymentModes.isEmpty) {
+      return;
+    }
+
+    for (final draft in _paymentDrafts) {
+      final matchedId = _matchPaymentModeId(draft.paymentModeLabel);
+      final resolvedId = matchedId ?? draft.paymentModeId;
+      if (resolvedId != null) {
+        draft.setPaymentModeId(
+          resolvedId,
+          name: _resolvePaymentModeName(resolvedId) ?? draft.paymentModeLabel,
+        );
+      } else if (draft.paymentModeLabel == null && _paymentModes.isNotEmpty) {
+        final defaultMode = _paymentModes.first;
+        draft.setPaymentModeId(defaultMode.id, name: defaultMode.name);
+      }
+    }
+  }
+
+  String? _matchPaymentModeId(String? label) {
+    if (label == null) {
+      return null;
+    }
+    final normalized = label.trim().toLowerCase();
+    for (final mode in _paymentModes) {
+      if (mode.name.toLowerCase() == normalized) {
+        return mode.id;
+      }
+    }
+    return null;
+  }
+
+  String? _resolvePaymentModeName(String? id) {
+    if (id == null) {
+      return null;
+    }
+    for (final mode in _paymentModes) {
+      if (mode.id == id) {
+        return mode.name;
+      }
+    }
+    return null;
   }
 
   Future<void> _openAddPaymentDialog() async {
@@ -927,15 +1056,40 @@ class _PaymentsTabState extends State<_PaymentsTab> {
   @override
   Widget build(BuildContext context) {
     if (!widget.detail.hasPayments) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Checkbox(value: false, onChanged: null),
+              const SizedBox(width: 8),
+              const Text('Paid'),
+              const Spacer(),
+              ElevatedButton.icon(
+                onPressed: _openAddPaymentDialog,
+                icon: const Icon(Icons.add),
+                label: const Text('Add payment'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const _EmptyTabMessage(
+            icon: Icons.receipt_long,
+            message: 'No payments recorded for this purchase order.',
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            const _EmptyTabMessage(
-              icon: Icons.receipt_long,
-              message: 'No payments recorded for this purchase order.',
-            ),
-            const SizedBox(height: 16),
+            Checkbox(value: _isPaid, onChanged: null),
+            const SizedBox(width: 8),
+            const Text('Paid'),
+            const Spacer(),
             ElevatedButton.icon(
               onPressed: _openAddPaymentDialog,
               icon: const Icon(Icons.add),
@@ -943,126 +1097,25 @@ class _PaymentsTabState extends State<_PaymentsTab> {
             ),
           ],
         ),
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: Wrap(
-                spacing: 8,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: _openAddPaymentDialog,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add payment'),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _isEditing = !_isEditing;
-                      });
-                    },
-                    child: Text(_isEditing ? 'Save' : 'Edit'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                child: DataTable(
-                  columnSpacing: 24,
-                  columns: const [
-                    DataColumn(label: Text('Amount')),
-                    DataColumn(label: Text('Payment Mode')),
-                    DataColumn(label: Text('Date')),
-                  ],
-                  rows: _editablePayments
-                      .map(
-                        (payment) => DataRow(
-                          cells: [
-                            DataCell(
-                              _isEditing
-                                  ? TextFormField(
-                                      controller: payment.amountController,
-                                      decoration: const InputDecoration(
-                                        border: OutlineInputBorder(),
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 10,
-                                        ),
-                                      ),
-                                    )
-                                  : Text(payment.amountController.text),
-                            ),
-                            DataCell(
-                              _isEditing
-                                  ? TextFormField(
-                                      controller: payment.methodController,
-                                      decoration: const InputDecoration(
-                                        border: OutlineInputBorder(),
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 10,
-                                        ),
-                                      ),
-                                    )
-                                  : Text(payment.methodController.text),
-                            ),
-                            DataCell(
-                              _isEditing
-                                  ? InkWell(
-                                      onTap: () => _pickDate(payment),
-                                      child: InputDecorator(
-                                        decoration: const InputDecoration(
-                                          border: OutlineInputBorder(),
-                                          isDense: true,
-                                          contentPadding: EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 10,
-                                          ),
-                                        ),
-                                        child: Text(_formatDate(payment.date)),
-                                      ),
-                                    )
-                                  : Text(_formatDate(payment.date)),
-                            ),
-                          ],
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+        const SizedBox(height: 12),
+        _PaymentEntriesTable(
+          entries: _paymentDrafts,
+          paymentModes: _paymentModes,
+          isLoadingPaymentModes: _isLoadingPaymentModes,
+          paymentModesError: _paymentModesError,
+          readOnly: true,
+          showAddButton: false,
+          showRemoveButton: false,
+          onAdd: () {},
+          onRemove: (_) {},
+          onPickDate: (_) {},
+          onPaymentModeChanged: (entry, modeId) {
+            final name = _resolvePaymentModeName(modeId);
+            setState(() => entry.setPaymentModeId(modeId, name: name));
+          },
+        ),
+      ],
     );
-  }
-}
-
-class _EditablePaymentRow {
-  _EditablePaymentRow({required PurchaseOrderPayment payment})
-    : amountController = TextEditingController(text: payment.amountLabel),
-      methodController = TextEditingController(text: payment.methodLabel),
-      date = payment.date;
-
-  final TextEditingController amountController;
-  final TextEditingController methodController;
-  DateTime? date;
-
-  void dispose() {
-    amountController.dispose();
-    methodController.dispose();
   }
 }
 
@@ -1089,7 +1142,7 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
   @override
   void initState() {
     super.initState();
-    _payments.add(_PaymentEntryDraft());
+    _payments.add(_PaymentEntryDraft(initialDate: DateTime.now()));
   }
 
   @override
@@ -1111,7 +1164,7 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
 
   void _addPayment() {
     setState(() {
-      final entry = _PaymentEntryDraft();
+      final entry = _PaymentEntryDraft(initialDate: DateTime.now());
       if (_paymentModes.isNotEmpty) {
         entry.setPaymentModeId(_paymentModes.first.id);
       }
@@ -1164,7 +1217,15 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
             ? _paymentModes.first.id
             : null;
         for (final entry in _payments) {
-          entry.setPaymentModeId(entry.paymentModeId ?? defaultModeId);
+          entry.setPaymentModeId(
+            entry.paymentModeId ?? defaultModeId,
+            name: entry.paymentModeLabel ??
+                (defaultModeId == null
+                    ? null
+                    : _paymentModes
+                        .firstWhere((mode) => mode.id == defaultModeId)
+                        .name),
+          );
         }
       });
     } catch (error) {
@@ -1202,7 +1263,7 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: entry.date,
+      initialDate: entry.date ?? now,
       firstDate: DateTime(now.year - 5),
       lastDate: DateTime(now.year + 5),
     );
@@ -1388,6 +1449,9 @@ class _PaymentEntriesTable extends StatelessWidget {
     required this.onPickDate,
     required this.onPaymentModeChanged,
     this.paymentModesError,
+    this.readOnly = false,
+    this.showAddButton = true,
+    this.showRemoveButton = true,
   });
 
   final List<_PaymentEntryDraft> entries;
@@ -1399,6 +1463,9 @@ class _PaymentEntriesTable extends StatelessWidget {
   final void Function(_PaymentEntryDraft entry, String? modeId)
   onPaymentModeChanged;
   final String? paymentModesError;
+  final bool readOnly;
+  final bool showAddButton;
+  final bool showRemoveButton;
 
   @override
   Widget build(BuildContext context) {
@@ -1409,12 +1476,14 @@ class _PaymentEntriesTable extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('No payments added yet.', style: theme.textTheme.bodyMedium),
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: onAdd,
-            icon: const Icon(Icons.add),
-            label: const Text('Add payment'),
-          ),
+          if (showAddButton) ...[
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: onAdd,
+              icon: const Icon(Icons.add),
+              label: const Text('Add payment'),
+            ),
+          ],
         ],
       );
     }
@@ -1437,12 +1506,13 @@ class _PaymentEntriesTable extends StatelessWidget {
                           style: theme.textTheme.titleSmall,
                         ),
                       ),
-                      IconButton(
-                        tooltip: 'Remove payment',
-                        icon: const Icon(Icons.delete_outline),
-                        color: theme.colorScheme.error,
-                        onPressed: () => onRemove(i),
-                      ),
+                      if (showRemoveButton)
+                        IconButton(
+                          tooltip: 'Remove payment',
+                          icon: const Icon(Icons.delete_outline),
+                          color: theme.colorScheme.error,
+                          onPressed: () => onRemove(i),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -1457,51 +1527,74 @@ class _PaymentEntriesTable extends StatelessWidget {
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
+                        enabled: !readOnly,
                       ),
-                      DropdownButtonFormField<String>(
-                        value: entries[i].paymentModeId,
-                        decoration: InputDecoration(
-                          labelText: 'Payment mode',
-                          border: const OutlineInputBorder(),
-                          helperText:
-                              paymentModesError ??
-                              (paymentModes.isEmpty
-                                  ? 'Unable to load payment modes'
-                                  : null),
-                        ),
-                        isExpanded: true,
-                        hint: isLoadingPaymentModes
-                            ? Row(
-                                children: const [
-                                  SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
+                      if (readOnly &&
+                          (paymentModes.isEmpty || entries[i].paymentModeId == null))
+                        InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Payment mode',
+                            border: OutlineInputBorder(),
+                          ),
+                          child: Text(
+                            entries[i].paymentModeLabel ?? '—',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        )
+                      else
+                        DropdownButtonFormField<String>(
+                          value: entries[i].paymentModeId,
+                          decoration: InputDecoration(
+                            labelText: 'Payment mode',
+                            border: const OutlineInputBorder(),
+                            helperText:
+                                paymentModesError ??
+                                (paymentModes.isEmpty
+                                    ? 'Unable to load payment modes'
+                                    : null),
+                          ),
+                          isExpanded: true,
+                          hint: isLoadingPaymentModes
+                              ? Row(
+                                  children: const [
+                                    SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
                                     ),
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text('Loading payment modes...'),
-                                ],
+                                    SizedBox(width: 8),
+                                    Text('Loading payment modes...'),
+                                  ],
+                                )
+                              : const Text('Select payment mode'),
+                          items: paymentModes
+                              .map(
+                                (mode) => DropdownMenuItem<String>(
+                                  value: mode.id,
+                                  child: Text(mode.name),
+                                ),
                               )
-                            : const Text('Select payment mode'),
-                        items: paymentModes
-                            .map(
-                              (mode) => DropdownMenuItem<String>(
-                                value: mode.id,
-                                child: Text(mode.name),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: paymentModes.isEmpty || isLoadingPaymentModes
-                            ? null
-                            : (value) =>
-                                  onPaymentModeChanged(entries[i], value),
-                      ),
+                              .toList(),
+                          onChanged:
+                              paymentModes.isEmpty || isLoadingPaymentModes || readOnly
+                                  ? null
+                                  : (value) {
+                                      final selectedName = _findPaymentModeName(
+                                        paymentModes,
+                                        value,
+                                      );
+                                      onPaymentModeChanged(entries[i], value);
+                                      entries[i]
+                                          .setPaymentModeId(value, name: selectedName);
+                                    },
+                        ),
                       _PaymentDateField(
                         label: 'Payment date',
                         dateLabel: entries[i].dateLabel,
                         onTap: () => onPickDate(entries[i]),
+                        enabled: !readOnly,
                       ),
                     ],
                   ),
@@ -1511,13 +1604,26 @@ class _PaymentEntriesTable extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
-        TextButton.icon(
-          onPressed: onAdd,
-          icon: const Icon(Icons.add),
-          label: const Text('Add payment'),
-        ),
+        if (showAddButton)
+          TextButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add),
+            label: const Text('Add payment'),
+          ),
       ],
     );
+  }
+
+  String? _findPaymentModeName(List<PaymentMode> modes, String? id) {
+    if (id == null) {
+      return null;
+    }
+    for (final mode in modes) {
+      if (mode.id == id) {
+        return mode.name;
+      }
+    }
+    return null;
   }
 }
 
@@ -1526,47 +1632,61 @@ class _PaymentDateField extends StatelessWidget {
     required this.label,
     required this.dateLabel,
     required this.onTap,
+    this.enabled = true,
   });
 
   final String label;
   final String dateLabel;
   final VoidCallback onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return InkWell(
-      onTap: onTap,
+      onTap: enabled ? onTap : null,
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
           suffixIcon: Icon(Icons.calendar_today, color: theme.primaryColor),
         ),
-        child: Text(dateLabel),
+        child: Text(
+          dateLabel,
+          style: !enabled
+              ? theme.textTheme.bodyMedium?.copyWith(color: theme.disabledColor)
+              : theme.textTheme.bodyMedium,
+        ),
       ),
     );
   }
 }
 
 class _PaymentEntryDraft {
-  _PaymentEntryDraft()
-    : amountController = TextEditingController(),
-      date = DateTime.now();
+  _PaymentEntryDraft({
+    String? amountText,
+    DateTime? initialDate,
+    this.paymentModeLabel,
+  })  : amountController = TextEditingController(text: amountText ?? ''),
+        date = initialDate;
 
   final TextEditingController amountController;
-  DateTime date;
+  DateTime? date;
   String? paymentModeId;
+  String? paymentModeLabel;
 
-  String get dateLabel => DateFormat.yMMMd().format(date);
+  String get dateLabel => date == null ? '—' : DateFormat.yMMMd().format(date!);
 
   void setDate(DateTime newDate) {
     date = newDate;
   }
 
-  void setPaymentModeId(String? value) {
+  void setPaymentModeId(String? value, {String? name}) {
     paymentModeId = value;
+    if (name != null || value == null) {
+      paymentModeLabel = name;
+    }
   }
 
   void dispose() {
