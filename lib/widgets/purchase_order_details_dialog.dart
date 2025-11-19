@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:kokonuts_bookkeeping/app/app_state.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/payment_modes_service.dart';
@@ -361,9 +362,14 @@ class _SummarySection extends StatelessWidget {
     );
     final vendorField = _SummaryField.text('Vendor', detail.vendorName);
     final orderNameField = _SummaryField.text('Order name', detail.name);
-    final orderDateField = _SummaryField.text('Order date', detail.orderDateLabel);
-    final deliveryDateField =
-        _SummaryField.text('Delivery date', detail.deliveryDateLabel);
+    final orderDateField = _SummaryField.text(
+      'Order date',
+      detail.orderDateLabel,
+    );
+    final deliveryDateField = _SummaryField.text(
+      'Delivery date',
+      detail.deliveryDateLabel,
+    );
     final referenceField = detail.referenceLabel != null
         ? _SummaryField.text('Reference', detail.referenceLabel!)
         : null;
@@ -388,8 +394,9 @@ class _SummarySection extends StatelessWidget {
             children: [
               for (var i = 0; i < fields.length; i++)
                 Padding(
-                  padding:
-                      EdgeInsets.only(bottom: i == fields.length - 1 ? 0 : 16),
+                  padding: EdgeInsets.only(
+                    bottom: i == fields.length - 1 ? 0 : 16,
+                  ),
                   child: _SummaryTile(field: fields[i]),
                 ),
             ],
@@ -419,8 +426,9 @@ class _SummarySection extends StatelessWidget {
         ];
 
         if (referenceField != null) {
-          rows..add(const SizedBox(height: 16))
-              ..add(_SummaryTile(field: referenceField));
+          rows
+            ..add(const SizedBox(height: 16))
+            ..add(_SummaryTile(field: referenceField));
         }
 
         return Column(
@@ -599,10 +607,12 @@ class _ItemsSection extends StatelessWidget {
 
       return TableRow(
         children: headers
-            .map((label) => Padding(
-                  padding: tablePadding,
-                  child: Text(label, style: headerTextStyle),
-                ))
+            .map(
+              (label) => Padding(
+                padding: tablePadding,
+                child: Text(label, style: headerTextStyle),
+              ),
+            )
             .toList(),
       );
     }
@@ -619,10 +629,12 @@ class _ItemsSection extends StatelessWidget {
 
       return TableRow(
         children: values
-            .map((value) => Padding(
-                  padding: tablePadding,
-                  child: Text(value, style: cellStyle, softWrap: true),
-                ))
+            .map(
+              (value) => Padding(
+                padding: tablePadding,
+                child: Text(value, style: cellStyle, softWrap: true),
+              ),
+            )
             .toList(),
       );
     }
@@ -1040,9 +1052,9 @@ class _PaymentsTabState extends State<_PaymentsTab> {
 
 class _EditablePaymentRow {
   _EditablePaymentRow({required PurchaseOrderPayment payment})
-      : amountController = TextEditingController(text: payment.amountLabel),
-        methodController = TextEditingController(text: payment.methodLabel),
-        date = payment.date;
+    : amountController = TextEditingController(text: payment.amountLabel),
+      methodController = TextEditingController(text: payment.methodLabel),
+      date = payment.date;
 
   final TextEditingController amountController;
   final TextEditingController methodController;
@@ -1148,8 +1160,9 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
 
       setState(() {
         _paymentModes = modes;
-        final defaultModeId =
-            _paymentModes.isNotEmpty ? _paymentModes.first.id : null;
+        final defaultModeId = _paymentModes.isNotEmpty
+            ? _paymentModes.first.id
+            : null;
         for (final entry in _payments) {
           entry.setPaymentModeId(entry.paymentModeId ?? defaultModeId);
         }
@@ -1173,13 +1186,15 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
     final sanitizedToken = token
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
-    final normalizedAuth =
-        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
     final autoTokenValue = rawToken
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
-    final authtokenHeader =
-        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
     return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
   }
 
@@ -1235,7 +1250,7 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
     for (final entry in _payments) {
       final amount =
           double.tryParse(entry.amountController.text.replaceAll(',', '.')) ??
-              0;
+          0;
       final method = entry.paymentModeId?.trim() ?? '';
 
       if (amount <= 0 || method.isEmpty) {
@@ -1336,8 +1351,9 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed:
-                        _isSubmitting ? null : () => Navigator.of(context).pop(),
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => Navigator.of(context).pop(),
                     child: const Text('Cancel'),
                   ),
                   const SizedBox(width: 12),
@@ -1381,7 +1397,7 @@ class _PaymentEntriesTable extends StatelessWidget {
   final void Function(int index) onRemove;
   final void Function(_PaymentEntryDraft entry) onPickDate;
   final void Function(_PaymentEntryDraft entry, String? modeId)
-      onPaymentModeChanged;
+  onPaymentModeChanged;
   final String? paymentModesError;
 
   @override
@@ -1432,58 +1448,61 @@ class _PaymentEntriesTable extends StatelessWidget {
                   const SizedBox(height: 12),
                   _ResponsiveFieldsRow(
                     children: [
-                    TextFormField(
-                      controller: entries[i].amountController,
-                      decoration: const InputDecoration(
-                        labelText: 'Amount (RM)',
-                        border: OutlineInputBorder(),
+                      TextFormField(
+                        controller: entries[i].amountController,
+                        decoration: const InputDecoration(
+                          labelText: 'Amount (RM)',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                    ),
-                    DropdownButtonFormField<String>(
-                      value: entries[i].paymentModeId,
-                      decoration: InputDecoration(
-                        labelText: 'Payment mode',
-                        border: const OutlineInputBorder(),
-                        helperText: paymentModesError ??
-                            (paymentModes.isEmpty
-                                ? 'Unable to load payment modes'
-                                : null),
-                      ),
-                      isExpanded: true,
-                      hint: isLoadingPaymentModes
-                          ? Row(
-                              children: const [
-                                SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                ),
-                                SizedBox(width: 8),
-                                Text('Loading payment modes...'),
-                              ],
+                      DropdownButtonFormField<String>(
+                        value: entries[i].paymentModeId,
+                        decoration: InputDecoration(
+                          labelText: 'Payment mode',
+                          border: const OutlineInputBorder(),
+                          helperText:
+                              paymentModesError ??
+                              (paymentModes.isEmpty
+                                  ? 'Unable to load payment modes'
+                                  : null),
+                        ),
+                        isExpanded: true,
+                        hint: isLoadingPaymentModes
+                            ? Row(
+                                children: const [
+                                  SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text('Loading payment modes...'),
+                                ],
+                              )
+                            : const Text('Select payment mode'),
+                        items: paymentModes
+                            .map(
+                              (mode) => DropdownMenuItem<String>(
+                                value: mode.id,
+                                child: Text(mode.name),
+                              ),
                             )
-                          : const Text('Select payment mode'),
-                      items: paymentModes
-                          .map(
-                            (mode) => DropdownMenuItem<String>(
-                              value: mode.id,
-                              child: Text(mode.name),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: paymentModes.isEmpty || isLoadingPaymentModes
-                          ? null
-                          : (value) => onPaymentModeChanged(entries[i], value),
-                    ),
-                    _PaymentDateField(
-                      label: 'Payment date',
-                      dateLabel: entries[i].dateLabel,
-                      onTap: () => onPickDate(entries[i]),
-                    ),
+                            .toList(),
+                        onChanged: paymentModes.isEmpty || isLoadingPaymentModes
+                            ? null
+                            : (value) =>
+                                  onPaymentModeChanged(entries[i], value),
+                      ),
+                      _PaymentDateField(
+                        label: 'Payment date',
+                        dateLabel: entries[i].dateLabel,
+                        onTap: () => onPickDate(entries[i]),
+                      ),
                     ],
                   ),
                 ],
@@ -1533,8 +1552,8 @@ class _PaymentDateField extends StatelessWidget {
 
 class _PaymentEntryDraft {
   _PaymentEntryDraft()
-      : amountController = TextEditingController(),
-        date = DateTime.now();
+    : amountController = TextEditingController(),
+      date = DateTime.now();
 
   final TextEditingController amountController;
   DateTime date;
@@ -1701,8 +1720,9 @@ class _AttachmentCard extends StatelessWidget {
     final normalizedDownloadUrl = attachment.hasDownloadUrl
         ? _normalizeAttachmentDownloadUrl(attachment.downloadUrl!)
         : null;
-    final previewType =
-        normalizedDownloadUrl != null ? _resolvePreviewType(attachment) : null;
+    final previewType = normalizedDownloadUrl != null
+        ? _resolvePreviewType(attachment)
+        : null;
 
     final children = <Widget>[
       Row(
@@ -1812,7 +1832,9 @@ class _AttachmentCard extends StatelessWidget {
 
 enum _AttachmentPreviewType { image, pdf }
 
-_AttachmentPreviewType? _resolvePreviewType(PurchaseOrderAttachment attachment) {
+_AttachmentPreviewType? _resolvePreviewType(
+  PurchaseOrderAttachment attachment,
+) {
   if (!attachment.hasDownloadUrl) {
     return null;
   }
