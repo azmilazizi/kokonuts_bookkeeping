@@ -23,7 +23,16 @@ class PostDialog extends StatelessWidget {
     final prettyPayload = const JsonEncoder.withIndent('  ').convert(samplePayload);
 
     return AlertDialog(
-      title: Text(title),
+      title: Row(
+        children: [
+          Expanded(child: Text(title)),
+          IconButton(
+            tooltip: 'Close',
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close),
+          ),
+        ],
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -52,12 +61,6 @@ class PostDialog extends StatelessWidget {
           ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Close'),
-        ),
-      ],
     );
   }
 }

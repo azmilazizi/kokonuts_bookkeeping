@@ -65,14 +65,6 @@ class ExpenseDetailsDialog extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Close'),
-                ),
-              ),
             ],
           ),
         ),
