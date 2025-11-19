@@ -74,6 +74,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   List<PlatformFile> _supportingAttachments = const [];
   List<PurchaseOrderAttachment> _existingAttachments = const [];
   final Set<String> _attachmentsMarkedForDeletion = {};
+  final Set<String> _removedLineItemIds = {};
 
   @override
   void initState() {
@@ -139,6 +140,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _items
       ..clear()
       ..addAll(mappedItems);
+    _removedLineItemIds.clear();
 
     _existingAttachments = List.of(detail.attachments);
     _prefillPayments(detail);
@@ -202,6 +204,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   void _removeItem(int index) {
     setState(() {
       final removed = _items.removeAt(index);
+      final removedLineItemId = removed.lineItemId?.trim();
+      if (_isEditing && removedLineItemId != null && removedLineItemId.isNotEmpty) {
+        _removedLineItemIds.add(removedLineItemId);
+      }
       removed.dispose();
     });
   }
@@ -633,6 +639,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       userId: appState.username,
       nextPurchaseOrderNumber: _nextPurchaseOrderNumber,
       isUpdate: _isEditing,
+      removedLineItemIds: _isEditing
+          ? _removedLineItemIds
+              .map((id) => id.trim())
+              .where((id) => id.isNotEmpty)
+              .toList(growable: false)
+          : null,
     );
 
     setState(() {
