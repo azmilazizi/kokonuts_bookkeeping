@@ -13,6 +13,7 @@ import '../services/purchase_orders_service.dart';
 import '../services/purchase_order_detail_service.dart';
 import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
+import 'currency_input_formatter.dart';
 
 enum DiscountType { percentage, amount }
 
@@ -37,10 +38,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   final _paymentModesService = PaymentModesService();
   final TextEditingController _itemSearchController = TextEditingController();
   final TextEditingController _orderDiscountController = TextEditingController(
-    text: '0',
+    text: CurrencyInputFormatter.normalizeExistingValue('0'),
   );
   final TextEditingController _shippingFeeController = TextEditingController(
-    text: '0',
+    text: CurrencyInputFormatter.normalizeExistingValue('0'),
   );
 
   bool get _isEditing =>
@@ -116,8 +117,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _orderNumberController.text = detail.number;
     _selectedVendorName = detail.vendorName;
     _selectedVendorId = detail.vendorId;
-    _orderDiscountController.text = _formatDouble(detail.discountValue ?? 0);
-    _shippingFeeController.text = _formatDouble(detail.shippingFeeValue ?? 0);
+    _orderDiscountController.text = CurrencyInputFormatter.normalizeExistingValue(
+      _formatDouble(detail.discountValue ?? 0),
+    );
+    _shippingFeeController.text = CurrencyInputFormatter.normalizeExistingValue(
+      _formatDouble(detail.shippingFeeValue ?? 0),
+    );
 
     final mappedItems = detail.items
         .map(
@@ -128,8 +133,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
             initialLineItemId: item.lineItemId,
             initialDescription: item.description,
             initialQuantity: _formatDouble(item.quantityValue ?? 1),
-            initialSubtotal: _formatDouble(item.amountValue ?? 0),
-            initialDiscount: _formatDouble(item.discountValue ?? 0),
+            initialSubtotal: CurrencyInputFormatter.normalizeExistingValue(
+              _formatDouble(item.amountValue ?? 0),
+            ),
+            initialDiscount: CurrencyInputFormatter.normalizeExistingValue(
+              _formatDouble(item.discountValue ?? 0),
+            ),
           ),
         )
         .toList();
@@ -373,7 +382,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       (_itemsSubtotal - _itemsDiscount).clamp(0, double.infinity);
 
   double get _orderDiscountValue =>
-      double.tryParse(_orderDiscountController.text.replaceAll(',', '.')) ?? 0;
+      double.tryParse(_orderDiscountController.text) ?? 0;
 
   double get _orderDiscountAmount {
     final value = _orderDiscountValue;
@@ -391,7 +400,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       (_itemsDiscount + _orderDiscountAmount).clamp(0, _itemsSubtotal);
 
   double get _shippingFee =>
-      double.tryParse(_shippingFeeController.text.replaceAll(',', '.')) ?? 0;
+      double.tryParse(_shippingFeeController.text) ?? 0;
 
   double get _grandTotal => (_itemsSubtotal - _totalDiscount + _shippingFee)
       .clamp(0, double.infinity);
@@ -611,11 +620,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           continue;
         }
 
-        final amount =
-            double.tryParse(
-              payment.amountController.text.replaceAll(',', '.'),
-            ) ??
-            0;
+        final amount = double.tryParse(payment.amountController.text) ?? 0;
         final paymentMode = payment.paymentModeId?.trim() ?? '';
 
         if (amount <= 0 || paymentMode.isEmpty) {
@@ -905,6 +910,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   onDiscountTypeChanged: (type) {
                     setState(() {
                       _orderDiscountType = type;
+                      if (type == DiscountType.amount) {
+                        _orderDiscountController.text =
+                            CurrencyInputFormatter.normalizeExistingValue(
+                          _orderDiscountController.text,
+                        );
+                      }
                     });
                   },
                   shippingFeeController: _shippingFeeController,
@@ -1239,9 +1250,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                     decimal: true,
                     signed: false,
                   ),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                  ],
+                  inputFormatters: const [CurrencyInputFormatter()],
                   validator: (value) => _validateSubtotalField(
                     item,
                     isPlaceholder: isPlaceholder,
@@ -1254,9 +1263,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                     decimal: true,
                     signed: false,
                   ),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                  ],
+                  inputFormatters: const [CurrencyInputFormatter()],
                   validator: (value) => _validateDiscountField(
                     item,
                     isPlaceholder: isPlaceholder,
@@ -1396,6 +1403,7 @@ class _PaymentEntriesTable extends StatelessWidget {
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
+                        inputFormatters: const [CurrencyInputFormatter()],
                       ),
                       DropdownButtonFormField<String>(
                         value: entries[i].paymentModeId,
@@ -1697,9 +1705,9 @@ class _DiscountRow extends StatelessWidget {
                   decimal: true,
                   signed: false,
                 ),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                ],
+                inputFormatters: discountType == DiscountType.amount
+                    ? const [CurrencyInputFormatter()]
+                    : [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
                 textAlign: TextAlign.right,
               ),
             ),
@@ -1765,9 +1773,7 @@ class _ShippingRow extends StatelessWidget {
                   decimal: true,
                   signed: false,
                 ),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                ],
+                inputFormatters: const [CurrencyInputFormatter()],
                 textAlign: TextAlign.right,
               ),
             ),
@@ -2034,7 +2040,9 @@ class _PaymentEntryDraft {
     DateTime? initialDate,
     String? initialPaymentModeId,
     this.initialPaymentModeLabel,
-  })  : amountController = TextEditingController(text: initialAmount),
+  })  : amountController = TextEditingController(
+          text: CurrencyInputFormatter.normalizeExistingValue(initialAmount),
+        ),
         _onChanged = onChanged,
         date = initialDate ?? DateTime.now(),
         paymentModeId = initialPaymentModeId {
@@ -2084,8 +2092,12 @@ class _PurchaseOrderItemDraft {
     String initialDiscount = '0',
   }) : descriptionController = TextEditingController(text: initialDescription),
        quantityController = TextEditingController(text: initialQuantity),
-       subtotalController = TextEditingController(text: initialSubtotal),
-       discountController = TextEditingController(text: initialDiscount),
+       subtotalController = TextEditingController(
+         text: CurrencyInputFormatter.normalizeExistingValue(initialSubtotal),
+       ),
+       discountController = TextEditingController(
+         text: CurrencyInputFormatter.normalizeExistingValue(initialDiscount),
+       ),
        itemId = initialItemId,
        itemName = initialItemName,
        lineItemId = initialLineItemId,
@@ -2145,8 +2157,8 @@ class _PurchaseOrderItemDraft {
     lineItemId = null;
     descriptionController.clear();
     quantityController.text = '1';
-    subtotalController.text = '0';
-    discountController.text = '0';
+    subtotalController.text = CurrencyInputFormatter.normalizeExistingValue('0');
+    discountController.text = CurrencyInputFormatter.normalizeExistingValue('0');
     _onChanged();
   }
 

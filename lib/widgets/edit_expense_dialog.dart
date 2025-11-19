@@ -6,6 +6,7 @@ import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
 import '../services/expenses_service.dart';
 import '../services/payment_modes_service.dart';
+import 'currency_input_formatter.dart';
 
 class EditExpenseDialog extends StatefulWidget {
   const EditExpenseDialog({super.key, required this.expense});
@@ -33,8 +34,6 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
     'Other',
   ];
 
-  final _currencyFormatter = NumberFormat.currency(symbol: '', decimalDigits: 2);
-
   late DateTime _expenseDate;
   bool _isSaving = false;
   bool _isLoadingPaymentModes = false;
@@ -51,7 +50,9 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
     _nameController = TextEditingController(text: widget.expense.name);
     _categoryController = TextEditingController(text: widget.expense.categoryName);
     _amountController = TextEditingController(
-      text: widget.expense.amount?.toStringAsFixed(2) ?? widget.expense.amountLabel,
+      text: CurrencyInputFormatter.normalizeExistingValue(
+        widget.expense.amount?.toStringAsFixed(2) ?? widget.expense.amountLabel,
+      ),
     );
     _initialPaymentModeLabel = widget.expense.paymentMode;
     _expenseDate = widget.expense.date ?? DateTime.now();
@@ -303,7 +304,7 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
       ),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       textInputAction: TextInputAction.next,
-      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+      inputFormatters: const [CurrencyInputFormatter()],
       validator: (value) {
         final sanitized =
             value?.replaceAll(RegExp(r'[^0-9.,-]'), '').replaceAll(',', '').trim();
@@ -312,18 +313,6 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
           return 'Enter a valid amount.';
         }
         return null;
-      },
-      onChanged: (value) {
-        final sanitized = value.replaceAll(RegExp(r'[^0-9.,-]'), '').replaceAll(',', '');
-        final parsed = double.tryParse(sanitized);
-        if (parsed != null) {
-          final formatted = _currencyFormatter.format(parsed);
-          if (formatted != sanitized && _amountController.text != formatted) {
-            _amountController
-              ..text = formatted
-              ..selection = TextSelection.collapsed(offset: formatted.length);
-          }
-        }
       },
     );
   }
