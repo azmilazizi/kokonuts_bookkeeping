@@ -33,32 +33,39 @@ class _ErrorView extends StatelessWidget {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Stack(
         children: [
-          Icon(Icons.error_outline, color: theme.colorScheme.error, size: 48),
-          const SizedBox(height: 16),
-          Text('Something went wrong', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Text(
-            error?.toString() ?? 'Unable to load purchase order details.',
-            style: theme.textTheme.bodyMedium,
-            textAlign: TextAlign.center,
+          Positioned(
+            top: 0,
+            right: 0,
+            child: IconButton(
+              tooltip: 'Close',
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.close),
+            ),
           ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Close'),
-              ),
-              if (onRetry != null) ...[
-                const SizedBox(width: 12),
-                ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline,
+                    color: theme.colorScheme.error, size: 48),
+                const SizedBox(height: 16),
+                Text('Something went wrong',
+                    style: theme.textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Text(
+                  error?.toString() ?? 'Unable to load purchase order details.',
+                  style: theme.textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+                if (onRetry != null) ...[
+                  const SizedBox(height: 24),
+                  ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
+                ],
               ],
-            ],
+            ),
           ),
         ],
       ),
@@ -205,13 +212,6 @@ class _PurchaseOrderDetailsDialogState
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Close'),
-                      ),
-                    ),
                   ],
                 ),
               ),

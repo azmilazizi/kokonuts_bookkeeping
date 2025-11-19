@@ -79,13 +79,20 @@ class _EditPurchaseOrderDialogState extends State<EditPurchaseOrderDialog> {
 
         if (snapshot.hasError) {
           return AlertDialog(
-            title: const Text('Unable to load purchase order'),
+            title: Row(
+              children: [
+                const Expanded(
+                  child: Text('Unable to load purchase order'),
+                ),
+                IconButton(
+                  tooltip: 'Close',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
             content: Text(snapshot.error.toString()),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Close'),
-              ),
               TextButton(
                 onPressed: () {
                   setState(() {
@@ -100,14 +107,19 @@ class _EditPurchaseOrderDialogState extends State<EditPurchaseOrderDialog> {
 
         if (!snapshot.hasData) {
           return AlertDialog(
-            title: const Text('Unable to load purchase order'),
+            title: Row(
+              children: [
+                const Expanded(
+                  child: Text('Unable to load purchase order'),
+                ),
+                IconButton(
+                  tooltip: 'Close',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
             content: const Text('No purchase order data was returned.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Close'),
-              ),
-            ],
           );
         }
 
