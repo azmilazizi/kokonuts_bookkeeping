@@ -139,6 +139,49 @@ class PurchaseOrdersService {
     return PurchaseOrder.fromJson(orderJson);
   }
 
+  Future<PurchaseOrder> updatePurchaseOrder({
+    required String id,
+    required Map<String, String> headers,
+    required CreatePurchaseOrderRequest request,
+  }) async {
+    http.Response response;
+    try {
+      response = await _client.put(
+        Uri.parse('$_baseUrl/$id'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: jsonEncode(request.toJson()),
+      );
+    } catch (error) {
+      throw PurchaseOrdersException('Failed to update purchase order: $error');
+    }
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw PurchaseOrdersException(
+        'Update failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error) {
+      throw PurchaseOrdersException('Unable to parse update response: $error');
+    }
+
+    final orderJson = _extractCreatedOrder(decoded);
+    if (orderJson == null) {
+      throw PurchaseOrdersException(
+        'Update response did not include a purchase order payload.',
+      );
+    }
+
+    return PurchaseOrder.fromJson(orderJson);
+  }
+
   Future<void> deletePurchaseOrder({
     required String id,
     required Map<String, String> headers,

@@ -122,11 +122,16 @@ class PurchaseOrderDetail {
     required this.name,
     required this.deliveryStatusLabel,
     required this.vendorName,
+    this.vendorId,
     required this.currencySymbol,
     required this.subtotalLabel,
     required this.totalLabel,
+    this.subtotalValue,
+    this.totalValue,
     this.discountLabel,
+    this.discountValue,
     this.shippingFeeLabel,
+    this.shippingFeeValue,
     required this.items,
     required this.payments,
     required this.attachments,
@@ -276,11 +281,22 @@ class PurchaseOrderDetail {
           '—',
       deliveryStatusLabel: deliveryStatusLabel,
       vendorName: vendorName,
+      vendorId: _string(json['vendor_id']) ??
+          _string(json['vendor']) ??
+          _parseNestedIdAsString(json['vendor']),
       currencySymbol: currencySymbol,
       subtotalLabel: subtotalLabel,
       totalLabel: totalLabel,
+      subtotalValue: _parseDouble(subtotalValue),
+      totalValue: _parseDouble(totalValue),
       discountLabel: resolvedDiscountLabel,
+      discountValue: _parseDouble(
+        json['discount_total'] ?? json['discount'] ?? json['discount_amount'],
+      ),
       shippingFeeLabel: resolvedShippingFeeLabel,
+      shippingFeeValue: _parseDouble(
+        json['shipping_fee'] ?? json['shipping_total'],
+      ),
       items: List.unmodifiable(items),
       payments: List.unmodifiable(payments),
       attachments: List.unmodifiable(attachments),
@@ -304,14 +320,19 @@ class PurchaseOrderDetail {
   final String name;
   final String deliveryStatusLabel;
   final String vendorName;
+  final String? vendorId;
   final DateTime? orderDate;
   final DateTime? deliveryDate;
   final String? reference;
   final String currencySymbol;
   final String subtotalLabel;
+  final double? subtotalValue;
   final String totalLabel;
+  final double? totalValue;
   final String? discountLabel;
+  final double? discountValue;
   final String? shippingFeeLabel;
+  final double? shippingFeeValue;
   final String? notes;
   final String? terms;
   final String approvalStatus;
@@ -364,6 +385,11 @@ class PurchaseOrderItem {
     required this.rateLabel,
     required this.amountLabel,
     this.discountLabel,
+    this.quantityValue,
+    this.rateValue,
+    this.amountValue,
+    this.discountValue,
+    this.itemId,
   });
 
   factory PurchaseOrderItem.fromJson(
@@ -428,6 +454,11 @@ class PurchaseOrderItem {
       rateLabel: rateLabel,
       amountLabel: amountLabel,
       discountLabel: discountLabel,
+      quantityValue: _parseDouble(quantity),
+      rateValue: _parseDouble(rateValue),
+      amountValue: _parseDouble(amountValue),
+      discountValue: _parseDouble(discountValue),
+      itemId: _string(json['item_id']) ?? _string(json['itemid']),
     );
   }
 
@@ -437,6 +468,11 @@ class PurchaseOrderItem {
   final String rateLabel;
   final String amountLabel;
   final String? discountLabel;
+  final double? quantityValue;
+  final double? rateValue;
+  final double? amountValue;
+  final double? discountValue;
+  final String? itemId;
 
   bool get hasDiscount => discountLabel != null;
 }
@@ -912,6 +948,11 @@ int? _parseNestedId(dynamic value) {
         _parseInt(value['status']);
   }
   return _parseInt(value);
+}
+
+String? _parseNestedIdAsString(dynamic value) {
+  final parsed = _parseNestedId(value);
+  return parsed?.toString();
 }
 
 String? _parseVendorName(dynamic value) {

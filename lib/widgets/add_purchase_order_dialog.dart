@@ -10,13 +10,21 @@ import '../services/inventory_items_service.dart';
 import '../services/payment_modes_service.dart';
 import '../services/purchase_options_service.dart';
 import '../services/purchase_orders_service.dart';
+import '../services/purchase_order_detail_service.dart';
 import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
 
 enum DiscountType { percentage, amount }
 
 class AddPurchaseOrderDialog extends StatefulWidget {
-  const AddPurchaseOrderDialog({super.key});
+  const AddPurchaseOrderDialog({
+    super.key,
+    this.initialDetail,
+    this.orderId,
+  });
+
+  final PurchaseOrderDetail? initialDetail;
+  final String? orderId;
 
   @override
   State<AddPurchaseOrderDialog> createState() => _AddPurchaseOrderDialogState();
@@ -38,6 +46,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   final TextEditingController _shippingFeeController = TextEditingController(
     text: '0',
   );
+
+  bool get _isEditing =>
+      widget.initialDetail != null && (widget.orderId?.trim().isNotEmpty ?? false);
 
   late DateTime _orderDate;
   late _PurchaseOrderItemDraft _pendingItem;
@@ -68,8 +79,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   @override
   void initState() {
     super.initState();
-    _orderDate = DateTime.now();
+    _orderDate = widget.initialDetail?.orderDate ?? DateTime.now();
     _pendingItem = _PurchaseOrderItemDraft(onChanged: _handleItemsChanged);
+    if (widget.initialDetail != null) {
+      _prefillFromDetail(widget.initialDetail!);
+    }
     _orderDiscountController.addListener(_handleItemsChanged);
     _shippingFeeController.addListener(_handleItemsChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -96,6 +110,39 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     super.dispose();
   }
 
+  void _prefillFromDetail(PurchaseOrderDetail detail) {
+    _orderNameController.text = detail.name;
+    _orderNumberController.text = detail.number;
+    _selectedVendorName = detail.vendorName;
+    _selectedVendorId = detail.vendorId;
+    _orderDiscountController.text = _formatDouble(detail.discountValue ?? 0);
+    _shippingFeeController.text = _formatDouble(detail.shippingFeeValue ?? 0);
+
+    final mappedItems = detail.items
+        .map(
+          (item) => _PurchaseOrderItemDraft(
+            onChanged: _handleItemsChanged,
+            initialItemId: item.itemId,
+            initialItemName: item.name,
+            initialDescription: item.description,
+            initialQuantity: _formatDouble(item.quantityValue ?? 1),
+            initialSubtotal: _formatDouble(item.amountValue ?? 0),
+            initialDiscount: _formatDouble(item.discountValue ?? 0),
+          ),
+        )
+        .toList();
+
+    for (final existing in _items) {
+      existing.dispose();
+    }
+
+    _items
+      ..clear()
+      ..addAll(mappedItems);
+
+    _handleItemsChanged();
+  }
+
   void _removeItem(int index) {
     setState(() {
       final removed = _items.removeAt(index);
@@ -107,7 +154,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     setState(() {
       _isLoadingReferenceData = true;
       _referenceDataError = null;
-      _orderNumberStatus = 'Generating...';
+      _orderNumberStatus = _isEditing ? '' : 'Generating...';
     });
 
     final appState = AppStateScope.of(context);
@@ -343,6 +390,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   }
 
   void _updateOrderNumber() {
+    if (_isEditing) {
+      _orderNumberStatus = '';
+      _orderNumber = _orderNumberController.text.trim();
+      return;
+    }
+
     final generated = _buildOrderNumber();
     if (generated.isEmpty) {
       _orderNumberStatus = _isLoadingReferenceData
@@ -391,6 +444,13 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     return '$day$month$year';
   }
 
+  String _formatDouble(double value) {
+    if (value % 1 == 0) {
+      return value.toStringAsFixed(0);
+    }
+    return value.toStringAsFixed(2);
+  }
+
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) {
@@ -399,7 +459,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
     if (_items.isEmpty) {
       setState(() {
-        _submitError = 'Add at least one item to create a purchase order.';
+        _submitError =
+            'Add at least one item to ${_isEditing ? 'update' : 'create'} a purchase order.';
       });
       return;
     }
@@ -499,10 +560,16 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     });
 
     try {
-      final created = await _service.createPurchaseOrder(
-        headers: headers,
-        request: request,
-      );
+      final created = _isEditing
+          ? await _service.updatePurchaseOrder(
+              id: widget.orderId!,
+              headers: headers,
+              request: request,
+            )
+          : await _service.createPurchaseOrder(
+              headers: headers,
+              request: request,
+            );
 
       if (!mounted) {
         return;
@@ -517,10 +584,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           );
         } catch (error) {
           if (mounted) {
+            final actionWord = _isEditing ? 'updated' : 'created';
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Purchase order created but failed to upload attachments: $error',
+                  'Purchase order $actionWord but failed to upload attachments: $error',
                 ),
               ),
             );
@@ -535,7 +603,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       });
     } catch (error) {
       setState(() {
-        _submitError = 'Failed to create purchase order: $error';
+        _submitError =
+            'Failed to ${_isEditing ? 'update' : 'create'} purchase order: $error';
       });
     } finally {
       if (mounted) {
@@ -556,7 +625,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     );
 
     return AlertDialog(
-      title: const Text('Add Purchase Order'),
+      title: Text(_isEditing ? 'Edit Purchase Order' : 'Add Purchase Order'),
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
       content: SizedBox(
         width: dialogWidth,
@@ -700,17 +769,17 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: _isSubmitting ? null : _submit,
-          child: _isSubmitting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Create'),
-        ),
-      ],
-    );
+      onPressed: _isSubmitting ? null : _submit,
+      child: _isSubmitting
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Text(_isEditing ? 'Save Changes' : 'Create'),
+    ),
+  ],
+);
   }
 
   Future<void> _pickAttachment() async {
