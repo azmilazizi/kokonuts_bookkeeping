@@ -140,8 +140,62 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       ..addAll(mappedItems);
 
     _existingAttachments = List.of(detail.attachments);
+    _prefillPayments(detail);
 
     _handleItemsChanged();
+  }
+
+  void _prefillPayments(PurchaseOrderDetail detail) {
+    for (final payment in _payments) {
+      payment.dispose();
+    }
+    _payments.clear();
+
+    if (detail.payments.isEmpty) {
+      _isPaid = false;
+      return;
+    }
+
+    for (final payment in detail.payments) {
+      final entry = _PaymentEntryDraft(
+        onChanged: () => setState(() {}),
+        initialAmount: _resolvePrefillPaymentAmount(payment),
+        initialDate: payment.date ?? DateTime.now(),
+        initialPaymentModeLabel: payment.method,
+      );
+      _payments.add(entry);
+    }
+
+    _isPaid = true;
+  }
+
+  String? _resolvePrefillPaymentAmount(PurchaseOrderPayment payment) {
+    final amountValue = payment.amountValue;
+    if (amountValue != null) {
+      return _formatDouble(amountValue);
+    }
+
+    final digitsOnly =
+        payment.amountLabel.replaceAll(RegExp(r'[^0-9,.-]'), '');
+    if (digitsOnly.isEmpty) {
+      return null;
+    }
+
+    if (digitsOnly.contains(',') && digitsOnly.contains('.')) {
+      final lastComma = digitsOnly.lastIndexOf(',');
+      final lastDot = digitsOnly.lastIndexOf('.');
+      if (lastComma > lastDot) {
+        final withoutDots = digitsOnly.replaceAll('.', '');
+        return withoutDots.replaceAll(',', '.');
+      }
+      return digitsOnly.replaceAll(',', '');
+    }
+
+    if (digitsOnly.contains(',')) {
+      return digitsOnly.replaceAll(',', '.');
+    }
+
+    return digitsOnly;
   }
 
   void _removeItem(int index) {
@@ -201,8 +255,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         _selectedVendorId = selectedVendor?.id;
         if (_paymentModes.isNotEmpty) {
           for (final payment in _payments) {
+            final matchedId = payment.paymentModeId ??
+                _matchPaymentModeId(payment.initialPaymentModeLabel);
             payment.setPaymentModeId(
-              payment.paymentModeId ?? _paymentModes.first.id,
+              matchedId ?? _paymentModes.first.id,
             );
           }
         }
@@ -336,6 +392,20 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       }
       _payments.add(entry);
     });
+  }
+
+  String? _matchPaymentModeId(String? label) {
+    if (label == null || label.trim().isEmpty) {
+      return null;
+    }
+
+    final normalized = label.trim().toLowerCase();
+    for (final mode in _paymentModes) {
+      if (mode.name.toLowerCase() == normalized) {
+        return mode.id;
+      }
+    }
+    return null;
   }
 
   void _removePaymentEntry(int index) {
@@ -1910,10 +1980,16 @@ class _ReferenceErrorField extends StatelessWidget {
 }
 
 class _PaymentEntryDraft {
-  _PaymentEntryDraft({VoidCallback? onChanged})
-    : amountController = TextEditingController(),
-      _onChanged = onChanged,
-      date = DateTime.now() {
+  _PaymentEntryDraft({
+    VoidCallback? onChanged,
+    String? initialAmount,
+    DateTime? initialDate,
+    String? initialPaymentModeId,
+    this.initialPaymentModeLabel,
+  })  : amountController = TextEditingController(text: initialAmount),
+        _onChanged = onChanged,
+        date = initialDate ?? DateTime.now(),
+        paymentModeId = initialPaymentModeId {
     amountController.addListener(_notifyChange);
   }
 
@@ -1921,6 +1997,7 @@ class _PaymentEntryDraft {
   final VoidCallback? _onChanged;
   DateTime date;
   String? paymentModeId;
+  final String? initialPaymentModeLabel;
 
   String get dateLabel => DateFormat.yMMMd().format(date);
 

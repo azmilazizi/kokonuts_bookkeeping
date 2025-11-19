@@ -875,7 +875,6 @@ class _PaymentsTabState extends State<_PaymentsTab> {
   bool _isLoadingPaymentModes = false;
   String? _paymentModesError;
   bool _hasInitializedPaymentModes = false;
-  bool _isPaid = false;
 
   @override
   void initState() {
@@ -890,8 +889,6 @@ class _PaymentsTabState extends State<_PaymentsTab> {
       _resetDrafts();
       _initializeDrafts();
       _applyPaymentModeMatches();
-    } else {
-      _isPaid = widget.detail.hasPayments;
     }
   }
 
@@ -911,7 +908,6 @@ class _PaymentsTabState extends State<_PaymentsTab> {
   }
 
   void _initializeDrafts() {
-    _isPaid = widget.detail.hasPayments;
     for (final payment in widget.detail.payments) {
       _paymentDrafts.add(
         _PaymentEntryDraft(
@@ -1084,7 +1080,7 @@ class _PaymentsTabState extends State<_PaymentsTab> {
       children: [
         Row(
           children: [
-            Checkbox(value: _isPaid, onChanged: null),
+            Checkbox(value: widget.detail.hasPayments, onChanged: null),
             const SizedBox(width: 8),
             const Text('Paid'),
             const Spacer(),
