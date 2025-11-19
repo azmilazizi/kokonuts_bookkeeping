@@ -482,6 +482,7 @@ class PurchaseOrderPayment {
   const PurchaseOrderPayment({
     required this.reference,
     required this.amountLabel,
+    this.amountValue,
     this.date,
     this.method,
     this.status,
@@ -542,6 +543,7 @@ class PurchaseOrderPayment {
     return PurchaseOrderPayment(
       reference: reference,
       amountLabel: amountLabel,
+      amountValue: _parseDouble(amountValue),
       date: date,
       method: method,
       status: status,
@@ -552,6 +554,7 @@ class PurchaseOrderPayment {
 
   final String reference;
   final String amountLabel;
+  final double? amountValue;
   final DateTime? date;
   final String? method;
   final String? status;
