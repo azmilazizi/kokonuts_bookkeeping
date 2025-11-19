@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:kokonuts_bookkeeping/app/app_state.dart';
@@ -9,6 +10,22 @@ import '../services/payment_modes_service.dart';
 import '../services/purchase_order_detail_service.dart';
 import '../services/purchase_orders_service.dart';
 import 'attachment_pdf_preview.dart';
+import 'attachment_picker.dart';
+
+Map<String, String> _buildAuthHeaders(AppState appState, String token) {
+  final rawToken = (appState.rawAuthToken ?? token).trim();
+  final sanitizedToken =
+      token.replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '').trim();
+  final normalizedAuth =
+      sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+  final autoTokenValue =
+      rawToken.replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+          .trim();
+  final authtokenHeader =
+      autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+
+  return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
+}
 
 class PurchaseOrderDetailsDialog extends StatefulWidget {
   const PurchaseOrderDetailsDialog({super.key, required this.orderId});
@@ -45,19 +62,8 @@ class _ErrorView extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Close'),
-              ),
-              if (onRetry != null) ...[
-                const SizedBox(width: 12),
-                ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
-              ],
-            ],
-          ),
+          if (onRetry != null)
+            ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
         ],
       ),
     );
@@ -139,16 +145,61 @@ class _PurchaseOrderDetailsDialogState
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _DialogHeader(
+                      orderNumber: widget.orderId,
+                      onClose: () => Navigator.of(context).pop(),
+                    ),
+                    const SizedBox(height: 12),
+                    const Expanded(
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  ],
+                ),
+              );
             }
 
             if (snapshot.hasError) {
-              return _ErrorView(error: snapshot.error, onRetry: _retry);
+              return Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _DialogHeader(
+                      orderNumber: widget.orderId,
+                      onClose: () => Navigator.of(context).pop(),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: _ErrorView(error: snapshot.error, onRetry: _retry),
+                    ),
+                  ],
+                ),
+              );
             }
 
             if (!snapshot.hasData) {
-              return const _ErrorView(
-                error: 'Unable to load purchase order details.',
+              return Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _DialogHeader(
+                      orderNumber: widget.orderId,
+                      onClose: () => Navigator.of(context).pop(),
+                    ),
+                    const SizedBox(height: 12),
+                    const Expanded(
+                      child: _ErrorView(
+                        error: 'Unable to load purchase order details.',
+                      ),
+                    ),
+                  ],
+                ),
               );
             }
 
@@ -179,16 +230,11 @@ class _PurchaseOrderDetailsDialogState
                             detail: detail,
                             onPaymentsUpdated: _retry,
                           ),
-                          _AttachmentsTab(detail: detail),
+                          _AttachmentsTab(
+                            detail: detail,
+                            onAttachmentsUpdated: _retry,
+                          ),
                         ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Close'),
                       ),
                     ),
                   ],
@@ -869,13 +915,8 @@ class _PaymentsTab extends StatefulWidget {
 }
 
 class _PaymentsTabState extends State<_PaymentsTab> {
-  final _paymentModesService = PaymentModesService();
-  final _paymentDrafts = <_PaymentEntryDraft>[];
-  List<PaymentMode> _paymentModes = const [];
-  bool _isLoadingPaymentModes = false;
-  String? _paymentModesError;
-  bool _hasInitializedPaymentModes = false;
-  bool _isPaid = false;
+  final _dateFormat = DateFormat('d MMM y');
+  late final List<_EditablePaymentRow> _editablePayments;
 
   @override
   void initState() {
@@ -901,138 +942,9 @@ class _PaymentsTabState extends State<_PaymentsTab> {
     super.dispose();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_hasInitializedPaymentModes) {
-      _hasInitializedPaymentModes = true;
-      _loadPaymentModes();
-    }
-  }
-
-  void _initializeDrafts() {
-    _isPaid = widget.detail.hasPayments;
-    for (final payment in widget.detail.payments) {
-      _paymentDrafts.add(
-        _PaymentEntryDraft(
-          amountText: payment.amountLabel,
-          initialDate: payment.date,
-          paymentModeLabel: payment.method,
-        ),
-      );
-    }
-  }
-
-  void _resetDrafts() {
-    for (final draft in _paymentDrafts) {
-      draft.dispose();
-    }
-    _paymentDrafts.clear();
-  }
-
-  Future<void> _loadPaymentModes() async {
-    setState(() {
-      _paymentModesError = null;
-      _isLoadingPaymentModes = true;
-    });
-
-    final appState = AppStateScope.of(context);
-    final token = await appState.getValidAuthToken();
-
-    if (!mounted) {
-      return;
-    }
-
-    if (token == null || token.trim().isEmpty) {
-      setState(() {
-        _paymentModesError = 'You are not logged in.';
-        _isLoadingPaymentModes = false;
-      });
-      return;
-    }
-
-    final headers = _buildAuthHeaders(appState, token);
-
-    try {
-      final modes = await _paymentModesService.fetchPaymentModes(
-        headers: headers,
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _paymentModes = modes;
-        _applyPaymentModeMatches();
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _paymentModesError = error.toString();
-      });
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingPaymentModes = false);
-      }
-    }
-  }
-
-  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
-    final rawToken = (appState.rawAuthToken ?? token).trim();
-    final sanitizedToken = token
-        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
-        .trim();
-    final normalizedAuth = sanitizedToken.isNotEmpty
-        ? 'Bearer $sanitizedToken'
-        : token.trim();
-    final autoTokenValue = rawToken
-        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
-        .trim();
-    final authtokenHeader = autoTokenValue.isNotEmpty
-        ? autoTokenValue
-        : sanitizedToken;
-    return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
-  }
-
-  void _applyPaymentModeMatches() {
-    if (_paymentModes.isEmpty) {
-      return;
-    }
-
-    for (final draft in _paymentDrafts) {
-      final matchedId = _matchPaymentModeId(draft.paymentModeLabel);
-      final resolvedId = matchedId ?? draft.paymentModeId;
-      if (resolvedId != null) {
-        draft.setPaymentModeId(
-          resolvedId,
-          name: _resolvePaymentModeName(resolvedId) ?? draft.paymentModeLabel,
-        );
-      } else if (draft.paymentModeLabel == null && _paymentModes.isNotEmpty) {
-        final defaultMode = _paymentModes.first;
-        draft.setPaymentModeId(defaultMode.id, name: defaultMode.name);
-      }
-    }
-  }
-
-  String? _matchPaymentModeId(String? label) {
-    if (label == null) {
-      return null;
-    }
-    final normalized = label.trim().toLowerCase();
-    for (final mode in _paymentModes) {
-      if (mode.name.toLowerCase() == normalized) {
-        return mode.id;
-      }
-    }
-    return null;
-  }
-
-  String? _resolvePaymentModeName(String? id) {
-    if (id == null) {
-      return null;
+  String _formatDate(DateTime? date) {
+    if (date == null) {
+      return '—';
     }
     for (final mode in _paymentModes) {
       if (mode.id == id) {
@@ -1098,24 +1010,57 @@ class _PaymentsTabState extends State<_PaymentsTab> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        _PaymentEntriesTable(
-          entries: _paymentDrafts,
-          paymentModes: _paymentModes,
-          isLoadingPaymentModes: _isLoadingPaymentModes,
-          paymentModesError: _paymentModesError,
-          readOnly: true,
-          showAddButton: false,
-          showRemoveButton: false,
-          onAdd: () {},
-          onRemove: (_) {},
-          onPickDate: (_) {},
-          onPaymentModeChanged: (entry, modeId) {
-            final name = _resolvePaymentModeName(modeId);
-            setState(() => entry.setPaymentModeId(modeId, name: name));
-          },
-        ),
-      ],
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: _openAddPaymentDialog,
+                icon: const Icon(Icons.add),
+                label: const Text('Add payment'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                child: DataTable(
+                  columnSpacing: 24,
+                  columns: const [
+                    DataColumn(label: Text('Amount')),
+                    DataColumn(label: Text('Payment Mode')),
+                    DataColumn(label: Text('Date')),
+                  ],
+                  rows: _editablePayments
+                      .map(
+                        (payment) => DataRow(
+                          cells: [
+                            DataCell(
+                              Text(payment.amountController.text),
+                            ),
+                            DataCell(
+                              Text(payment.methodController.text),
+                            ),
+                            DataCell(
+                              Text(_formatDate(payment.date)),
+                            ),
+                          ],
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1242,23 +1187,6 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
         setState(() => _isLoadingPaymentModes = false);
       }
     }
-  }
-
-  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
-    final rawToken = (appState.rawAuthToken ?? token).trim();
-    final sanitizedToken = token
-        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
-        .trim();
-    final normalizedAuth = sanitizedToken.isNotEmpty
-        ? 'Bearer $sanitizedToken'
-        : token.trim();
-    final autoTokenValue = rawToken
-        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
-        .trim();
-    final authtokenHeader = autoTokenValue.isNotEmpty
-        ? autoTokenValue
-        : sanitizedToken;
-    return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
   }
 
   Future<void> _pickDate(_PaymentEntryDraft entry) async {
@@ -1743,28 +1671,139 @@ class _ResponsiveFieldsRow extends StatelessWidget {
   }
 }
 
-class _AttachmentsTab extends StatelessWidget {
-  const _AttachmentsTab({required this.detail});
+class _AttachmentsTab extends StatefulWidget {
+  const _AttachmentsTab({required this.detail, this.onAttachmentsUpdated});
 
   final PurchaseOrderDetail detail;
+  final VoidCallback? onAttachmentsUpdated;
+
+  @override
+  State<_AttachmentsTab> createState() => _AttachmentsTabState();
+}
+
+class _AttachmentsTabState extends State<_AttachmentsTab> {
+  final _service = PurchaseOrdersService();
+  bool _isUploading = false;
+  String? _uploadError;
+
+  Future<void> _pickAndUploadAttachments() async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: allowedAttachmentExtensions.toList(growable: false),
+    );
+
+    if (!mounted || result == null || result.files.isEmpty) {
+      return;
+    }
+
+    await _uploadAttachments(result.files);
+  }
+
+  Future<void> _uploadAttachments(List<PlatformFile> files) async {
+    setState(() {
+      _isUploading = true;
+      _uploadError = null;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _uploadError = 'You are not logged in.';
+        _isUploading = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      await _service.uploadAttachments(
+        id: widget.detail.id,
+        headers: headers,
+        attachments: files,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      widget.onAttachmentsUpdated?.call();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _uploadError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (!detail.hasAttachments) {
-      return const _EmptyTabMessage(
-        icon: Icons.attach_file,
-        message: 'No attachments were uploaded for this purchase order.',
-      );
-    }
+    final content = widget.detail.hasAttachments
+        ? ListView.separated(
+            padding: EdgeInsets.zero,
+            itemCount: widget.detail.attachments.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final attachment = widget.detail.attachments[index];
+              return _AttachmentCard(attachment: attachment);
+            },
+          )
+        : const _EmptyTabMessage(
+            icon: Icons.attach_file,
+            message: 'No attachments were uploaded for this purchase order.',
+          );
 
-    return ListView.separated(
-      padding: EdgeInsets.zero,
-      itemCount: detail.attachments.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final attachment = detail.attachments[index];
-        return _AttachmentCard(attachment: attachment);
-      },
+    final overlay = _isUploading
+        ? Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Center(child: CircularProgressIndicator()),
+          )
+        : const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: ElevatedButton.icon(
+            onPressed: _isUploading ? null : _pickAndUploadAttachments,
+            icon: const Icon(Icons.add),
+            label: const Text('Add attachment'),
+          ),
+        ),
+        if (_uploadError != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _uploadError!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Expanded(
+          child: Stack(
+            children: [
+              Positioned.fill(child: content),
+              if (_isUploading) Positioned.fill(child: overlay),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
