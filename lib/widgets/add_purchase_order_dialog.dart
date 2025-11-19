@@ -144,6 +144,23 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
     _existingAttachments = List.of(detail.attachments);
 
+    if (detail.payments.isNotEmpty) {
+      _isPaid = true;
+      final mappedPayments = detail.payments
+          .map(
+            (payment) => _PaymentEntryDraft(
+              amountText: _extractNumericAmount(payment.amountLabel),
+              initialDate: payment.date,
+              paymentModeLabel: payment.method,
+            ),
+          )
+          .toList();
+
+      _payments
+        ..clear()
+        ..addAll(mappedPayments);
+    }
+
     _handleItemsChanged();
   }
 
@@ -342,6 +359,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       final removed = _payments.removeAt(index);
       removed.dispose();
     });
+  }
+
+  String _extractNumericAmount(String amountLabel) {
+    final sanitized = amountLabel.replaceAll(RegExp(r'[^0-9.,-]'), '');
+    return sanitized.replaceAll(',', '').trim();
   }
 
   Future<void> _pickPaymentDate(_PaymentEntryDraft entry) async {
