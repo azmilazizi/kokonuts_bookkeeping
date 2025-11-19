@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/bills_service.dart';
+import '../widgets/bill_details_dialog.dart';
 import '../widgets/date_range_filter_button.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/tab_page_header.dart';
@@ -743,77 +744,91 @@ class _BillRowState extends State<_BillRow> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        decoration: BoxDecoration(
-          color: _hovering ? hoverBackground : baseBackground,
-          border: Border(
-            top: widget.showTopBorder ? BorderSide(color: borderColor) : BorderSide.none,
-            bottom: BorderSide(color: borderColor),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _handleView,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: _hovering ? hoverBackground : baseBackground,
+            border: Border(
+              top: widget.showTopBorder ? BorderSide(color: borderColor) : BorderSide.none,
+              bottom: BorderSide(color: borderColor),
+            ),
           ),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-        child: Row(
-          children: [
-            _DataCell(widget.vendorName, flex: _columnFlex[0]),
-            _DataCell(
-              widget.bill.formattedDate,
-              flex: _columnFlex[1],
-              textAlign: TextAlign.center,
-            ),
-            _DataCell(
-              widget.bill.formattedDueDate,
-              flex: _columnFlex[2],
-              textAlign: TextAlign.center,
-            ),
-            Expanded(
-              flex: _columnFlex[3],
-              child: Align(
-                alignment: Alignment.center,
-                child: _StatusPill(status: widget.bill.status, theme: widget.theme),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          child: Row(
+            children: [
+              _DataCell(widget.vendorName, flex: _columnFlex[0]),
+              _DataCell(
+                widget.bill.formattedDate,
+                flex: _columnFlex[1],
+                textAlign: TextAlign.center,
               ),
-            ),
-            _DataCell(
-              widget.bill.totalLabel,
-              flex: _columnFlex[4],
-              textAlign: TextAlign.end,
-              style: widget.theme.textTheme.bodyMedium?.copyWith(
-                color: widget.theme.colorScheme.error,
-                fontWeight: FontWeight.w600,
+              _DataCell(
+                widget.bill.formattedDueDate,
+                flex: _columnFlex[2],
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: _columnFlex[5],
-              child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined),
-                      tooltip: 'Edit bill',
-                      iconSize: 22,
-                      visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-                      onPressed: _handleEdit,
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      tooltip: 'Delete bill',
-                      iconSize: 22,
-                      visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-                      color: widget.theme.colorScheme.error,
-                      onPressed: _handleDelete,
-                    ),
-                  ],
+              Expanded(
+                flex: _columnFlex[3],
+                child: Align(
+                  alignment: Alignment.center,
+                  child: _StatusPill(status: widget.bill.status, theme: widget.theme),
                 ),
               ),
-            ),
-          ],
+              _DataCell(
+                widget.bill.totalLabel,
+                flex: _columnFlex[4],
+                textAlign: TextAlign.end,
+                style: widget.theme.textTheme.bodyMedium?.copyWith(
+                  color: widget.theme.colorScheme.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: _columnFlex[5],
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined),
+                        tooltip: 'Edit bill',
+                        iconSize: 22,
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                        onPressed: _handleEdit,
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: 'Delete bill',
+                        iconSize: 22,
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                        color: widget.theme.colorScheme.error,
+                        onPressed: _handleDelete,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  void _handleView() {
+    showDialog(
+      context: context,
+      builder: (context) => BillDetailsDialog(
+        bill: widget.bill,
+        vendorName: widget.vendorName,
       ),
     );
   }

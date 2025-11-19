@@ -688,92 +688,86 @@ class _ExpenseRowState extends State<_ExpenseRow> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        decoration: BoxDecoration(
-          color: _hovering ? hoverBackground : baseBackground,
-          border: Border(
-            top: widget.showTopBorder ? BorderSide(color: borderColor) : BorderSide.none,
-            bottom: BorderSide(color: borderColor),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _handleView,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: _hovering ? hoverBackground : baseBackground,
+            border: Border(
+              top: widget.showTopBorder ? BorderSide(color: borderColor) : BorderSide.none,
+              bottom: BorderSide(color: borderColor),
+            ),
           ),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-        child: Row(
-          children: [
-            _DataCell(widget.expense.vendor, flex: _columnFlex[0]),
-            _DataCell(widget.expense.name, flex: _columnFlex[1]),
-            _DataCell(widget.expense.categoryName, flex: _columnFlex[2]),
-            _DataCell(
-              widget.expense.formattedAmount,
-              flex: _columnFlex[3],
-              textAlign: TextAlign.end,
-              style: widget.theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: Colors.red,
-              ),
-            ),
-            _DataCell(
-              widget.expense.formattedDate,
-              flex: _columnFlex[4],
-              textAlign: TextAlign.center,
-            ),
-            Expanded(
-              flex: _columnFlex[5],
-              child: Align(
-                alignment: Alignment.center,
-                child: Text(
-                  widget.expense.receiptLabel,
-                  style: widget.theme.textTheme.bodyMedium,
-                  overflow: TextOverflow.ellipsis,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          child: Row(
+            children: [
+              _DataCell(widget.expense.vendor, flex: _columnFlex[0]),
+              _DataCell(widget.expense.name, flex: _columnFlex[1]),
+              _DataCell(widget.expense.categoryName, flex: _columnFlex[2]),
+              _DataCell(
+                widget.expense.formattedAmount,
+                flex: _columnFlex[3],
+                textAlign: TextAlign.end,
+                style: widget.theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.red,
                 ),
               ),
-            ),
-            _DataCell(
-              widget.expense.paymentMode,
-              flex: _columnFlex[6],
-              textAlign: TextAlign.center,
-            ),
-            Expanded(
-              flex: _columnFlex[7],
-              child: Align(
-                alignment: Alignment.center,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      tooltip: 'View details',
-                      icon: const Icon(Icons.visibility_outlined),
-                      iconSize: 22,
-                      visualDensity: VisualDensity.compact,
-                      constraints:
-                          const BoxConstraints.tightFor(width: 40, height: 40),
-                      onPressed: _handleView,
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      tooltip: 'Edit',
-                      icon: const Icon(Icons.edit_outlined),
-                      iconSize: 22,
-                      visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-                      onPressed: _handleEdit,
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      tooltip: 'Delete',
-                      icon: const Icon(Icons.delete_outline),
-                      iconSize: 22,
-                      visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-                      color: widget.theme.colorScheme.error,
-                      onPressed: _handleDelete,
-                    ),
-                  ],
+              _DataCell(
+                widget.expense.formattedDate,
+                flex: _columnFlex[4],
+                textAlign: TextAlign.center,
+              ),
+              Expanded(
+                flex: _columnFlex[5],
+                child: Align(
+                  alignment: Alignment.center,
+                  child: Text(
+                    widget.expense.receiptLabel,
+                    style: widget.theme.textTheme.bodyMedium,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
-            ),
-          ],
+              _DataCell(
+                widget.expense.paymentMode,
+                flex: _columnFlex[6],
+                textAlign: TextAlign.center,
+              ),
+              Expanded(
+                flex: _columnFlex[7],
+                child: Align(
+                  alignment: Alignment.center,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        tooltip: 'Edit',
+                        icon: const Icon(Icons.edit_outlined),
+                        iconSize: 22,
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                        onPressed: _handleEdit,
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: 'Delete',
+                        icon: const Icon(Icons.delete_outline),
+                        iconSize: 22,
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                        color: widget.theme.colorScheme.error,
+                        onPressed: _handleDelete,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
