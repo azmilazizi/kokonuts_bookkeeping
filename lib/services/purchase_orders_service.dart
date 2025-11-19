@@ -52,6 +52,45 @@ class PurchaseOrdersService {
     }
   }
 
+  Future<void> deletePayments({
+    required String id,
+    required Map<String, String> headers,
+    required List<String> paymentIds,
+  }) async {
+    if (paymentIds.isEmpty) {
+      return;
+    }
+
+    final normalizedIds = paymentIds
+        .map((value) => int.tryParse(value) ?? value)
+        .toList(growable: false);
+
+    final request = http.Request(
+      'DELETE',
+      Uri.parse('$_singleOrderBaseUrl/$id/payments'),
+    )
+      ..headers.addAll({
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        ...headers,
+      })
+      ..body = jsonEncode({'payments': normalizedIds});
+
+    http.StreamedResponse response;
+    try {
+      response = await _client.send(request);
+    } catch (error) {
+      throw PurchaseOrdersException('Failed to delete payments: $error');
+    }
+
+    final resolved = await http.Response.fromStream(response);
+    if (resolved.statusCode != 200 && resolved.statusCode != 204) {
+      throw PurchaseOrdersException(
+        'Payment delete failed with status ${resolved.statusCode}: ${resolved.body}',
+      );
+    }
+  }
+
   Future<PurchaseOrdersPage> fetchPurchaseOrders({
     required int page,
     required int perPage,
