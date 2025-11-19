@@ -852,10 +852,15 @@ class _DetailsTab extends StatelessWidget {
 }
 
 class _EmptyTabMessage extends StatelessWidget {
-  const _EmptyTabMessage({required this.icon, required this.message});
+  const _EmptyTabMessage({
+    required this.icon,
+    required this.message,
+    this.action,
+  });
 
   final IconData icon;
   final String message;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -873,6 +878,10 @@ class _EmptyTabMessage extends StatelessWidget {
             style: theme.textTheme.bodyMedium?.copyWith(color: color),
             textAlign: TextAlign.center,
           ),
+          if (action != null) ...[
+            const SizedBox(height: 16),
+            action!,
+          ],
         ],
       ),
     );
@@ -1078,19 +1087,15 @@ class _PaymentsTabState extends State<_PaymentsTab> {
     if (payments.isEmpty) {
       return Column(
         children: [
-          const Expanded(
+          Expanded(
             child: _EmptyTabMessage(
               icon: Icons.receipt_long,
               message: 'No payments recorded for this purchase order.',
-            ),
-          ),
-          const SizedBox(height: 16),
-          Align(
-            alignment: Alignment.center,
-            child: ElevatedButton.icon(
-              onPressed: _openAddPaymentDialog,
-              icon: const Icon(Icons.add),
-              label: const Text('Add payment'),
+              action: ElevatedButton.icon(
+                onPressed: _openAddPaymentDialog,
+                icon: const Icon(Icons.add),
+                label: const Text('Add payment'),
+              ),
             ),
           ),
         ],
@@ -1788,19 +1793,15 @@ class _AttachmentsTab extends StatelessWidget {
     if (!detail.hasAttachments) {
       return Column(
         children: [
-          const Expanded(
+          Expanded(
             child: _EmptyTabMessage(
               icon: Icons.attach_file,
               message: 'No attachments were uploaded for this purchase order.',
-            ),
-          ),
-          const SizedBox(height: 16),
-          Align(
-            alignment: Alignment.center,
-            child: ElevatedButton.icon(
-              onPressed: onAddAttachment,
-              icon: const Icon(Icons.attach_file),
-              label: const Text('Add attachment'),
+              action: ElevatedButton.icon(
+                onPressed: onAddAttachment,
+                icon: const Icon(Icons.attach_file),
+                label: const Text('Add attachment'),
+              ),
             ),
           ),
         ],
