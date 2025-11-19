@@ -390,6 +390,7 @@ class PurchaseOrderItem {
     this.amountValue,
     this.discountValue,
     this.itemId,
+    this.lineItemId,
   });
 
   factory PurchaseOrderItem.fromJson(
@@ -444,6 +445,17 @@ class PurchaseOrderItem {
         ? '—'
         : descriptions.join('\n');
 
+    final lineItemId = _string(json['id']) ??
+        _string(json['rel_id']) ??
+        _string(json['relId']) ??
+        _string(json['line_item_id']) ??
+        _string(json['lineItemId']) ??
+        _string(json['order_item_id']) ??
+        _string(json['orderItemId']) ??
+        _string(json['detail_id']) ??
+        _string(json['detailId']) ??
+        _string(json['pur_order_detail_id']);
+
     return PurchaseOrderItem(
       name: _string(json['item_name']) ??
           _string(json['name']) ??
@@ -459,6 +471,7 @@ class PurchaseOrderItem {
       amountValue: _parseDouble(amountValue),
       discountValue: _parseDouble(discountValue),
       itemId: _string(json['item_id']) ?? _string(json['itemid']),
+      lineItemId: lineItemId,
     );
   }
 
@@ -473,6 +486,7 @@ class PurchaseOrderItem {
   final double? amountValue;
   final double? discountValue;
   final String? itemId;
+  final String? lineItemId;
 
   bool get hasDiscount => discountLabel != null;
 }

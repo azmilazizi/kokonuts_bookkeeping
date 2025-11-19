@@ -620,6 +620,7 @@ class CreatePurchaseOrderItem {
     required this.total,
     this.unitId,
     this.description,
+    this.lineItemId,
   });
 
   final String itemId;
@@ -631,9 +632,10 @@ class CreatePurchaseOrderItem {
   final double total;
   final String? unitId;
   final String? description;
+  final String? lineItemId;
 
   Map<String, dynamic> toJson({required int? purchaseOrderNumber}) {
-    return <String, dynamic>{
+    final payload = <String, dynamic>{
       'pur_order': purchaseOrderNumber ?? 0,
       'item_code': itemId,
       'description': description,
@@ -651,6 +653,14 @@ class CreatePurchaseOrderItem {
       'item_name': itemName,
       'wh_quantity_received': null,
     };
+
+    final existingId = lineItemId?.trim();
+    if (existingId != null && existingId.isNotEmpty) {
+      final numericId = int.tryParse(existingId);
+      payload['id'] = numericId ?? existingId;
+    }
+
+    return payload;
   }
 }
 

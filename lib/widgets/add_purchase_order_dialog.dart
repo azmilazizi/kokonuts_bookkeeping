@@ -123,6 +123,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
             onChanged: _handleItemsChanged,
             initialItemId: item.itemId,
             initialItemName: item.name,
+            initialLineItemId: item.lineItemId,
             initialDescription: item.description,
             initialQuantity: _formatDouble(item.quantityValue ?? 1),
             initialSubtotal: _formatDouble(item.amountValue ?? 0),
@@ -562,6 +563,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           (item) => CreatePurchaseOrderItem(
             itemId: item.itemId ?? '',
             itemName: item.itemName ?? 'Item',
+            lineItemId: item.lineItemId,
             description: item.descriptionController.text.trim().isEmpty
                 ? null
                 : item.descriptionController.text.trim(),
@@ -2028,6 +2030,7 @@ class _PurchaseOrderItemDraft {
     required VoidCallback onChanged,
     String? initialItemId,
     String? initialItemName,
+    String? initialLineItemId,
     String initialDescription = '',
     String initialQuantity = '1',
     String initialSubtotal = '0',
@@ -2038,6 +2041,7 @@ class _PurchaseOrderItemDraft {
        discountController = TextEditingController(text: initialDiscount),
        itemId = initialItemId,
        itemName = initialItemName,
+       lineItemId = initialLineItemId,
        _onChanged = onChanged {
     descriptionController.addListener(onChanged);
     quantityController.addListener(onChanged);
@@ -2053,6 +2057,7 @@ class _PurchaseOrderItemDraft {
 
   String? itemId;
   String? itemName;
+  String? lineItemId;
 
   double get quantity =>
       double.tryParse(quantityController.text.replaceAll(',', '.')) ?? 0;
@@ -2090,6 +2095,7 @@ class _PurchaseOrderItemDraft {
   void clear() {
     itemId = null;
     itemName = null;
+    lineItemId = null;
     descriptionController.clear();
     quantityController.text = '1';
     subtotalController.text = '0';
