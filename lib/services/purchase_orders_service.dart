@@ -500,6 +500,7 @@ class CreatePurchaseOrderRequest {
     this.vendorId,
     this.userId,
     this.nextPurchaseOrderNumber,
+    this.isUpdate = false,
   });
 
   final String? vendorId;
@@ -516,6 +517,7 @@ class CreatePurchaseOrderRequest {
   final List<CreatePurchaseOrderPayment>? payments;
   final String? userId;
   final int? nextPurchaseOrderNumber;
+  final bool isUpdate;
 
   Map<String, dynamic> toJson() {
     final discountPercent = 0;
@@ -555,7 +557,7 @@ class CreatePurchaseOrderRequest {
       'order_date': _formatDate(orderDate),
       'shipping_fee': shippingFee,
       'shipping_country': 0,
-      'newitems': items
+      (isUpdate ? 'items' : 'newitems'): items
           .map((item) => item.toJson(purchaseOrderNumber: nextPurchaseOrderNumber))
           .toList(growable: false),
     };
