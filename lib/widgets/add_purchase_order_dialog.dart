@@ -645,6 +645,13 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       payments = parsedPayments;
     }
 
+    final removedPaymentIds = _isEditing
+        ? _removedPaymentIds
+            .map((id) => id.trim())
+            .where((id) => id.isNotEmpty)
+            .toList(growable: false)
+        : const <String>[];
+
     final request = CreatePurchaseOrderRequest(
       vendorId: _selectedVendorId,
       orderName: _orderNameController.text.trim(),
@@ -667,12 +674,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
               .where((id) => id.isNotEmpty)
               .toList(growable: false)
           : null,
-      removedPaymentIds: _isEditing && _removedPaymentIds.isNotEmpty
-          ? _removedPaymentIds
-              .map((id) => id.trim())
-              .where((id) => id.isNotEmpty)
-              .toList(growable: false)
-          : null,
+      removedPaymentIds:
+          removedPaymentIds.isEmpty ? null : removedPaymentIds,
     );
 
     setState(() {
@@ -694,6 +697,24 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
       if (!mounted) {
         return;
+      }
+
+      if (_isEditing && removedPaymentIds.isNotEmpty) {
+        try {
+          await _service.deletePayments(
+            id: created.id,
+            headers: headers,
+            paymentIds: removedPaymentIds,
+          );
+        } catch (error) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to delete some payments: $error'),
+              ),
+            );
+          }
+        }
       }
 
       if (_isEditing && _attachmentsMarkedForDeletion.isNotEmpty) {
