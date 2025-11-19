@@ -605,6 +605,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
       final parsedPayments = <CreatePurchaseOrderPayment>[];
       for (final payment in _payments) {
+        final isExistingPayment =
+            _isEditing && (payment.paymentId?.trim().isNotEmpty ?? false);
+        if (isExistingPayment) {
+          continue;
+        }
+
         final amount =
             double.tryParse(
               payment.amountController.text.replaceAll(',', '.'),

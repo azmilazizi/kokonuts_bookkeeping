@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/purchase_orders_service.dart';
+import '../widgets/alert_banner.dart';
 import '../widgets/date_range_filter_button.dart';
 import '../widgets/edit_purchase_order_dialog.dart';
 import '../widgets/purchase_order_details_dialog.dart';
@@ -51,6 +52,8 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   bool _hasMore = true;
   int _nextPage = 1;
   String? _error;
+  String? _statusMessage;
+  bool _statusIsError = false;
 
   @override
   void initState() {
@@ -230,8 +233,6 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       _isDeleting = true;
     });
 
-    ScaffoldMessenger.of(context).clearSnackBars();
-
     try {
       await _service.deletePurchaseOrder(id: order.id, headers: headers);
       if (!mounted) {
@@ -244,21 +245,16 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
         _error = null;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Purchase order "${order.number}" deleted.'),
-        ),
-      );
+      _showStatusBanner('Purchase order "${order.number}" deleted.');
     } on PurchaseOrdersException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message)),
-        );
+        _showStatusBanner(error.message, isError: true);
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete purchase order: $error')),
+        _showStatusBanner(
+          'Failed to delete purchase order: $error',
+          isError: true,
         );
       }
     } finally {
@@ -268,6 +264,22 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
         });
       }
     }
+  }
+
+  void _showStatusBanner(String message, {bool isError = false}) {
+    setState(() {
+      _statusMessage = message;
+      _statusIsError = isError;
+    });
+  }
+
+  void _dismissStatusBanner() {
+    if (_statusMessage == null) {
+      return;
+    }
+    setState(() {
+      _statusMessage = null;
+    });
   }
 
   @override
@@ -324,6 +336,18 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                               ),
                             ),
                           ),
+                          if (_statusMessage != null)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                                child: AlertBanner(
+                                  message: _statusMessage!,
+                                  isError: _statusIsError,
+                                  onDismiss: _dismissStatusBanner,
+                                ),
+                              ),
+                            ),
                           SliverPersistentHeader(
                             pinned: true,
                             delegate: _PurchaseOrdersHeaderDelegate(
@@ -402,7 +426,10 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
     });
   }
 
-  void insertCreatedPurchaseOrder(PurchaseOrder order) {
+  void insertCreatedPurchaseOrder(
+    PurchaseOrder order, {
+    String? successMessage,
+  }) {
     setState(() {
       final existingIndex =
           _allOrders.indexWhere((element) => element.id == order.id);
@@ -414,6 +441,10 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       _applySorting();
       _applyFilters();
       _error = null;
+      if (successMessage != null) {
+        _statusMessage = successMessage;
+        _statusIsError = false;
+      }
     });
   }
 
@@ -818,7 +849,17 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
       builder: (context) => EditPurchaseOrderDialog(orderId: widget.order.id),
     ).then((value) {
       if (value is PurchaseOrder) {
-        tabState?.insertCreatedPurchaseOrder(value);
+        final normalizedNumber = value.number.trim();
+        final orderLabel =
+            (normalizedNumber.isEmpty ? value.name.trim() : normalizedNumber)
+                .trim();
+        final message = orderLabel.isEmpty
+            ? 'Purchase order updated.'
+            : 'Purchase order $orderLabel updated.';
+        tabState?.insertCreatedPurchaseOrder(
+          value,
+          successMessage: message,
+        );
       }
     });
   }
