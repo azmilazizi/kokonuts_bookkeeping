@@ -4,6 +4,7 @@ import '../app/app_state_scope.dart';
 import '../services/purchase_orders_service.dart';
 import '../widgets/date_range_filter_button.dart';
 import '../widgets/edit_purchase_order_dialog.dart';
+import '../widgets/purchase_order_details_dialog.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/tab_page_header.dart';
 import '../widgets/table_filter_bar.dart';
@@ -810,7 +811,7 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
 
   static const _columnFlex = [3, 4, 3, 3, 3, 2, 2, 4];
 
-  void _showDetails(BuildContext context) {
+  void _showEditDialog(BuildContext context) {
     final tabState = context.findAncestorStateOfType<PurchaseOrdersTabState>();
     showDialog(
       context: context,
@@ -820,6 +821,14 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
         tabState?.insertCreatedPurchaseOrder(value);
       }
     });
+  }
+
+  void _showDetails(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) =>
+          PurchaseOrderDetailsDialog(orderId: widget.order.id),
+    );
   }
 
   @override
@@ -913,7 +922,7 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
                         padding: iconPadding,
                         constraints: iconConstraints,
                         visualDensity: iconDensity,
-                        onPressed: () => _showDetails(context),
+                        onPressed: () => _showEditDialog(context),
                       ),
                       SizedBox(width: actionSpacing),
                       IconButton(
