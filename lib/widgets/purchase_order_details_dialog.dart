@@ -11,6 +11,7 @@ import '../services/payment_modes_service.dart';
 import '../services/purchase_order_detail_service.dart';
 import '../services/purchase_orders_service.dart';
 import 'attachment_pdf_preview.dart';
+import 'currency_input_formatter.dart';
 
 class PurchaseOrderDetailsDialog extends StatefulWidget {
   const PurchaseOrderDetailsDialog({super.key, required this.orderId});
@@ -1577,6 +1578,7 @@ class _PaymentEntriesTable extends StatelessWidget {
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
+                          inputFormatters: const [CurrencyInputFormatter()],
                           enabled: !readOnly,
                         ),
                       if (readOnly)
@@ -1731,7 +1733,9 @@ class _PaymentEntryDraft {
     String? amountText,
     DateTime? initialDate,
     this.paymentModeLabel,
-  }) : amountController = TextEditingController(text: amountText ?? ''),
+  }) : amountController = TextEditingController(
+          text: CurrencyInputFormatter.normalizeExistingValue(amountText),
+        ),
        date = initialDate;
 
   final TextEditingController amountController;

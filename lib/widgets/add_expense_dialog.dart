@@ -8,6 +8,7 @@ import 'package:kokonuts_bookkeeping/app/app_state.dart';
 import '../app/app_state_scope.dart';
 import '../services/payment_modes_service.dart';
 import 'attachment_picker.dart';
+import 'currency_input_formatter.dart';
 
 class AddExpenseDialog extends StatefulWidget {
   const AddExpenseDialog({super.key});
@@ -20,14 +21,10 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   final _formKey = GlobalKey<FormState>();
   final _vendorController = TextEditingController();
   final _nameController = TextEditingController();
-  final _amountController = TextEditingController();
+  final _amountController =
+      TextEditingController(text: CurrencyInputFormatter.normalizeExistingValue(null));
   final _notesController = TextEditingController();
   final _paymentModesService = PaymentModesService();
-
-  final _currencyFormatter = NumberFormat.currency(
-    symbol: '',
-    decimalDigits: 2,
-  );
 
   final List<String> _categories = const [
     'Office Supplies',
@@ -309,26 +306,13 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
       ),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       textInputAction: TextInputAction.next,
-      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+      inputFormatters: const [CurrencyInputFormatter()],
       validator: (value) {
-        final sanitized = value?.replaceAll(',', '').trim();
-        final parsed = double.tryParse(sanitized ?? '');
+        final parsed = double.tryParse(value ?? '');
         if (parsed == null || parsed <= 0) {
           return 'Enter a valid amount.';
         }
         return null;
-      },
-      onChanged: (value) {
-        final sanitized = value.replaceAll(',', '');
-        final parsed = double.tryParse(sanitized);
-        if (parsed != null) {
-          final formatted = _currencyFormatter.format(parsed);
-          if (formatted != sanitized && _amountController.text != formatted) {
-            _amountController
-              ..text = formatted
-              ..selection = TextSelection.collapsed(offset: formatted.length);
-          }
-        }
       },
     );
   }
