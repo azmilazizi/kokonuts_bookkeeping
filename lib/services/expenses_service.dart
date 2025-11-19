@@ -302,6 +302,14 @@ class Expense {
     return amountLabel;
   }
 
+  /// Returns the amount without any currency symbol attached.
+  String get formattedAmountWithoutCurrency {
+    if (amount != null) {
+      return amount!.toStringAsFixed(2);
+    }
+    return amountLabel;
+  }
+
   String get receiptLabel {
     final receiptValue = receipt;
     if (receiptValue == null || receiptValue.isEmpty) {
