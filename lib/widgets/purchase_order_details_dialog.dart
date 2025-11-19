@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/purchase_order_detail_service.dart';
+import '../services/purchase_orders_service.dart';
 import 'attachment_pdf_preview.dart';
 
 class PurchaseOrderDetailsDialog extends StatefulWidget {
@@ -172,7 +173,10 @@ class _PurchaseOrderDetailsDialogState
                             detail: detail,
                             itemsController: _itemsScrollController,
                           ),
-                          _PaymentsTab(detail: detail),
+                          _PaymentsTab(
+                            detail: detail,
+                            onPaymentsUpdated: _retry,
+                          ),
                           _AttachmentsTab(detail: detail),
                         ],
                       ),
@@ -842,9 +846,10 @@ class _EmptyTabMessage extends StatelessWidget {
 }
 
 class _PaymentsTab extends StatefulWidget {
-  const _PaymentsTab({required this.detail});
+  const _PaymentsTab({required this.detail, this.onPaymentsUpdated});
 
   final PurchaseOrderDetail detail;
+  final VoidCallback? onPaymentsUpdated;
 
   @override
   State<_PaymentsTab> createState() => _PaymentsTabState();
@@ -894,12 +899,37 @@ class _PaymentsTabState extends State<_PaymentsTab> {
     return _dateFormat.format(date);
   }
 
+  Future<void> _openAddPaymentDialog() async {
+    final created = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _CreatePaymentsDialog(detail: widget.detail),
+    );
+
+    if (created == true) {
+      widget.onPaymentsUpdated?.call();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!widget.detail.hasPayments) {
-      return const _EmptyTabMessage(
-        icon: Icons.receipt_long,
-        message: 'No payments recorded for this purchase order.',
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const _EmptyTabMessage(
+              icon: Icons.receipt_long,
+              message: 'No payments recorded for this purchase order.',
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _openAddPaymentDialog,
+              icon: const Icon(Icons.add),
+              label: const Text('Add payment'),
+            ),
+          ],
+        ),
       );
     }
 
@@ -908,6 +938,28 @@ class _PaymentsTabState extends State<_PaymentsTab> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: Wrap(
+                spacing: 8,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _openAddPaymentDialog,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add payment'),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _isEditing = !_isEditing;
+                      });
+                    },
+                    child: Text(_isEditing ? 'Save' : 'Edit'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: ConstrainedBox(
@@ -978,15 +1030,6 @@ class _PaymentsTabState extends State<_PaymentsTab> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _isEditing = !_isEditing;
-                });
-              },
-              child: Text(_isEditing ? 'Save' : 'Edit'),
-            ),
           ],
         );
       },
@@ -1007,6 +1050,429 @@ class _EditablePaymentRow {
   void dispose() {
     amountController.dispose();
     methodController.dispose();
+  }
+}
+
+class _CreatePaymentsDialog extends StatefulWidget {
+  const _CreatePaymentsDialog({required this.detail});
+
+  final PurchaseOrderDetail detail;
+
+  @override
+  State<_CreatePaymentsDialog> createState() => _CreatePaymentsDialogState();
+}
+
+class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
+  final _payments = <_PaymentEntryDraft>[];
+  final _service = PurchaseOrdersService();
+  bool _isSubmitting = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _payments.add(_PaymentEntryDraft());
+  }
+
+  @override
+  void dispose() {
+    for (final payment in _payments) {
+      payment.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addPayment() {
+    setState(() {
+      _payments.add(_PaymentEntryDraft());
+    });
+  }
+
+  void _removePayment(int index) {
+    setState(() {
+      final removed = _payments.removeAt(index);
+      removed.dispose();
+    });
+  }
+
+  Future<void> _pickDate(_PaymentEntryDraft entry) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: entry.date,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 5),
+    );
+
+    if (picked != null) {
+      setState(() {
+        entry.setDate(picked);
+      });
+    }
+  }
+
+  Future<void> _submit() async {
+    if (_payments.isEmpty) {
+      setState(() {
+        _error = 'Add at least one payment entry.';
+      });
+      return;
+    }
+
+    setState(() {
+      _error = null;
+      _isSubmitting = true;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _error = 'You are not logged in.';
+        _isSubmitting = false;
+      });
+      return;
+    }
+
+    final rawToken = (appState.rawAuthToken ?? token).trim();
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth =
+        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final autoTokenValue = rawToken
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final authtokenHeader =
+        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+
+    final purchaseOrderNumber = int.tryParse(widget.detail.number);
+    final payments = <CreatePurchaseOrderPayment>[];
+
+    for (final entry in _payments) {
+      final amount =
+          double.tryParse(entry.amountController.text.replaceAll(',', '.')) ??
+              0;
+      final method = entry.methodController.text.trim();
+
+      if (amount <= 0 || method.isEmpty) {
+        setState(() {
+          _error =
+              'Enter a payment mode and amount greater than zero for all payments.';
+          _isSubmitting = false;
+        });
+        return;
+      }
+
+      payments.add(
+        CreatePurchaseOrderPayment(
+          purchaseOrderNumber: purchaseOrderNumber,
+          amount: amount,
+          paymentMode: method,
+          date: entry.date,
+          requester: appState.username,
+        ),
+      );
+    }
+
+    try {
+      await _service.createPayments(
+        id: widget.detail.id,
+        headers: {
+          'authtoken': authtokenHeader,
+          'Authorization': normalizedAuth,
+        },
+        payments: payments,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = error.toString();
+        _isSubmitting = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Add Payment',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _PaymentEntriesTable(
+                entries: _payments,
+                onAdd: _addPayment,
+                onRemove: _removePayment,
+                onPickDate: _pickDate,
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed:
+                        _isSubmitting ? null : () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed: _isSubmitting ? null : _submit,
+                    icon: _isSubmitting
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.check),
+                    label: Text(_isSubmitting ? 'Saving...' : 'Save payments'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentEntriesTable extends StatelessWidget {
+  const _PaymentEntriesTable({
+    required this.entries,
+    required this.onAdd,
+    required this.onRemove,
+    required this.onPickDate,
+  });
+
+  final List<_PaymentEntryDraft> entries;
+  final VoidCallback onAdd;
+  final void Function(int index) onRemove;
+  final void Function(_PaymentEntryDraft entry) onPickDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    if (entries.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('No payments added yet.', style: theme.textTheme.bodyMedium),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add),
+            label: const Text('Add payment'),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < entries.length; i++) ...[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Payment ${i + 1}',
+                          style: theme.textTheme.titleSmall,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Remove payment',
+                        icon: const Icon(Icons.delete_outline),
+                        color: theme.colorScheme.error,
+                        onPressed: () => onRemove(i),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _ResponsiveFieldsRow(
+                    children: [
+                      TextFormField(
+                        controller: entries[i].amountController,
+                        decoration: const InputDecoration(
+                          labelText: 'Amount (RM)',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                      TextFormField(
+                        controller: entries[i].methodController,
+                        decoration: const InputDecoration(
+                          labelText: 'Payment mode',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      _PaymentDateField(
+                        label: 'Payment date',
+                        dateLabel: entries[i].dateLabel,
+                        onTap: () => onPickDate(entries[i]),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        TextButton.icon(
+          onPressed: onAdd,
+          icon: const Icon(Icons.add),
+          label: const Text('Add payment'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PaymentDateField extends StatelessWidget {
+  const _PaymentDateField({
+    required this.label,
+    required this.dateLabel,
+    required this.onTap,
+  });
+
+  final String label;
+  final String dateLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return InkWell(
+      onTap: onTap,
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+          suffixIcon: Icon(Icons.calendar_today, color: theme.primaryColor),
+        ),
+        child: Text(dateLabel),
+      ),
+    );
+  }
+}
+
+class _PaymentEntryDraft {
+  _PaymentEntryDraft()
+      : amountController = TextEditingController(),
+        methodController = TextEditingController(),
+        date = DateTime.now();
+
+  final TextEditingController amountController;
+  final TextEditingController methodController;
+  DateTime date;
+
+  String get dateLabel => DateFormat.yMMMd().format(date);
+
+  void setDate(DateTime newDate) {
+    date = newDate;
+  }
+
+  void dispose() {
+    amountController.dispose();
+    methodController.dispose();
+  }
+}
+
+class _ResponsiveFieldsRow extends StatelessWidget {
+  const _ResponsiveFieldsRow({
+    required this.children,
+    this.breakpoint = 640,
+    this.spacing = 12,
+  });
+
+  final List<Widget> children;
+  final double breakpoint;
+  final double spacing;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < breakpoint;
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                children[i],
+                if (i < children.length - 1) SizedBox(height: spacing),
+              ],
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < children.length; i++) ...[
+              Expanded(child: children[i]),
+              if (i < children.length - 1) SizedBox(width: spacing),
+            ],
+          ],
+        );
+      },
+    );
   }
 }
 

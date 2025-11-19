@@ -16,6 +16,42 @@ class PurchaseOrdersService {
       'https://crm.kokonuts.my/purchase/api/v1/purchase_order';
   static const _attachmentFieldName = 'file';
 
+  Future<void> createPayments({
+    required String id,
+    required Map<String, String> headers,
+    required List<CreatePurchaseOrderPayment> payments,
+  }) async {
+    if (payments.isEmpty) {
+      return;
+    }
+
+    final uri = Uri.parse('$_singleOrderBaseUrl/$id/payments');
+    final payload = {
+      'payments': payments.map((payment) => payment.toJson()).toList(),
+    };
+
+    http.Response response;
+    try {
+      response = await _client.post(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: jsonEncode(payload),
+      );
+    } catch (error) {
+      throw PurchaseOrdersException('Failed to create payments: $error');
+    }
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw PurchaseOrdersException(
+        'Payment creation failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+  }
+
   Future<PurchaseOrdersPage> fetchPurchaseOrders({
     required int page,
     required int perPage,
