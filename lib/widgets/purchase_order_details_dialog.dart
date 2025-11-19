@@ -1583,12 +1583,9 @@ class _PaymentEntriesTable extends StatelessWidget {
                         ),
                       if (readOnly)
                         InputDecorator(
-                          decoration: InputDecoration(
+                          decoration: const InputDecoration(
                             labelText: 'Payment mode',
-                            border: const OutlineInputBorder(),
-                            filled: true,
-                            fillColor:
-                                theme.colorScheme.surfaceVariant.withOpacity(0.5),
+                            border: OutlineInputBorder(),
                           ),
                           child: Text(
                             entries[i].paymentModeLabel ?? '—',
