@@ -916,42 +916,12 @@ class _PaymentsTab extends StatefulWidget {
 
 class _PaymentsTabState extends State<_PaymentsTab> {
   final _dateFormat = DateFormat('d MMM y');
-  late final List<_EditablePaymentRow> _editablePayments;
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeDrafts();
-  }
-
-  @override
-  void didUpdateWidget(covariant _PaymentsTab oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.detail.payments != widget.detail.payments) {
-      _resetDrafts();
-      _initializeDrafts();
-      _applyPaymentModeMatches();
-    } else {
-      _isPaid = widget.detail.hasPayments;
-    }
-  }
-
-  @override
-  void dispose() {
-    _resetDrafts();
-    super.dispose();
-  }
 
   String _formatDate(DateTime? date) {
     if (date == null) {
       return '—';
     }
-    for (final mode in _paymentModes) {
-      if (mode.id == id) {
-        return mode.name;
-      }
-    }
-    return null;
+    return _dateFormat.format(date);
   }
 
   Future<void> _openAddPaymentDialog() async {
@@ -968,22 +938,19 @@ class _PaymentsTabState extends State<_PaymentsTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.detail.hasPayments) {
+    final payments = widget.detail.payments;
+
+    if (payments.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Checkbox(value: false, onChanged: null),
-              const SizedBox(width: 8),
-              const Text('Paid'),
-              const Spacer(),
-              ElevatedButton.icon(
-                onPressed: _openAddPaymentDialog,
-                icon: const Icon(Icons.add),
-                label: const Text('Add payment'),
-              ),
-            ],
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              onPressed: _openAddPaymentDialog,
+              icon: const Icon(Icons.add),
+              label: const Text('Add payment'),
+            ),
           ),
           const SizedBox(height: 16),
           const _EmptyTabMessage(
@@ -991,25 +958,6 @@ class _PaymentsTabState extends State<_PaymentsTab> {
             message: 'No payments recorded for this purchase order.',
           ),
         ],
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Checkbox(value: _isPaid, onChanged: null),
-            const SizedBox(width: 8),
-            const Text('Paid'),
-            const Spacer(),
-            ElevatedButton.icon(
-              onPressed: _openAddPaymentDialog,
-              icon: const Icon(Icons.add),
-              label: const Text('Add payment'),
-            ),
-          ],
-        ),
       );
     }
 
@@ -1038,19 +986,13 @@ class _PaymentsTabState extends State<_PaymentsTab> {
                     DataColumn(label: Text('Payment Mode')),
                     DataColumn(label: Text('Date')),
                   ],
-                  rows: _editablePayments
+                  rows: payments
                       .map(
                         (payment) => DataRow(
                           cells: [
-                            DataCell(
-                              Text(payment.amountController.text),
-                            ),
-                            DataCell(
-                              Text(payment.methodController.text),
-                            ),
-                            DataCell(
-                              Text(_formatDate(payment.date)),
-                            ),
+                            DataCell(Text(payment.amountLabel)),
+                            DataCell(Text(payment.method ?? '—')),
+                            DataCell(Text(_formatDate(payment.date))),
                           ],
                         ),
                       )
