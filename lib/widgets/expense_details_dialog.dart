@@ -43,7 +43,7 @@ class ExpenseDetailsDialog extends StatelessWidget {
                       const SizedBox(height: 20),
                       _DetailField(
                         label: 'Amount',
-                        value: expense.formattedAmount,
+                        value: expense.formattedAmountWithoutCurrency,
                         valueStyle: theme.textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: Colors.red,

@@ -754,7 +754,7 @@ class _ExpenseRowState extends State<_ExpenseRow> {
               _DataCell(widget.expense.name, flex: _columnFlex[1]),
               _DataCell(widget.expense.categoryName, flex: _columnFlex[2]),
               _DataCell(
-                widget.expense.formattedAmount,
+                widget.expense.formattedAmountWithoutCurrency,
                 flex: _columnFlex[3],
                 textAlign: TextAlign.end,
                 style: widget.theme.textTheme.bodyMedium?.copyWith(
