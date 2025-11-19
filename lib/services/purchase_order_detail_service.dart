@@ -502,6 +502,7 @@ class PurchaseOrderPayment {
     this.status,
     this.note,
     this.recordedBy,
+    this.id,
   });
 
   factory PurchaseOrderPayment.fromJson(
@@ -522,6 +523,15 @@ class PurchaseOrderPayment {
         json['payment_amount'] ??
         json['paid_amount'] ??
         json['total'];
+
+    final id = _string(json['id']) ??
+        _string(json['payment_id']) ??
+        _string(json['paymentId']) ??
+        _string(json['payment_history_id']) ??
+        _string(json['paymentHistoryId']) ??
+        _string(json['history_id']) ??
+        _string(json['transaction_id']) ??
+        _string(json['rel_id']);
 
     final amountLabel = _string(json['amount_formatted']) ??
         _string(json['payment_amount_formatted']) ??
@@ -563,6 +573,7 @@ class PurchaseOrderPayment {
       status: status,
       note: note,
       recordedBy: recordedBy,
+      id: id,
     );
   }
 
@@ -574,6 +585,7 @@ class PurchaseOrderPayment {
   final String? status;
   final String? note;
   final String? recordedBy;
+  final String? id;
 
   String get dateLabel => _formatDate(date) ?? '—';
 
