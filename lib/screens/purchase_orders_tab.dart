@@ -285,8 +285,9 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final mediaQuery = MediaQuery.of(context);
 
-    return RefreshIndicator(
+    final content = RefreshIndicator(
       onRefresh: () => _fetchPage(reset: true),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -336,18 +337,6 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                               ),
                             ),
                           ),
-                          if (_statusMessage != null)
-                            SliverToBoxAdapter(
-                              child: Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                                child: AlertBanner(
-                                  message: _statusMessage!,
-                                  isError: _statusIsError,
-                                  onDismiss: _dismissStatusBanner,
-                                ),
-                              ),
-                            ),
                           SliverPersistentHeader(
                             pinned: true,
                             delegate: _PurchaseOrdersHeaderDelegate(
@@ -387,6 +376,46 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
           );
         },
       ),
+    );
+
+    return Stack(
+      children: [
+        content,
+        Positioned(
+          left: 16,
+          right: 16,
+          bottom: 16 + mediaQuery.padding.bottom,
+          child: IgnorePointer(
+            ignoring: _statusMessage == null,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) {
+                final offsetAnimation = Tween<Offset>(
+                  begin: const Offset(0, 1),
+                  end: Offset.zero,
+                ).animate(animation);
+                return SlideTransition(
+                  position: offsetAnimation,
+                  child: FadeTransition(
+                    opacity: animation,
+                    child: child,
+                  ),
+                );
+              },
+              child: _statusMessage == null
+                  ? const SizedBox.shrink()
+                  : AlertBanner(
+                      key: ValueKey('${_statusIsError}-${_statusMessage!}'),
+                      message: _statusMessage!,
+                      isError: _statusIsError,
+                      onDismiss: _dismissStatusBanner,
+                    ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
