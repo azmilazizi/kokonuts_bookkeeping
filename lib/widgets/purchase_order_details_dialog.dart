@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../app/app_state_scope.dart';
+import '../services/payment_modes_service.dart';
 import '../services/purchase_order_detail_service.dart';
 import '../services/purchase_orders_service.dart';
 import 'attachment_pdf_preview.dart';
@@ -1065,13 +1066,27 @@ class _CreatePaymentsDialog extends StatefulWidget {
 class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
   final _payments = <_PaymentEntryDraft>[];
   final _service = PurchaseOrdersService();
+  final _paymentModesService = PaymentModesService();
   bool _isSubmitting = false;
+  bool _isLoadingPaymentModes = false;
+  bool _hasLoadedPaymentModes = false;
+  String? _paymentModesError;
+  List<PaymentMode> _paymentModes = const [];
   String? _error;
 
   @override
   void initState() {
     super.initState();
     _payments.add(_PaymentEntryDraft());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasLoadedPaymentModes) {
+      _hasLoadedPaymentModes = true;
+      _loadPaymentModes();
+    }
   }
 
   @override
@@ -1084,7 +1099,11 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
 
   void _addPayment() {
     setState(() {
-      _payments.add(_PaymentEntryDraft());
+      final entry = _PaymentEntryDraft();
+      if (_paymentModes.isNotEmpty) {
+        entry.setPaymentModeId(_paymentModes.first.id);
+      }
+      _payments.add(entry);
     });
   }
 
@@ -1093,6 +1112,75 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
       final removed = _payments.removeAt(index);
       removed.dispose();
     });
+  }
+
+  Future<void> _loadPaymentModes() async {
+    setState(() {
+      _paymentModesError = null;
+      _isLoadingPaymentModes = true;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _paymentModesError = 'You are not logged in.';
+        _isLoadingPaymentModes = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      final modes = await _paymentModesService.fetchPaymentModes(
+        headers: headers,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _paymentModes = modes;
+        final defaultModeId =
+            _paymentModes.isNotEmpty ? _paymentModes.first.id : null;
+        for (final entry in _payments) {
+          entry.setPaymentModeId(entry.paymentModeId ?? defaultModeId);
+        }
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _paymentModesError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingPaymentModes = false);
+      }
+    }
+  }
+
+  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
+    final rawToken = (appState.rawAuthToken ?? token).trim();
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth =
+        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final autoTokenValue = rawToken
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final authtokenHeader =
+        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
   }
 
   Future<void> _pickDate(_PaymentEntryDraft entry) async {
@@ -1139,17 +1227,7 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
       return;
     }
 
-    final rawToken = (appState.rawAuthToken ?? token).trim();
-    final sanitizedToken = token
-        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
-        .trim();
-    final normalizedAuth =
-        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
-    final autoTokenValue = rawToken
-        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
-        .trim();
-    final authtokenHeader =
-        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    final headers = _buildAuthHeaders(appState, token);
 
     final purchaseOrderNumber = int.tryParse(widget.detail.number);
     final payments = <CreatePurchaseOrderPayment>[];
@@ -1158,7 +1236,7 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
       final amount =
           double.tryParse(entry.amountController.text.replaceAll(',', '.')) ??
               0;
-      final method = entry.methodController.text.trim();
+      final method = entry.paymentModeId?.trim() ?? '';
 
       if (amount <= 0 || method.isEmpty) {
         setState(() {
@@ -1183,10 +1261,7 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
     try {
       await _service.createPayments(
         id: widget.detail.id,
-        headers: {
-          'authtoken': authtokenHeader,
-          'Authorization': normalizedAuth,
-        },
+        headers: headers,
         payments: payments,
       );
 
@@ -1238,9 +1313,14 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
               const SizedBox(height: 16),
               _PaymentEntriesTable(
                 entries: _payments,
+                isLoadingPaymentModes: _isLoadingPaymentModes,
+                paymentModes: _paymentModes,
+                paymentModesError: _paymentModesError,
                 onAdd: _addPayment,
                 onRemove: _removePayment,
                 onPickDate: _pickDate,
+                onPaymentModeChanged: (entry, modeId) =>
+                    setState(() => entry.setPaymentModeId(modeId)),
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
@@ -1285,15 +1365,24 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
 class _PaymentEntriesTable extends StatelessWidget {
   const _PaymentEntriesTable({
     required this.entries,
+    required this.paymentModes,
+    required this.isLoadingPaymentModes,
     required this.onAdd,
     required this.onRemove,
     required this.onPickDate,
+    required this.onPaymentModeChanged,
+    this.paymentModesError,
   });
 
   final List<_PaymentEntryDraft> entries;
+  final List<PaymentMode> paymentModes;
+  final bool isLoadingPaymentModes;
   final VoidCallback onAdd;
   final void Function(int index) onRemove;
   final void Function(_PaymentEntryDraft entry) onPickDate;
+  final void Function(_PaymentEntryDraft entry, String? modeId)
+      onPaymentModeChanged;
+  final String? paymentModesError;
 
   @override
   Widget build(BuildContext context) {
@@ -1343,28 +1432,58 @@ class _PaymentEntriesTable extends StatelessWidget {
                   const SizedBox(height: 12),
                   _ResponsiveFieldsRow(
                     children: [
-                      TextFormField(
-                        controller: entries[i].amountController,
-                        decoration: const InputDecoration(
-                          labelText: 'Amount (RM)',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
+                    TextFormField(
+                      controller: entries[i].amountController,
+                      decoration: const InputDecoration(
+                        labelText: 'Amount (RM)',
+                        border: OutlineInputBorder(),
                       ),
-                      TextFormField(
-                        controller: entries[i].methodController,
-                        decoration: const InputDecoration(
-                          labelText: 'Payment mode',
-                          border: OutlineInputBorder(),
-                        ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
                       ),
-                      _PaymentDateField(
-                        label: 'Payment date',
-                        dateLabel: entries[i].dateLabel,
-                        onTap: () => onPickDate(entries[i]),
+                    ),
+                    DropdownButtonFormField<String>(
+                      value: entries[i].paymentModeId,
+                      decoration: InputDecoration(
+                        labelText: 'Payment mode',
+                        border: const OutlineInputBorder(),
+                        helperText: paymentModesError ??
+                            (paymentModes.isEmpty
+                                ? 'Unable to load payment modes'
+                                : null),
                       ),
+                      isExpanded: true,
+                      hint: isLoadingPaymentModes
+                          ? Row(
+                              children: const [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                                SizedBox(width: 8),
+                                Text('Loading payment modes...'),
+                              ],
+                            )
+                          : const Text('Select payment mode'),
+                      items: paymentModes
+                          .map(
+                            (mode) => DropdownMenuItem<String>(
+                              value: mode.id,
+                              child: Text(mode.name),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: paymentModes.isEmpty || isLoadingPaymentModes
+                          ? null
+                          : (value) => onPaymentModeChanged(entries[i], value),
+                    ),
+                    _PaymentDateField(
+                      label: 'Payment date',
+                      dateLabel: entries[i].dateLabel,
+                      onTap: () => onPickDate(entries[i]),
+                    ),
                     ],
                   ),
                 ],
@@ -1415,12 +1534,11 @@ class _PaymentDateField extends StatelessWidget {
 class _PaymentEntryDraft {
   _PaymentEntryDraft()
       : amountController = TextEditingController(),
-        methodController = TextEditingController(),
         date = DateTime.now();
 
   final TextEditingController amountController;
-  final TextEditingController methodController;
   DateTime date;
+  String? paymentModeId;
 
   String get dateLabel => DateFormat.yMMMd().format(date);
 
@@ -1428,9 +1546,12 @@ class _PaymentEntryDraft {
     date = newDate;
   }
 
+  void setPaymentModeId(String? value) {
+    paymentModeId = value;
+  }
+
   void dispose() {
     amountController.dispose();
-    methodController.dispose();
   }
 }
 

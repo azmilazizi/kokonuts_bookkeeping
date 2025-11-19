@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
+import '../app/app_state_scope.dart';
+import '../services/payment_modes_service.dart';
 import 'attachment_picker.dart';
 
 class AddExpenseDialog extends StatefulWidget {
@@ -19,6 +21,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   final _nameController = TextEditingController();
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
+  final _paymentModesService = PaymentModesService();
 
   final _currencyFormatter = NumberFormat.currency(symbol: '', decimalDigits: 2);
 
@@ -31,20 +34,16 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
     'Other',
   ];
 
-  final List<String> _paymentModes = const [
-    'Cash',
-    'Bank Transfer',
-    'Credit Card',
-    'Cheque',
-    'Other',
-  ];
-
   DateTime _expenseDate = DateTime.now();
   String? _selectedCategory;
   String? _selectedPaymentMode;
   List<PlatformFile> _attachments = [];
   bool _isSubmitting = false;
   String? _submitError;
+  bool _isLoadingPaymentModes = false;
+  String? _paymentModeError;
+  bool _hasInitializedPaymentModes = false;
+  List<PaymentMode> _paymentModes = const [];
 
   @override
   void dispose() {
@@ -53,6 +52,83 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
     _amountController.dispose();
     _notesController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasInitializedPaymentModes) {
+      _hasInitializedPaymentModes = true;
+      _loadPaymentModes();
+    }
+  }
+
+  Future<void> _loadPaymentModes() async {
+    setState(() {
+      _paymentModeError = null;
+      _isLoadingPaymentModes = true;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _paymentModeError = 'You are not logged in.';
+        _isLoadingPaymentModes = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      final modes = await _paymentModesService.fetchPaymentModes(
+        headers: headers,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _paymentModes = modes;
+        if (_selectedPaymentMode != null &&
+            !_paymentModes.any((mode) => mode.id == _selectedPaymentMode)) {
+          _selectedPaymentMode = null;
+        }
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _paymentModeError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingPaymentModes = false);
+      }
+    }
+  }
+
+  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
+    final rawToken = (appState.rawAuthToken ?? token).trim();
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth =
+        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final autoTokenValue = rawToken
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final authtokenHeader =
+        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
   }
 
   @override
@@ -259,19 +335,35 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   Widget _buildPaymentModeField() {
     return DropdownButtonFormField<String>(
       value: _selectedPaymentMode,
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         labelText: 'Payment mode',
+        helperText: _paymentModeError,
       ),
-      hint: const Text('Choose payment mode'),
+      isExpanded: true,
+      hint: _isLoadingPaymentModes
+          ? Row(
+              children: const [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 8),
+                Text('Loading payment modes...'),
+              ],
+            )
+          : const Text('Choose payment mode'),
       items: _paymentModes
           .map(
             (mode) => DropdownMenuItem<String>(
-              value: mode,
-              child: Text(mode),
+              value: mode.id,
+              child: Text(mode.name),
             ),
           )
           .toList(),
-      onChanged: (value) => setState(() => _selectedPaymentMode = value),
+      onChanged: _paymentModes.isEmpty || _isLoadingPaymentModes
+          ? null
+          : (value) => setState(() => _selectedPaymentMode = value),
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'Payment mode is required.';

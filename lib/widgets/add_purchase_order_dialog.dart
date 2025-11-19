@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
 import '../services/inventory_items_service.dart';
+import '../services/payment_modes_service.dart';
 import '../services/purchase_options_service.dart';
 import '../services/purchase_orders_service.dart';
 import '../services/vendors_service.dart';
@@ -29,6 +30,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   final _vendorsService = VendorsService();
   final _purchaseOptionsService = PurchaseOptionsService();
   final _inventoryItemsService = InventoryItemsService();
+  final _paymentModesService = PaymentModesService();
   final TextEditingController _itemSearchController = TextEditingController();
   final TextEditingController _orderDiscountController = TextEditingController(
     text: '0',
@@ -59,6 +61,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   InventoryItem? _selectedInventoryItem;
   List<VendorSummary> _vendors = const [];
   List<InventoryItem> _inventoryItems = const [];
+  List<PaymentMode> _paymentModes = const [];
   final List<_PaymentEntryDraft> _payments = [];
   List<PlatformFile> _supportingAttachments = const [];
 
@@ -127,6 +130,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         _vendorsService.fetchVendors(headers: headers),
         _inventoryItemsService.fetchItems(headers: headers),
         _purchaseOptionsService.fetchPurchaseOptions(headers: headers),
+        _paymentModesService.fetchPaymentModes(headers: headers),
       ]);
 
       if (!mounted) {
@@ -137,6 +141,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         _vendors = results[0] as List<VendorSummary>;
         _inventoryItems = results[1] as List<InventoryItem>;
         final options = results[2] as PurchaseOptions;
+        _paymentModes = results[3] as List<PaymentMode>;
         _purchaseOrderPrefix = options.purchaseOrderPrefix;
         _nextPurchaseOrderNumber = options.nextPurchaseOrderNumber;
         _orderNumberSeed = _buildOrderNumberSeed(
@@ -146,6 +151,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         final selectedVendor = _findVendorByName(_selectedVendorName);
         _selectedVendorCode = selectedVendor?.code;
         _selectedVendorId = selectedVendor?.id;
+        if (_paymentModes.isNotEmpty) {
+          for (final payment in _payments) {
+            payment.setPaymentModeId(payment.paymentModeId ?? _paymentModes.first.id);
+          }
+        }
       });
     } catch (error) {
       if (!mounted) {
@@ -268,7 +278,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
   void _addPaymentEntry() {
     setState(() {
-      _payments.add(_PaymentEntryDraft(onChanged: () => setState(() {})));
+      final entry = _PaymentEntryDraft(onChanged: () => setState(() {}));
+      if (_paymentModes.isNotEmpty) {
+        entry.setPaymentModeId(_paymentModes.first.id);
+      }
+      _payments.add(entry);
     });
   }
 
@@ -438,7 +452,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       for (final payment in _payments) {
         final amount =
             double.tryParse(payment.amountController.text.replaceAll(',', '.')) ?? 0;
-        final paymentMode = payment.methodController.text.trim();
+        final paymentMode = payment.paymentModeId?.trim() ?? '';
 
         if (amount <= 0 || paymentMode.isEmpty) {
           setState(() {
@@ -594,9 +608,13 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   const SizedBox(height: 12),
                   _PaymentEntriesTable(
                     entries: _payments,
+                    isLoadingPaymentModes: _isLoadingReferenceData,
+                    paymentModes: _paymentModes,
                     onAdd: _addPaymentEntry,
                     onRemove: _removePaymentEntry,
                     onPickDate: _pickPaymentDate,
+                    onPaymentModeChanged: (entry, modeId) =>
+                        setState(() => entry.setPaymentModeId(modeId)),
                   ),
                   const SizedBox(height: 24),
                 ],
@@ -1063,15 +1081,22 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 class _PaymentEntriesTable extends StatelessWidget {
   const _PaymentEntriesTable({
     required this.entries,
+    required this.paymentModes,
+    required this.isLoadingPaymentModes,
     required this.onAdd,
     required this.onRemove,
     required this.onPickDate,
+    required this.onPaymentModeChanged,
   });
 
   final List<_PaymentEntryDraft> entries;
+  final List<PaymentMode> paymentModes;
+  final bool isLoadingPaymentModes;
   final VoidCallback onAdd;
   final void Function(int index) onRemove;
   final void Function(_PaymentEntryDraft entry) onPickDate;
+  final void Function(_PaymentEntryDraft entry, String? modeId)
+      onPaymentModeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1121,28 +1146,54 @@ class _PaymentEntriesTable extends StatelessWidget {
                   const SizedBox(height: 12),
                   _ResponsiveFieldsRow(
                     children: [
-                      TextFormField(
-                        controller: entries[i].amountController,
-                        decoration: const InputDecoration(
-                          labelText: 'Amount (RM)',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
+                    TextFormField(
+                      controller: entries[i].amountController,
+                      decoration: const InputDecoration(
+                        labelText: 'Amount (RM)',
+                        border: OutlineInputBorder(),
                       ),
-                      TextFormField(
-                        controller: entries[i].methodController,
-                        decoration: const InputDecoration(
-                          labelText: 'Payment mode',
-                          border: OutlineInputBorder(),
-                        ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
                       ),
-                      _PaymentDateField(
-                        label: 'Payment date',
-                        dateLabel: entries[i].dateLabel,
-                        onTap: () => onPickDate(entries[i]),
+                    ),
+                    DropdownButtonFormField<String>(
+                      value: entries[i].paymentModeId,
+                      decoration: const InputDecoration(
+                        labelText: 'Payment mode',
+                        border: OutlineInputBorder(),
                       ),
+                      isExpanded: true,
+                      hint: isLoadingPaymentModes
+                          ? Row(
+                              children: const [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                                SizedBox(width: 8),
+                                Text('Loading payment modes...'),
+                              ],
+                            )
+                          : const Text('Select payment mode'),
+                      items: paymentModes
+                          .map(
+                            (mode) => DropdownMenuItem<String>(
+                              value: mode.id,
+                              child: Text(mode.name),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: paymentModes.isEmpty || isLoadingPaymentModes
+                          ? null
+                          : (value) => onPaymentModeChanged(entries[i], value),
+                    ),
+                    _PaymentDateField(
+                      label: 'Payment date',
+                      dateLabel: entries[i].dateLabel,
+                      onTap: () => onPickDate(entries[i]),
+                    ),
                     ],
                   ),
                 ],
@@ -1595,23 +1646,29 @@ class _ReferenceErrorField extends StatelessWidget {
 
 class _PaymentEntryDraft {
   _PaymentEntryDraft({VoidCallback? onChanged})
-    : amountController = TextEditingController(),
-      methodController = TextEditingController(),
-      _onChanged = onChanged,
-      date = DateTime.now() {
+      : amountController = TextEditingController(),
+        _onChanged = onChanged,
+        date = DateTime.now() {
     amountController.addListener(_notifyChange);
-    methodController.addListener(_notifyChange);
   }
 
   final TextEditingController amountController;
-  final TextEditingController methodController;
   final VoidCallback? _onChanged;
   DateTime date;
+  String? paymentModeId;
 
   String get dateLabel => DateFormat.yMMMd().format(date);
 
   void setDate(DateTime newDate) {
     date = newDate;
+    _notifyChange();
+  }
+
+  void setPaymentModeId(String? value) {
+    if (paymentModeId == value) {
+      return;
+    }
+    paymentModeId = value;
     _notifyChange();
   }
 
@@ -1621,7 +1678,6 @@ class _PaymentEntryDraft {
 
   void dispose() {
     amountController.dispose();
-    methodController.dispose();
   }
 }
 
