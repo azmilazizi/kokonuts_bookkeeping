@@ -991,8 +991,9 @@ class _PaymentsTabState extends State<_PaymentsTab> {
     final autoTokenValue = rawToken
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
-    final authtokenHeader =
-        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
     return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
   }
 
@@ -1219,12 +1220,13 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
         for (final entry in _payments) {
           entry.setPaymentModeId(
             entry.paymentModeId ?? defaultModeId,
-            name: entry.paymentModeLabel ??
+            name:
+                entry.paymentModeLabel ??
                 (defaultModeId == null
                     ? null
                     : _paymentModes
-                        .firstWhere((mode) => mode.id == defaultModeId)
-                        .name),
+                          .firstWhere((mode) => mode.id == defaultModeId)
+                          .name),
           );
         }
       });
@@ -1328,7 +1330,7 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
           purchaseOrderNumber: purchaseOrderNumber,
           amount: amount,
           paymentMode: method,
-          date: entry.date,
+          date: entry.date ?? DateTime.now(),
           requester: appState.username,
         ),
       );
@@ -1530,7 +1532,8 @@ class _PaymentEntriesTable extends StatelessWidget {
                         enabled: !readOnly,
                       ),
                       if (readOnly &&
-                          (paymentModes.isEmpty || entries[i].paymentModeId == null))
+                          (paymentModes.isEmpty ||
+                              entries[i].paymentModeId == null))
                         InputDecorator(
                           decoration: const InputDecoration(
                             labelText: 'Payment mode',
@@ -1578,17 +1581,21 @@ class _PaymentEntriesTable extends StatelessWidget {
                               )
                               .toList(),
                           onChanged:
-                              paymentModes.isEmpty || isLoadingPaymentModes || readOnly
-                                  ? null
-                                  : (value) {
-                                      final selectedName = _findPaymentModeName(
-                                        paymentModes,
-                                        value,
-                                      );
-                                      onPaymentModeChanged(entries[i], value);
-                                      entries[i]
-                                          .setPaymentModeId(value, name: selectedName);
-                                    },
+                              paymentModes.isEmpty ||
+                                  isLoadingPaymentModes ||
+                                  readOnly
+                              ? null
+                              : (value) {
+                                  final selectedName = _findPaymentModeName(
+                                    paymentModes,
+                                    value,
+                                  );
+                                  onPaymentModeChanged(entries[i], value);
+                                  entries[i].setPaymentModeId(
+                                    value,
+                                    name: selectedName,
+                                  );
+                                },
                         ),
                       _PaymentDateField(
                         label: 'Payment date',
@@ -1668,8 +1675,8 @@ class _PaymentEntryDraft {
     String? amountText,
     DateTime? initialDate,
     this.paymentModeLabel,
-  })  : amountController = TextEditingController(text: amountText ?? ''),
-        date = initialDate;
+  }) : amountController = TextEditingController(text: amountText ?? ''),
+       date = initialDate;
 
   final TextEditingController amountController;
   DateTime? date;
