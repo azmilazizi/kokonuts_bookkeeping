@@ -4,6 +4,7 @@ import '../app/app_state_scope.dart';
 import '../services/expenses_service.dart';
 import '../widgets/date_range_filter_button.dart';
 import '../widgets/expense_details_dialog.dart';
+import '../widgets/edit_expense_dialog.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/tab_page_header.dart';
 import '../widgets/table_filter_bar.dart';
@@ -225,6 +226,8 @@ class _ExpensesTabState extends State<ExpensesTab> {
                                   expense: expense,
                                   theme: theme,
                                   showTopBorder: index == 0,
+                                  onUpdated: _handleExpenseUpdated,
+                                  onDeleted: _handleExpenseDeleted,
                                 );
                               },
                               childCount: _expenses.length,
@@ -389,6 +392,45 @@ class _ExpensesTabState extends State<ExpensesTab> {
       _filterEndDate = null;
       _applyFilters();
     });
+  }
+
+  void _handleExpenseUpdated(Expense updatedExpense) {
+    setState(() {
+      final existingIndex = _allExpenses.indexWhere(
+        (expense) => _isSameExpense(expense, updatedExpense),
+      );
+
+      if (existingIndex != -1) {
+        _allExpenses[existingIndex] = updatedExpense;
+      } else {
+        _allExpenses.add(updatedExpense);
+      }
+
+      _applySorting();
+      _applyFilters();
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Expense updated successfully.')),
+    );
+  }
+
+  void _handleExpenseDeleted(Expense expense) {
+    setState(() {
+      _allExpenses.removeWhere((item) => _isSameExpense(item, expense));
+      _applyFilters();
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${expense.name} deleted.')),
+    );
+  }
+
+  bool _isSameExpense(Expense a, Expense b) {
+    if (a.id.trim().isNotEmpty && b.id.trim().isNotEmpty) {
+      return a.id.trim().toLowerCase() == b.id.trim().toLowerCase();
+    }
+    return _expenseKey(a) == _expenseKey(b);
   }
 
   int _compareExpenses(Expense a, Expense b) {
@@ -664,11 +706,15 @@ class _ExpenseRow extends StatefulWidget {
     required this.expense,
     required this.theme,
     required this.showTopBorder,
+    required this.onUpdated,
+    required this.onDeleted,
   });
 
   final Expense expense;
   final ThemeData theme;
   final bool showTopBorder;
+  final ValueChanged<Expense> onUpdated;
+  final ValueChanged<Expense> onDeleted;
 
   @override
   State<_ExpenseRow> createState() => _ExpenseRowState();
@@ -774,12 +820,15 @@ class _ExpenseRowState extends State<_ExpenseRow> {
     );
   }
 
-  void _handleEdit() {
-    final snackBar = SnackBar(
-      content: Text('Edit action for ${widget.expense.name}'),
-      duration: const Duration(seconds: 2),
+  Future<void> _handleEdit() async {
+    final updated = await showDialog<Expense>(
+      context: context,
+      builder: (context) => EditExpenseDialog(expense: widget.expense),
     );
-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
+
+    if (updated != null) {
+      widget.onUpdated(updated);
+    }
   }
 
   void _handleView() {
@@ -789,12 +838,34 @@ class _ExpenseRowState extends State<_ExpenseRow> {
     );
   }
 
-  void _handleDelete() {
-    final snackBar = SnackBar(
-      content: Text('Delete action for ${widget.expense.name}'),
-      duration: const Duration(seconds: 2),
+  Future<void> _handleDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete expense'),
+        content: Text(
+          'Are you sure you want to delete "${widget.expense.name}"? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: widget.theme.colorScheme.error,
+              foregroundColor: widget.theme.colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
+
+    if (confirmed == true) {
+      widget.onDeleted(widget.expense);
+    }
   }
 }
 
