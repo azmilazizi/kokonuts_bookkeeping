@@ -556,6 +556,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       payments: payments,
       userId: appState.username,
       nextPurchaseOrderNumber: _nextPurchaseOrderNumber,
+      isUpdate: _isEditing,
     );
 
     setState(() {
