@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:kokonuts_bookkeeping/app/app_state.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/payment_modes_service.dart';
@@ -23,7 +24,10 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   final _notesController = TextEditingController();
   final _paymentModesService = PaymentModesService();
 
-  final _currencyFormatter = NumberFormat.currency(symbol: '', decimalDigits: 2);
+  final _currencyFormatter = NumberFormat.currency(
+    symbol: '',
+    decimalDigits: 2,
+  );
 
   final List<String> _categories = const [
     'Office Supplies',
@@ -121,13 +125,15 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
     final sanitizedToken = token
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
-    final normalizedAuth =
-        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
     final autoTokenValue = rawToken
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
-    final authtokenHeader =
-        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
     return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
   }
 
@@ -158,7 +164,8 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                       'Drag and drop receipts or supporting documents, or tap to browse.',
                   files: _attachments,
                   onPick: _pickAttachment,
-                  onFilesSelected: (files) => setState(() => _attachments = files),
+                  onFilesSelected: (files) =>
+                      setState(() => _attachments = files),
                   onFileRemoved: (file) => setState(() {
                     _attachments = List.of(_attachments)..remove(file);
                   }),
@@ -254,9 +261,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   Widget _buildCategoryDropdown() {
     return DropdownButtonFormField<String>(
       value: _selectedCategory,
-      decoration: const InputDecoration(
-        labelText: 'Expense category',
-      ),
+      decoration: const InputDecoration(labelText: 'Expense category'),
       hint: const Text('Select a category'),
       items: _categories
           .map(
@@ -282,9 +287,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
       onTap: _isSubmitting ? null : () => _pickDate(context),
       borderRadius: BorderRadius.circular(12),
       child: InputDecorator(
-        decoration: const InputDecoration(
-          labelText: 'Expense date',
-        ),
+        decoration: const InputDecoration(labelText: 'Expense date'),
         child: Row(
           children: [
             const Icon(Icons.event, size: 20),
@@ -306,9 +309,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
       ),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       textInputAction: TextInputAction.next,
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-      ],
+      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
       validator: (value) {
         final sanitized = value?.replaceAll(',', '').trim();
         final parsed = double.tryParse(sanitized ?? '');
@@ -400,8 +401,11 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
     }
 
     final newFiles = result.files
-        .where((file) => isAllowedAttachmentExtension(
-            file.extension ?? attachmentExtension(file.name)))
+        .where(
+          (file) => isAllowedAttachmentExtension(
+            file.extension ?? attachmentExtension(file.name),
+          ),
+        )
         .toList(growable: false);
 
     if (newFiles.isEmpty) {
