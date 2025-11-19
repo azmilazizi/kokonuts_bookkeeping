@@ -1043,11 +1043,22 @@ class _PaymentsTabState extends State<_PaymentsTab> {
     }
   }
 
-  String? _matchPaymentModeId(String? label) {
-    if (label == null) {
+  String? _matchPaymentModeId(String? labelOrId) {
+    if (labelOrId == null) {
       return null;
     }
-    final normalized = label.trim().toLowerCase();
+    final trimmed = labelOrId.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
+    for (final mode in _paymentModes) {
+      if (mode.id == trimmed) {
+        return mode.id;
+      }
+    }
+
+    final normalized = trimmed.toLowerCase();
     for (final mode in _paymentModes) {
       if (mode.name.toLowerCase() == normalized) {
         return mode.id;
@@ -1105,6 +1116,29 @@ class _PaymentsTabState extends State<_PaymentsTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Expanded(
+          child: Scrollbar(
+            child: SingleChildScrollView(
+              child: _PaymentEntriesTable(
+                entries: _paymentDrafts,
+                paymentModes: _paymentModes,
+                isLoadingPaymentModes: _isLoadingPaymentModes,
+                paymentModesError: _paymentModesError,
+                readOnly: true,
+                showAddButton: false,
+                showRemoveButton: false,
+                onAdd: () {},
+                onRemove: (_) {},
+                onPickDate: (_) {},
+                onPaymentModeChanged: (entry, modeId) {
+                  final name = _resolvePaymentModeName(modeId);
+                  setState(() => entry.setPaymentModeId(modeId, name: name));
+                },
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
@@ -1114,23 +1148,6 @@ class _PaymentsTabState extends State<_PaymentsTab> {
               label: const Text('Add payment'),
             ),
           ],
-        ),
-        const SizedBox(height: 12),
-        _PaymentEntriesTable(
-          entries: _paymentDrafts,
-          paymentModes: _paymentModes,
-          isLoadingPaymentModes: _isLoadingPaymentModes,
-          paymentModesError: _paymentModesError,
-          readOnly: true,
-          showAddButton: false,
-          showRemoveButton: false,
-          onAdd: () {},
-          onRemove: (_) {},
-          onPickDate: (_) {},
-          onPaymentModeChanged: (entry, modeId) {
-            final name = _resolvePaymentModeName(modeId);
-            setState(() => entry.setPaymentModeId(modeId, name: name));
-          },
         ),
       ],
     );
@@ -1562,17 +1579,20 @@ class _PaymentEntriesTable extends StatelessWidget {
                           ),
                           enabled: !readOnly,
                         ),
-                      if (readOnly &&
-                          (paymentModes.isEmpty ||
-                              entries[i].paymentModeId == null))
+                      if (readOnly)
                         InputDecorator(
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: 'Payment mode',
-                            border: OutlineInputBorder(),
+                            border: const OutlineInputBorder(),
+                            filled: true,
+                            fillColor:
+                                theme.colorScheme.surfaceVariant.withOpacity(0.5),
                           ),
                           child: Text(
                             entries[i].paymentModeLabel ?? '—',
-                            style: theme.textTheme.bodyMedium,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.disabledColor,
+                            ),
                           ),
                         )
                       else
@@ -1811,17 +1831,6 @@ class _AttachmentsTab extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            ElevatedButton.icon(
-              onPressed: onAddAttachment,
-              icon: const Icon(Icons.attach_file),
-              label: const Text('Add attachment'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
         Expanded(
           child: ListView.separated(
             padding: EdgeInsets.zero,
@@ -1832,6 +1841,17 @@ class _AttachmentsTab extends StatelessWidget {
               return _AttachmentCard(attachment: attachment);
             },
           ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            ElevatedButton.icon(
+              onPressed: onAddAttachment,
+              icon: const Icon(Icons.attach_file),
+              label: const Text('Add attachment'),
+            ),
+          ],
         ),
       ],
     );
