@@ -501,6 +501,8 @@ class CreatePurchaseOrderRequest {
     this.userId,
     this.nextPurchaseOrderNumber,
     this.isUpdate = false,
+    this.removedLineItemIds,
+    this.removedPaymentIds,
   });
 
   final String? vendorId;
@@ -518,6 +520,8 @@ class CreatePurchaseOrderRequest {
   final String? userId;
   final int? nextPurchaseOrderNumber;
   final bool isUpdate;
+  final List<String>? removedLineItemIds;
+  final List<String>? removedPaymentIds;
 
   Map<String, dynamic> toJson() {
     final discountPercent = 0;
@@ -561,6 +565,22 @@ class CreatePurchaseOrderRequest {
           .map((item) => item.toJson(purchaseOrderNumber: nextPurchaseOrderNumber))
           .toList(growable: false),
     };
+
+    final removedIds = removedLineItemIds;
+    if (isUpdate && removedIds != null && removedIds.isNotEmpty) {
+      payload['removed_items'] = removedIds
+          .map((value) => int.tryParse(value) ?? value)
+          .toList(growable: false);
+    }
+
+    final removedPaymentEntries = removedPaymentIds;
+    if (isUpdate &&
+        removedPaymentEntries != null &&
+        removedPaymentEntries.isNotEmpty) {
+      payload['removed_payments'] = removedPaymentEntries
+          .map((value) => int.tryParse(value) ?? value)
+          .toList(growable: false);
+    }
 
     final paymentEntries = payments;
     if (paymentEntries != null && paymentEntries.isNotEmpty) {

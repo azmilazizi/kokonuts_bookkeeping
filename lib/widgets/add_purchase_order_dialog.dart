@@ -74,6 +74,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   List<PlatformFile> _supportingAttachments = const [];
   List<PurchaseOrderAttachment> _existingAttachments = const [];
   final Set<String> _attachmentsMarkedForDeletion = {};
+  final Set<String> _removedLineItemIds = {};
+  final Set<String> _removedPaymentIds = {};
 
   @override
   void initState() {
@@ -139,6 +141,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _items
       ..clear()
       ..addAll(mappedItems);
+    _removedLineItemIds.clear();
+    _removedPaymentIds.clear();
 
     _existingAttachments = List.of(detail.attachments);
     _prefillPayments(detail);
@@ -152,6 +156,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     }
     _payments.clear();
 
+    _removedPaymentIds.clear();
+
     if (detail.payments.isEmpty) {
       _isPaid = false;
       return;
@@ -159,6 +165,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
     for (final payment in detail.payments) {
       final entry = _PaymentEntryDraft(
+        paymentId: payment.id,
         onChanged: () => setState(() {}),
         initialAmount: _resolvePrefillPaymentAmount(payment),
         initialDate: payment.date ?? DateTime.now(),
@@ -202,6 +209,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   void _removeItem(int index) {
     setState(() {
       final removed = _items.removeAt(index);
+      final removedLineItemId = removed.lineItemId?.trim();
+      if (_isEditing && removedLineItemId != null && removedLineItemId.isNotEmpty) {
+        _removedLineItemIds.add(removedLineItemId);
+      }
       removed.dispose();
     });
   }
@@ -412,6 +423,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   void _removePaymentEntry(int index) {
     setState(() {
       final removed = _payments.removeAt(index);
+      if (_isEditing) {
+        final removedPaymentId = removed.paymentId?.trim();
+        if (removedPaymentId != null && removedPaymentId.isNotEmpty) {
+          _removedPaymentIds.add(removedPaymentId);
+        }
+      }
       removed.dispose();
     });
   }
@@ -633,6 +650,18 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       userId: appState.username,
       nextPurchaseOrderNumber: _nextPurchaseOrderNumber,
       isUpdate: _isEditing,
+      removedLineItemIds: _isEditing
+          ? _removedLineItemIds
+              .map((id) => id.trim())
+              .where((id) => id.isNotEmpty)
+              .toList(growable: false)
+          : null,
+      removedPaymentIds: _isEditing && _removedPaymentIds.isNotEmpty
+          ? _removedPaymentIds
+              .map((id) => id.trim())
+              .where((id) => id.isNotEmpty)
+              .toList(growable: false)
+          : null,
     );
 
     setState(() {
@@ -776,6 +805,16 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                         setState(() {
                           _isPaid = value ?? false;
                           if (!_isPaid) {
+                            if (_isEditing) {
+                              for (final payment in _payments) {
+                                final removedPaymentId =
+                                    payment.paymentId?.trim();
+                                if (removedPaymentId != null &&
+                                    removedPaymentId.isNotEmpty) {
+                                  _removedPaymentIds.add(removedPaymentId);
+                                }
+                              }
+                            }
                             for (final payment in _payments) {
                               payment.dispose();
                             }
@@ -1983,6 +2022,7 @@ class _ReferenceErrorField extends StatelessWidget {
 
 class _PaymentEntryDraft {
   _PaymentEntryDraft({
+    this.paymentId,
     VoidCallback? onChanged,
     String? initialAmount,
     DateTime? initialDate,
@@ -1995,6 +2035,7 @@ class _PaymentEntryDraft {
     amountController.addListener(_notifyChange);
   }
 
+  final String? paymentId;
   final TextEditingController amountController;
   final VoidCallback? _onChanged;
   DateTime date;
