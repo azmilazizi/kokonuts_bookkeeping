@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../app/app_state_scope.dart';
 import '../services/purchase_orders_service.dart';
 import '../widgets/date_range_filter_button.dart';
-import '../widgets/purchase_order_details_dialog.dart';
+import '../widgets/edit_purchase_order_dialog.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/tab_page_header.dart';
 import '../widgets/table_filter_bar.dart';
@@ -811,12 +811,15 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
   static const _columnFlex = [3, 4, 3, 3, 3, 2, 2, 4];
 
   void _showDetails(BuildContext context) {
+    final tabState = context.findAncestorStateOfType<PurchaseOrdersTabState>();
     showDialog(
       context: context,
-      builder: (context) => PurchaseOrderDetailsDialog(
-        orderId: widget.order.id,
-      ),
-    );
+      builder: (context) => EditPurchaseOrderDialog(orderId: widget.order.id),
+    ).then((value) {
+      if (value is PurchaseOrder) {
+        tabState?.insertCreatedPurchaseOrder(value);
+      }
+    });
   }
 
   @override
