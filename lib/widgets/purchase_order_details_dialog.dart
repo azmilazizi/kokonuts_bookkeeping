@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/purchase_order_detail_service.dart';
@@ -840,14 +841,62 @@ class _EmptyTabMessage extends StatelessWidget {
   }
 }
 
-class _PaymentsTab extends StatelessWidget {
+class _PaymentsTab extends StatefulWidget {
   const _PaymentsTab({required this.detail});
 
   final PurchaseOrderDetail detail;
 
   @override
+  State<_PaymentsTab> createState() => _PaymentsTabState();
+}
+
+class _PaymentsTabState extends State<_PaymentsTab> {
+  final _dateFormat = DateFormat('d MMM y');
+  late final List<_EditablePaymentRow> _editablePayments;
+  bool _isEditing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _editablePayments = widget.detail.payments
+        .map((payment) => _EditablePaymentRow(payment: payment))
+        .toList();
+  }
+
+  @override
+  void dispose() {
+    for (final entry in _editablePayments) {
+      entry.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _pickDate(_EditablePaymentRow entry) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: entry.date ?? now,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 5),
+    );
+
+    if (picked != null) {
+      setState(() {
+        entry.date = picked;
+      });
+    }
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) {
+      return '—';
+    }
+    return _dateFormat.format(date);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (!detail.hasPayments) {
+    if (!widget.detail.hasPayments) {
       return const _EmptyTabMessage(
         icon: Icons.receipt_long,
         message: 'No payments recorded for this purchase order.',
@@ -856,51 +905,108 @@ class _PaymentsTab extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: DataTable(
-              columnSpacing: 24,
-              columns: const [
-                DataColumn(label: Text('Amount')),
-                DataColumn(label: Text('Payment Mode')),
-                DataColumn(label: Text('Date')),
-                DataColumn(label: Text('Actions')),
-              ],
-              rows: detail.payments
-                  .map(
-                    (payment) => DataRow(
-                      cells: [
-                        DataCell(Text(payment.amountLabel)),
-                        DataCell(Text(payment.methodLabel)),
-                        DataCell(Text(payment.dateLabel)),
-                        DataCell(
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                tooltip: 'Edit payment',
-                                icon: const Icon(Icons.edit_outlined),
-                                onPressed: () {},
-                              ),
-                              IconButton(
-                                tooltip: 'Delete payment',
-                                icon: const Icon(Icons.delete_outline),
-                                onPressed: () {},
-                              ),
-                            ],
-                          ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                child: DataTable(
+                  columnSpacing: 24,
+                  columns: const [
+                    DataColumn(label: Text('Amount')),
+                    DataColumn(label: Text('Payment Mode')),
+                    DataColumn(label: Text('Date')),
+                  ],
+                  rows: _editablePayments
+                      .map(
+                        (payment) => DataRow(
+                          cells: [
+                            DataCell(
+                              _isEditing
+                                  ? TextFormField(
+                                      controller: payment.amountController,
+                                      decoration: const InputDecoration(
+                                        border: OutlineInputBorder(),
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 10,
+                                        ),
+                                      ),
+                                    )
+                                  : Text(payment.amountController.text),
+                            ),
+                            DataCell(
+                              _isEditing
+                                  ? TextFormField(
+                                      controller: payment.methodController,
+                                      decoration: const InputDecoration(
+                                        border: OutlineInputBorder(),
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 10,
+                                        ),
+                                      ),
+                                    )
+                                  : Text(payment.methodController.text),
+                            ),
+                            DataCell(
+                              _isEditing
+                                  ? InkWell(
+                                      onTap: () => _pickDate(payment),
+                                      child: InputDecorator(
+                                        decoration: const InputDecoration(
+                                          border: OutlineInputBorder(),
+                                          isDense: true,
+                                          contentPadding: EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 10,
+                                          ),
+                                        ),
+                                        child: Text(_formatDate(payment.date)),
+                                      ),
+                                    )
+                                  : Text(_formatDate(payment.date)),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  )
-                  .toList(),
+                      )
+                      .toList(),
+                ),
+              ),
             ),
-          ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _isEditing = !_isEditing;
+                });
+              },
+              child: Text(_isEditing ? 'Save' : 'Edit'),
+            ),
+          ],
         );
       },
     );
+  }
+}
+
+class _EditablePaymentRow {
+  _EditablePaymentRow({required PurchaseOrderPayment payment})
+      : amountController = TextEditingController(text: payment.amountLabel),
+        methodController = TextEditingController(text: payment.methodLabel),
+        date = payment.date;
+
+  final TextEditingController amountController;
+  final TextEditingController methodController;
+  DateTime? date;
+
+  void dispose() {
+    amountController.dispose();
+    methodController.dispose();
   }
 }
 
