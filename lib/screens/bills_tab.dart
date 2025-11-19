@@ -742,6 +742,7 @@ class _BillRowState extends State<_BillRow> {
     final hoverBackground = widget.theme.colorScheme.surfaceVariant.withOpacity(0.45);
 
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
       child: GestureDetector(
