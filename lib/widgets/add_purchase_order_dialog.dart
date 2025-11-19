@@ -17,11 +17,7 @@ import 'attachment_picker.dart';
 enum DiscountType { percentage, amount }
 
 class AddPurchaseOrderDialog extends StatefulWidget {
-  const AddPurchaseOrderDialog({
-    super.key,
-    this.initialDetail,
-    this.orderId,
-  });
+  const AddPurchaseOrderDialog({super.key, this.initialDetail, this.orderId});
 
   final PurchaseOrderDetail? initialDetail;
   final String? orderId;
@@ -48,7 +44,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   );
 
   bool get _isEditing =>
-      widget.initialDetail != null && (widget.orderId?.trim().isNotEmpty ?? false);
+      widget.initialDetail != null &&
+      (widget.orderId?.trim().isNotEmpty ?? false);
 
   late DateTime _orderDate;
   late _PurchaseOrderItemDraft _pendingItem;
@@ -204,7 +201,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         _selectedVendorId = selectedVendor?.id;
         if (_paymentModes.isNotEmpty) {
           for (final payment in _payments) {
-            payment.setPaymentModeId(payment.paymentModeId ?? _paymentModes.first.id);
+            payment.setPaymentModeId(
+              payment.paymentModeId ?? _paymentModes.first.id,
+            );
           }
         }
       });
@@ -229,7 +228,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   void _updateSelectedItem(InventoryItem? item) {
     setState(() {
       _selectedInventoryItem = item;
-      final formattedName = item == null ? null : _formatInventoryItemName(item);
+      final formattedName = item == null
+          ? null
+          : _formatInventoryItemName(item);
       _pendingItem.setItem(itemName: formattedName, itemId: item?.id);
       _pendingItemError = null;
     });
@@ -516,7 +517,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       final parsedPayments = <CreatePurchaseOrderPayment>[];
       for (final payment in _payments) {
         final amount =
-            double.tryParse(payment.amountController.text.replaceAll(',', '.')) ?? 0;
+            double.tryParse(
+              payment.amountController.text.replaceAll(',', '.'),
+            ) ??
+            0;
         final paymentMode = payment.paymentModeId?.trim() ?? '';
 
         if (amount <= 0 || paymentMode.isEmpty) {
@@ -590,9 +594,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(
-                  'Failed to delete some attachments: $error',
-                ),
+                content: Text('Failed to delete some attachments: $error'),
               ),
             );
           }
@@ -749,9 +751,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _orderNumberController,
-                  decoration: const InputDecoration(
-                    labelText: 'Order number',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Order number'),
                 ),
                 const SizedBox(height: 12),
                 _OrderDateField(date: _orderDate, onTap: _pickOrderDate),
@@ -811,17 +811,17 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-      onPressed: _isSubmitting ? null : _submit,
-      child: _isSubmitting
-          ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Text(_isEditing ? 'Save Changes' : 'Create'),
-    ),
-  ],
-);
+          onPressed: _isSubmitting ? null : _submit,
+          child: _isSubmitting
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(_isEditing ? 'Save Changes' : 'Create'),
+        ),
+      ],
+    );
   }
 
   Future<void> _pickAttachment() async {
@@ -838,8 +838,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     }
 
     final newFiles = result.files
-        .where((file) => isAllowedAttachmentExtension(
-            file.extension ?? attachmentExtension(file.name)))
+        .where(
+          (file) => isAllowedAttachmentExtension(
+            file.extension ?? attachmentExtension(file.name),
+          ),
+        )
         .toList(growable: false);
 
     if (newFiles.isEmpty) {
@@ -857,7 +860,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       _attachmentsMarkedForDeletion.add(removed.fileName);
     });
   }
-
 
   Widget _buildVendorField(ThemeData theme) {
     if (_isLoadingReferenceData && _vendors.isEmpty) {
@@ -949,7 +951,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     if ((code ?? '').isEmpty && (skuName ?? '').isEmpty) {
       return item.name;
     }
-    if (code != null && code.isNotEmpty && skuName != null && skuName.isNotEmpty) {
+    if (code != null &&
+        code.isNotEmpty &&
+        skuName != null &&
+        skuName.isNotEmpty) {
       return '${code}_$skuName ';
     }
     return code?.isNotEmpty == true ? code! : skuName ?? item.name;
@@ -1214,7 +1219,7 @@ class _PaymentEntriesTable extends StatelessWidget {
   final void Function(int index) onRemove;
   final void Function(_PaymentEntryDraft entry) onPickDate;
   final void Function(_PaymentEntryDraft entry, String? modeId)
-      onPaymentModeChanged;
+  onPaymentModeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1264,54 +1269,56 @@ class _PaymentEntriesTable extends StatelessWidget {
                   const SizedBox(height: 12),
                   _ResponsiveFieldsRow(
                     children: [
-                    TextFormField(
-                      controller: entries[i].amountController,
-                      decoration: const InputDecoration(
-                        labelText: 'Amount (RM)',
-                        border: OutlineInputBorder(),
+                      TextFormField(
+                        controller: entries[i].amountController,
+                        decoration: const InputDecoration(
+                          labelText: 'Amount (RM)',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                    ),
-                    DropdownButtonFormField<String>(
-                      value: entries[i].paymentModeId,
-                      decoration: const InputDecoration(
-                        labelText: 'Payment mode',
-                        border: OutlineInputBorder(),
-                      ),
-                      isExpanded: true,
-                      hint: isLoadingPaymentModes
-                          ? Row(
-                              children: const [
-                                SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                ),
-                                SizedBox(width: 8),
-                                Text('Loading payment modes...'),
-                              ],
+                      DropdownButtonFormField<String>(
+                        value: entries[i].paymentModeId,
+                        decoration: const InputDecoration(
+                          labelText: 'Payment mode',
+                          border: OutlineInputBorder(),
+                        ),
+                        isExpanded: true,
+                        hint: isLoadingPaymentModes
+                            ? Row(
+                                children: const [
+                                  SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text('Loading payment modes...'),
+                                ],
+                              )
+                            : const Text('Select payment mode'),
+                        items: paymentModes
+                            .map(
+                              (mode) => DropdownMenuItem<String>(
+                                value: mode.id,
+                                child: Text(mode.name),
+                              ),
                             )
-                          : const Text('Select payment mode'),
-                      items: paymentModes
-                          .map(
-                            (mode) => DropdownMenuItem<String>(
-                              value: mode.id,
-                              child: Text(mode.name),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: paymentModes.isEmpty || isLoadingPaymentModes
-                          ? null
-                          : (value) => onPaymentModeChanged(entries[i], value),
-                    ),
-                    _PaymentDateField(
-                      label: 'Payment date',
-                      dateLabel: entries[i].dateLabel,
-                      onTap: () => onPickDate(entries[i]),
-                    ),
+                            .toList(),
+                        onChanged: paymentModes.isEmpty || isLoadingPaymentModes
+                            ? null
+                            : (value) =>
+                                  onPaymentModeChanged(entries[i], value),
+                      ),
+                      _PaymentDateField(
+                        label: 'Payment date',
+                        dateLabel: entries[i].dateLabel,
+                        onTap: () => onPickDate(entries[i]),
+                      ),
                     ],
                   ),
                 ],
@@ -1706,9 +1713,7 @@ class _ExistingAttachmentsList extends StatelessWidget {
         if (attachments.isEmpty)
           Text(
             'No attachments uploaded for this purchase order.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.hintColor,
-            ),
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
           )
         else
           ListView.builder(
@@ -1726,10 +1731,14 @@ class _ExistingAttachmentsList extends StatelessWidget {
               if (uploadedBy != null && uploadedBy.isNotEmpty) {
                 subtitleParts.add('Uploaded by $uploadedBy');
               }
-              final subtitle = subtitleParts.isEmpty ? null : subtitleParts.join(' • ');
+              final subtitle = subtitleParts.isEmpty
+                  ? null
+                  : subtitleParts.join(' • ');
 
               return Card(
-                key: ValueKey('existing-attachment-$index-${attachment.fileName}'),
+                key: ValueKey(
+                  'existing-attachment-$index-${attachment.fileName}',
+                ),
                 margin: const EdgeInsets.symmetric(vertical: 4),
                 child: ListTile(
                   leading: const Icon(Icons.attach_file),
@@ -1764,8 +1773,10 @@ class _NewAttachmentsList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('New attachments (uploaded on save)',
-            style: theme.textTheme.titleSmall),
+        Text(
+          'New attachments (uploaded on save)',
+          style: theme.textTheme.titleSmall,
+        ),
         const SizedBox(height: 8),
         ListView.builder(
           shrinkWrap: true,
@@ -1774,7 +1785,9 @@ class _NewAttachmentsList extends StatelessWidget {
           itemBuilder: (context, index) {
             final file = attachments[index];
             return Card(
-              key: ValueKey('new-attachment-$index-${file.name}-${file.identifier ?? ''}'),
+              key: ValueKey(
+                'new-attachment-$index-${file.name}-${file.identifier ?? ''}',
+              ),
               margin: const EdgeInsets.symmetric(vertical: 4),
               child: ListTile(
                 leading: const Icon(Icons.insert_drive_file_outlined),
@@ -1897,9 +1910,9 @@ class _ReferenceErrorField extends StatelessWidget {
 
 class _PaymentEntryDraft {
   _PaymentEntryDraft({VoidCallback? onChanged})
-      : amountController = TextEditingController(),
-        _onChanged = onChanged,
-        date = DateTime.now() {
+    : amountController = TextEditingController(),
+      _onChanged = onChanged,
+      date = DateTime.now() {
     amountController.addListener(_notifyChange);
   }
 
@@ -2013,4 +2026,3 @@ class _PurchaseOrderItemDraft {
     discountController.dispose();
   }
 }
-

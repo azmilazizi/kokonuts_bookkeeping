@@ -1056,22 +1056,19 @@ class _PaymentsTabState extends State<_PaymentsTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.detail.hasPayments) {
+    final payments = widget.detail.payments;
+
+    if (payments.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Checkbox(value: false, onChanged: null),
-              const SizedBox(width: 8),
-              const Text('Paid'),
-              const Spacer(),
-              ElevatedButton.icon(
-                onPressed: _openAddPaymentDialog,
-                icon: const Icon(Icons.add),
-                label: const Text('Add payment'),
-              ),
-            ],
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              onPressed: _openAddPaymentDialog,
+              icon: const Icon(Icons.add),
+              label: const Text('Add payment'),
+            ),
           ),
           const SizedBox(height: 16),
           const _EmptyTabMessage(
