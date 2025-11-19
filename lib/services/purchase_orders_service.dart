@@ -250,6 +250,41 @@ class PurchaseOrdersService {
     }
   }
 
+  Future<void> deleteAttachments({
+    required String id,
+    required Map<String, String> headers,
+    required List<String> fileNames,
+  }) async {
+    if (fileNames.isEmpty) {
+      return;
+    }
+
+    final request = http.Request(
+      'DELETE',
+      Uri.parse('$_attachmentsBaseUrl/$id/attachments'),
+    )
+      ..headers.addAll({
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        ...headers,
+      })
+      ..body = jsonEncode({'files': fileNames});
+
+    http.StreamedResponse response;
+    try {
+      response = await _client.send(request);
+    } catch (error) {
+      throw PurchaseOrdersException('Failed to delete attachments: $error');
+    }
+
+    final resolved = await http.Response.fromStream(response);
+    if (resolved.statusCode != 200 && resolved.statusCode != 204) {
+      throw PurchaseOrdersException(
+        'Attachment delete failed with status ${resolved.statusCode}: ${resolved.body}',
+      );
+    }
+  }
+
   Future<http.MultipartFile?> _buildMultipartFile(PlatformFile file) async {
     final sanitizedName = file.name.trim();
     if (sanitizedName.isEmpty) {

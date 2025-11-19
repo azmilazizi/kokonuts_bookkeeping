@@ -75,6 +75,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   List<PaymentMode> _paymentModes = const [];
   final List<_PaymentEntryDraft> _payments = [];
   List<PlatformFile> _supportingAttachments = const [];
+  List<PurchaseOrderAttachment> _existingAttachments = const [];
+  final Set<String> _attachmentsMarkedForDeletion = {};
 
   @override
   void initState() {
@@ -139,6 +141,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _items
       ..clear()
       ..addAll(mappedItems);
+
+    _existingAttachments = List.of(detail.attachments);
 
     _handleItemsChanged();
   }
@@ -575,6 +579,26 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         return;
       }
 
+      if (_isEditing && _attachmentsMarkedForDeletion.isNotEmpty) {
+        try {
+          await _service.deleteAttachments(
+            id: created.id,
+            headers: headers,
+            fileNames: _attachmentsMarkedForDeletion.toList(growable: false),
+          );
+        } catch (error) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Failed to delete some attachments: $error',
+                ),
+              ),
+            );
+          }
+        }
+      }
+
       if (_supportingAttachments.isNotEmpty) {
         try {
           await _service.uploadAttachments(
@@ -650,6 +674,26 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                       ..remove(file);
                   }),
                 ),
+                if (_isEditing) ...[
+                  const SizedBox(height: 12),
+                  _ExistingAttachmentsList(
+                    attachments: _existingAttachments,
+                    onRemove: _scheduleExistingAttachmentRemoval,
+                    onReorder: _reorderExistingAttachments,
+                    pendingDeletionCount: _attachmentsMarkedForDeletion.length,
+                  ),
+                ],
+                if (_supportingAttachments.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _NewAttachmentsList(
+                    attachments: _supportingAttachments,
+                    onRemove: (file) => setState(() {
+                      _supportingAttachments = List.of(_supportingAttachments)
+                        ..remove(file);
+                    }),
+                    onReorder: _reorderNewAttachments,
+                  ),
+                ],
                 const SizedBox(height: 16),
                 Row(
                   children: [
@@ -807,6 +851,41 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     setState(() {
       _supportingAttachments = [..._supportingAttachments, ...newFiles];
     });
+  }
+
+  void _scheduleExistingAttachmentRemoval(int index) {
+    setState(() {
+      final removed = _existingAttachments.removeAt(index);
+      _attachmentsMarkedForDeletion.add(removed.fileName);
+    });
+  }
+
+  void _reorderExistingAttachments(int oldIndex, int newIndex) {
+    setState(() {
+      _existingAttachments = _reorderedList(
+        _existingAttachments,
+        oldIndex,
+        newIndex,
+      );
+    });
+  }
+
+  void _reorderNewAttachments(int oldIndex, int newIndex) {
+    setState(() {
+      _supportingAttachments = _reorderedList(
+        _supportingAttachments,
+        oldIndex,
+        newIndex,
+      );
+    });
+  }
+
+  List<T> _reorderedList<T>(List<T> list, int oldIndex, int newIndex) {
+    final adjustedNewIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
+    final updated = List<T>.from(list);
+    final item = updated.removeAt(oldIndex);
+    updated.insert(adjustedNewIndex, item);
+    return updated;
   }
 
 
@@ -1621,6 +1700,167 @@ class _SystemValueField extends StatelessWidget {
       ),
       child: Text(value.toStringAsFixed(2)),
     );
+  }
+}
+
+class _ExistingAttachmentsList extends StatelessWidget {
+  const _ExistingAttachmentsList({
+    required this.attachments,
+    required this.onRemove,
+    required this.onReorder,
+    required this.pendingDeletionCount,
+  });
+
+  final List<PurchaseOrderAttachment> attachments;
+  final ValueChanged<int> onRemove;
+  final void Function(int oldIndex, int newIndex) onReorder;
+  final int pendingDeletionCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('Existing attachments', style: theme.textTheme.titleSmall),
+            if (pendingDeletionCount > 0) ...[
+              const SizedBox(width: 8),
+              Chip(
+                label: Text('Deleting on save: $pendingDeletionCount'),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (attachments.isEmpty)
+          Text(
+            'No attachments uploaded for this purchase order.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.hintColor,
+            ),
+          )
+        else
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: attachments.length,
+            onReorder: onReorder,
+            buildDefaultDragHandles: false,
+            itemBuilder: (context, index) {
+              final attachment = attachments[index];
+              final subtitleParts = <String>[];
+              final sizeLabel = attachment.sizeLabel?.trim();
+              if (sizeLabel != null && sizeLabel.isNotEmpty) {
+                subtitleParts.add(sizeLabel);
+              }
+              final uploadedBy = attachment.uploadedBy?.trim();
+              if (uploadedBy != null && uploadedBy.isNotEmpty) {
+                subtitleParts.add('Uploaded by $uploadedBy');
+              }
+              final subtitle = subtitleParts.isEmpty ? null : subtitleParts.join(' • ');
+
+              return Card(
+                key: ValueKey('existing-attachment-$index-${attachment.fileName}'),
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
+                  leading: const Icon(Icons.attach_file),
+                  title: Text(attachment.fileName),
+                  subtitle: subtitle == null ? null : Text(subtitle),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ReorderableDragStartListener(
+                        index: index,
+                        child: const Icon(Icons.drag_handle),
+                      ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        tooltip: 'Remove attachment',
+                        icon: const Icon(Icons.close),
+                        onPressed: () => onRemove(index),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+}
+
+class _NewAttachmentsList extends StatelessWidget {
+  const _NewAttachmentsList({
+    required this.attachments,
+    required this.onRemove,
+    required this.onReorder,
+  });
+
+  final List<PlatformFile> attachments;
+  final ValueChanged<PlatformFile> onRemove;
+  final void Function(int oldIndex, int newIndex) onReorder;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('New attachments (uploaded on save)',
+            style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        ReorderableListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: attachments.length,
+          onReorder: onReorder,
+          buildDefaultDragHandles: false,
+          itemBuilder: (context, index) {
+            final file = attachments[index];
+            return Card(
+              key: ValueKey('new-attachment-$index-${file.name}-${file.identifier ?? ''}'),
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              child: ListTile(
+                leading: const Icon(Icons.insert_drive_file_outlined),
+                title: Text(file.name),
+                subtitle: Text(_formatSize(file.size)),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ReorderableDragStartListener(
+                      index: index,
+                      child: const Icon(Icons.drag_handle),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      tooltip: 'Remove attachment',
+                      icon: const Icon(Icons.close),
+                      onPressed: () => onRemove(file),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  String _formatSize(int size) {
+    const kb = 1024;
+    const mb = kb * 1024;
+    if (size >= mb) {
+      return '${(size / mb).toStringAsFixed(1)} MB';
+    }
+    if (size >= kb) {
+      return '${(size / kb).toStringAsFixed(1)} KB';
+    }
+    return '$size B';
   }
 }
 
