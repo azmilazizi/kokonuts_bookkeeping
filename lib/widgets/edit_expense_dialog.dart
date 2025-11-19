@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
+import '../app/app_state.dart';
+import '../app/app_state_scope.dart';
 import '../services/expenses_service.dart';
+import '../services/payment_modes_service.dart';
 
 class EditExpenseDialog extends StatefulWidget {
   const EditExpenseDialog({super.key, required this.expense});
@@ -19,7 +22,7 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
   late final TextEditingController _nameController;
   late final TextEditingController _categoryController;
   late final TextEditingController _amountController;
-  late final TextEditingController _paymentModeController;
+  final _paymentModesService = PaymentModesService();
 
   final _categories = const [
     'Office Supplies',
@@ -34,6 +37,12 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
 
   late DateTime _expenseDate;
   bool _isSaving = false;
+  bool _isLoadingPaymentModes = false;
+  String? _paymentModeError;
+  bool _hasInitializedPaymentModes = false;
+  List<PaymentMode> _paymentModes = const [];
+  String? _selectedPaymentMode;
+  late final String _initialPaymentModeLabel;
 
   @override
   void initState() {
@@ -44,7 +53,7 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
     _amountController = TextEditingController(
       text: widget.expense.amount?.toStringAsFixed(2) ?? widget.expense.amountLabel,
     );
-    _paymentModeController = TextEditingController(text: widget.expense.paymentMode);
+    _initialPaymentModeLabel = widget.expense.paymentMode;
     _expenseDate = widget.expense.date ?? DateTime.now();
   }
 
@@ -54,8 +63,98 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
     _nameController.dispose();
     _categoryController.dispose();
     _amountController.dispose();
-    _paymentModeController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasInitializedPaymentModes) {
+      _hasInitializedPaymentModes = true;
+      _loadPaymentModes();
+    }
+  }
+
+  Future<void> _loadPaymentModes() async {
+    setState(() {
+      _paymentModeError = null;
+      _isLoadingPaymentModes = true;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _paymentModeError = 'You are not logged in.';
+        _isLoadingPaymentModes = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      final modes = await _paymentModesService.fetchPaymentModes(headers: headers);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _paymentModes = modes;
+        _selectedPaymentMode = _resolveInitialPaymentMode();
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _paymentModeError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingPaymentModes = false);
+      }
+    }
+  }
+
+  String? _resolveInitialPaymentMode() {
+    if (_paymentModes.isEmpty) {
+      return null;
+    }
+
+    final currentSelection = _selectedPaymentMode;
+    if (currentSelection != null &&
+        _paymentModes.any((mode) => mode.id == currentSelection)) {
+      return currentSelection;
+    }
+
+    final matched = _paymentModes.firstWhere(
+      (mode) => mode.name.toLowerCase() == _initialPaymentModeLabel.toLowerCase(),
+      orElse: () => _paymentModes.first,
+    );
+
+    return matched.id;
+  }
+
+  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
+    final rawToken = (appState.rawAuthToken ?? token).trim();
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth =
+        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final autoTokenValue = rawToken
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final authtokenHeader =
+        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
   }
 
   @override
@@ -230,15 +329,39 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
   }
 
   Widget _buildPaymentModeField() {
-    return TextFormField(
-      controller: _paymentModeController,
-      decoration: const InputDecoration(
+    return DropdownButtonFormField<String>(
+      value: _selectedPaymentMode,
+      decoration: InputDecoration(
         labelText: 'Payment mode',
-        hintText: 'e.g., Cash, Bank Transfer',
+        helperText: _paymentModeError,
       ),
-      textInputAction: TextInputAction.done,
+      isExpanded: true,
+      hint: _isLoadingPaymentModes
+          ? Row(
+              children: const [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 8),
+                Text('Loading payment modes...'),
+              ],
+            )
+          : const Text('Choose payment mode'),
+      items: _paymentModes
+          .map(
+            (mode) => DropdownMenuItem<String>(
+              value: mode.id,
+              child: Text(mode.name),
+            ),
+          )
+          .toList(),
+      onChanged: _paymentModes.isEmpty || _isLoadingPaymentModes
+          ? null
+          : (value) => setState(() => _selectedPaymentMode = value),
       validator: (value) {
-        if (value == null || value.trim().isEmpty) {
+        if (value == null || value.isEmpty) {
           return 'Payment mode is required.';
         }
         return null;
@@ -288,9 +411,7 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
       currencySymbol: widget.expense.currencySymbol,
       date: _expenseDate,
       receipt: widget.expense.receipt,
-      paymentMode: _paymentModeController.text.trim().isEmpty
-          ? widget.expense.paymentMode
-          : _paymentModeController.text.trim(),
+      paymentMode: _selectedPaymentMode ?? widget.expense.paymentMode,
       createdBy: widget.expense.createdBy,
     );
 

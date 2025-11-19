@@ -679,7 +679,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   _ExistingAttachmentsList(
                     attachments: _existingAttachments,
                     onRemove: _scheduleExistingAttachmentRemoval,
-                    onReorder: _reorderExistingAttachments,
                     pendingDeletionCount: _attachmentsMarkedForDeletion.length,
                   ),
                 ],
@@ -691,7 +690,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                       _supportingAttachments = List.of(_supportingAttachments)
                         ..remove(file);
                     }),
-                    onReorder: _reorderNewAttachments,
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -858,34 +856,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       final removed = _existingAttachments.removeAt(index);
       _attachmentsMarkedForDeletion.add(removed.fileName);
     });
-  }
-
-  void _reorderExistingAttachments(int oldIndex, int newIndex) {
-    setState(() {
-      _existingAttachments = _reorderedList(
-        _existingAttachments,
-        oldIndex,
-        newIndex,
-      );
-    });
-  }
-
-  void _reorderNewAttachments(int oldIndex, int newIndex) {
-    setState(() {
-      _supportingAttachments = _reorderedList(
-        _supportingAttachments,
-        oldIndex,
-        newIndex,
-      );
-    });
-  }
-
-  List<T> _reorderedList<T>(List<T> list, int oldIndex, int newIndex) {
-    final adjustedNewIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
-    final updated = List<T>.from(list);
-    final item = updated.removeAt(oldIndex);
-    updated.insert(adjustedNewIndex, item);
-    return updated;
   }
 
 
@@ -1707,13 +1677,11 @@ class _ExistingAttachmentsList extends StatelessWidget {
   const _ExistingAttachmentsList({
     required this.attachments,
     required this.onRemove,
-    required this.onReorder,
     required this.pendingDeletionCount,
   });
 
   final List<PurchaseOrderAttachment> attachments;
   final ValueChanged<int> onRemove;
-  final void Function(int oldIndex, int newIndex) onReorder;
   final int pendingDeletionCount;
 
   @override
@@ -1743,12 +1711,10 @@ class _ExistingAttachmentsList extends StatelessWidget {
             ),
           )
         else
-          ReorderableListView.builder(
+          ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: attachments.length,
-            onReorder: onReorder,
-            buildDefaultDragHandles: false,
             itemBuilder: (context, index) {
               final attachment = attachments[index];
               final subtitleParts = <String>[];
@@ -1769,20 +1735,10 @@ class _ExistingAttachmentsList extends StatelessWidget {
                   leading: const Icon(Icons.attach_file),
                   title: Text(attachment.fileName),
                   subtitle: subtitle == null ? null : Text(subtitle),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ReorderableDragStartListener(
-                        index: index,
-                        child: const Icon(Icons.drag_handle),
-                      ),
-                      const SizedBox(width: 4),
-                      IconButton(
-                        tooltip: 'Remove attachment',
-                        icon: const Icon(Icons.close),
-                        onPressed: () => onRemove(index),
-                      ),
-                    ],
+                  trailing: IconButton(
+                    tooltip: 'Remove attachment',
+                    icon: const Icon(Icons.close),
+                    onPressed: () => onRemove(index),
                   ),
                 ),
               );
@@ -1797,12 +1753,10 @@ class _NewAttachmentsList extends StatelessWidget {
   const _NewAttachmentsList({
     required this.attachments,
     required this.onRemove,
-    required this.onReorder,
   });
 
   final List<PlatformFile> attachments;
   final ValueChanged<PlatformFile> onRemove;
-  final void Function(int oldIndex, int newIndex) onReorder;
 
   @override
   Widget build(BuildContext context) {
@@ -1813,12 +1767,10 @@ class _NewAttachmentsList extends StatelessWidget {
         Text('New attachments (uploaded on save)',
             style: theme.textTheme.titleSmall),
         const SizedBox(height: 8),
-        ReorderableListView.builder(
+        ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: attachments.length,
-          onReorder: onReorder,
-          buildDefaultDragHandles: false,
           itemBuilder: (context, index) {
             final file = attachments[index];
             return Card(
@@ -1828,20 +1780,10 @@ class _NewAttachmentsList extends StatelessWidget {
                 leading: const Icon(Icons.insert_drive_file_outlined),
                 title: Text(file.name),
                 subtitle: Text(_formatSize(file.size)),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ReorderableDragStartListener(
-                      index: index,
-                      child: const Icon(Icons.drag_handle),
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      tooltip: 'Remove attachment',
-                      icon: const Icon(Icons.close),
-                      onPressed: () => onRemove(file),
-                    ),
-                  ],
+                trailing: IconButton(
+                  tooltip: 'Remove attachment',
+                  icon: const Icon(Icons.close),
+                  onPressed: () => onRemove(file),
                 ),
               ),
             );
