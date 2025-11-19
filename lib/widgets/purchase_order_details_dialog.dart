@@ -1,10 +1,12 @@
 import 'dart:math' as math;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:kokonuts_bookkeeping/app/app_state.dart';
 
 import '../app/app_state_scope.dart';
+import 'attachment_picker.dart';
 import '../services/payment_modes_service.dart';
 import '../services/purchase_order_detail_service.dart';
 import '../services/purchase_orders_service.dart';
@@ -128,6 +130,21 @@ class _PurchaseOrderDetailsDialogState
     });
   }
 
+  Future<void> _openAddAttachmentDialog(PurchaseOrderDetail detail) async {
+    final added = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _AddAttachmentsDialog(
+        orderId: detail.id,
+        orderNumber: detail.number,
+      ),
+    );
+
+    if (added == true) {
+      _retry();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -179,7 +196,11 @@ class _PurchaseOrderDetailsDialogState
                             detail: detail,
                             onPaymentsUpdated: _retry,
                           ),
-                          _AttachmentsTab(detail: detail),
+                          _AttachmentsTab(
+                            detail: detail,
+                            onAddAttachment: () =>
+                                _openAddAttachmentDialog(detail),
+                          ),
                         ],
                       ),
                     ),
@@ -1056,20 +1077,21 @@ class _PaymentsTabState extends State<_PaymentsTab> {
 
     if (payments.isEmpty) {
       return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const Expanded(
+            child: _EmptyTabMessage(
+              icon: Icons.receipt_long,
+              message: 'No payments recorded for this purchase order.',
+            ),
+          ),
+          const SizedBox(height: 16),
           Align(
-            alignment: Alignment.centerRight,
+            alignment: Alignment.center,
             child: ElevatedButton.icon(
               onPressed: _openAddPaymentDialog,
               icon: const Icon(Icons.add),
               label: const Text('Add payment'),
             ),
-          ),
-          const SizedBox(height: 16),
-          const _EmptyTabMessage(
-            icon: Icons.receipt_long,
-            message: 'No payments recorded for this purchase order.',
           ),
         ],
       );
@@ -1079,11 +1101,8 @@ class _PaymentsTabState extends State<_PaymentsTab> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Checkbox(value: widget.detail.hasPayments, onChanged: null),
-            const SizedBox(width: 8),
-            const Text('Paid'),
-            const Spacer(),
             ElevatedButton.icon(
               onPressed: _openAddPaymentDialog,
               icon: const Icon(Icons.add),
@@ -1513,17 +1532,31 @@ class _PaymentEntriesTable extends StatelessWidget {
                   const SizedBox(height: 12),
                   _ResponsiveFieldsRow(
                     children: [
-                      TextFormField(
-                        controller: entries[i].amountController,
-                        decoration: const InputDecoration(
-                          labelText: 'Amount (RM)',
-                          border: OutlineInputBorder(),
+                      if (readOnly)
+                        InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Amount (RM)',
+                            border: OutlineInputBorder(),
+                          ),
+                          child: Text(
+                            _resolveAmountLabel(entries[i]),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.disabledColor,
+                            ),
+                          ),
+                        )
+                      else
+                        TextFormField(
+                          controller: entries[i].amountController,
+                          decoration: const InputDecoration(
+                            labelText: 'Amount (RM)',
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          enabled: !readOnly,
                         ),
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        enabled: !readOnly,
-                      ),
                       if (readOnly &&
                           (paymentModes.isEmpty ||
                               entries[i].paymentModeId == null))
@@ -1624,6 +1657,11 @@ class _PaymentEntriesTable extends StatelessWidget {
       }
     }
     return null;
+  }
+
+  String _resolveAmountLabel(_PaymentEntryDraft entry) {
+    final text = entry.amountController.text.trim();
+    return text.isEmpty ? '—' : text;
   }
 }
 
@@ -1737,27 +1775,255 @@ class _ResponsiveFieldsRow extends StatelessWidget {
 }
 
 class _AttachmentsTab extends StatelessWidget {
-  const _AttachmentsTab({required this.detail});
+  const _AttachmentsTab({
+    required this.detail,
+    required this.onAddAttachment,
+  });
 
   final PurchaseOrderDetail detail;
+  final VoidCallback onAddAttachment;
 
   @override
   Widget build(BuildContext context) {
     if (!detail.hasAttachments) {
-      return const _EmptyTabMessage(
-        icon: Icons.attach_file,
-        message: 'No attachments were uploaded for this purchase order.',
+      return Column(
+        children: [
+          const Expanded(
+            child: _EmptyTabMessage(
+              icon: Icons.attach_file,
+              message: 'No attachments were uploaded for this purchase order.',
+            ),
+          ),
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.center,
+            child: ElevatedButton.icon(
+              onPressed: onAddAttachment,
+              icon: const Icon(Icons.attach_file),
+              label: const Text('Add attachment'),
+            ),
+          ),
+        ],
       );
     }
 
-    return ListView.separated(
-      padding: EdgeInsets.zero,
-      itemCount: detail.attachments.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final attachment = detail.attachments[index];
-        return _AttachmentCard(attachment: attachment);
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            ElevatedButton.icon(
+              onPressed: onAddAttachment,
+              icon: const Icon(Icons.attach_file),
+              label: const Text('Add attachment'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: ListView.separated(
+            padding: EdgeInsets.zero,
+            itemCount: detail.attachments.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final attachment = detail.attachments[index];
+              return _AttachmentCard(attachment: attachment);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AddAttachmentsDialog extends StatefulWidget {
+  const _AddAttachmentsDialog({
+    required this.orderId,
+    required this.orderNumber,
+  });
+
+  final String orderId;
+  final String orderNumber;
+
+  @override
+  State<_AddAttachmentsDialog> createState() => _AddAttachmentsDialogState();
+}
+
+class _AddAttachmentsDialogState extends State<_AddAttachmentsDialog> {
+  final _service = PurchaseOrdersService();
+  List<PlatformFile> _attachments = [];
+  bool _isSubmitting = false;
+  String? _error;
+
+  Future<void> _pickAttachments() async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      withData: true,
+      withReadStream: true,
+      type: FileType.custom,
+      allowedExtensions: allowedAttachmentExtensions.toList(),
+    );
+
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+
+    final validFiles = result.files
+        .where((file) =>
+            isAllowedAttachmentExtension(attachmentExtension(file.name)))
+        .toList();
+
+    if (validFiles.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _attachments = [..._attachments, ...validFiles];
+    });
+  }
+
+  void _onFilesSelected(List<PlatformFile> files) {
+    setState(() => _attachments = files);
+  }
+
+  void _removeAttachment(PlatformFile file) {
+    setState(() {
+      _attachments = List.of(_attachments)..remove(file);
+    });
+  }
+
+  Future<void> _submit() async {
+    if (_attachments.isEmpty) {
+      setState(() {
+        _error = 'Select at least one attachment to upload.';
+      });
+      return;
+    }
+
+    setState(() {
+      _error = null;
+      _isSubmitting = true;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _error = 'You are not logged in.';
+        _isSubmitting = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      await _service.uploadAttachments(
+        id: widget.orderId,
+        headers: headers,
+        attachments: _attachments,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).pop(true);
+    } on PurchaseOrdersException catch (error) {
+      if (mounted) {
+        setState(() => _error = error.message);
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() =>
+            _error = 'Failed to upload attachments: ${error.toString()}');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
+    final rawToken = (appState.rawAuthToken ?? token).trim();
+    final sanitizedToken =
+        token.replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+            .trim();
+    final normalizedAuth =
+        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final autoTokenValue =
+        rawToken.replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+            .trim();
+    final authtokenHeader =
+        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+
+    return {
+      'Accept': 'application/json',
+      'authtoken': authtokenHeader,
+      'Authorization': normalizedAuth,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Text('Add attachment${widget.orderNumber.isNotEmpty ? ' — ${widget.orderNumber}' : ''}'),
+      content: SizedBox(
+        width: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Upload supporting files for this purchase order.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            AttachmentPicker(
+              description:
+                  'Drag and drop files or tap to browse for purchase order attachments.',
+              files: _attachments,
+              onPick: _pickAttachments,
+              onFilesSelected: _onFilesSelected,
+              onFileRemoved: _removeAttachment,
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _error!,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton.icon(
+          onPressed: _isSubmitting ? null : _submit,
+          icon: _isSubmitting
+              ? const SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.cloud_upload),
+          label: Text(_isSubmitting ? 'Uploading...' : 'Upload attachments'),
+        ),
+      ],
     );
   }
 }
