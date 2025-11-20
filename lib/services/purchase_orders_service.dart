@@ -67,7 +67,7 @@ class PurchaseOrdersService {
 
     final request = http.Request(
       'DELETE',
-      Uri.parse('$_baseUrl/$id/payments'),
+      Uri.parse('$_singleOrderBaseUrl/$id/payments'),
     )
       ..headers.addAll({
         'Accept': 'application/json',
