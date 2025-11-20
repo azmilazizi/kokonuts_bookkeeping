@@ -409,7 +409,7 @@ class Expense {
       // We must encode the filename to handle spaces and special characters.
       final encodedName = Uri.encodeComponent(attachmentName);
       // Parse the base URL to get the scheme and authority
-      final baseUri = Uri.parse(_baseUrl);
+      final baseUri = Uri.parse(ExpensesService._baseUrl);
       final origin = '${baseUri.scheme}://${baseUri.host}';
       resolvedReceipt = '$origin/uploads/expenses/$expenseId/$encodedName';
     }
