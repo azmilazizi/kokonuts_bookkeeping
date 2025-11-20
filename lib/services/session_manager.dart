@@ -8,6 +8,7 @@ class SessionManager {
   static const _authTokenKey = 'auth_token';
   static const _currentUsernameKey = 'current_username';
   static const _themeModePrefix = 'theme_mode_';
+  static const _currentStaffIdKey = 'current_staff_id';
 
   Future<String?> getAuthToken() async {
     final prefs = await _tryGetPreferences();
@@ -53,6 +54,29 @@ class SessionManager {
     }
 
     await prefs.remove(_currentUsernameKey);
+  }
+
+  Future<void> saveCurrentStaffId(String staffId) async {
+    final prefs = await _tryGetPreferences();
+    if (prefs == null) {
+      return;
+    }
+
+    await prefs.setString(_currentStaffIdKey, staffId);
+  }
+
+  Future<String?> getCurrentStaffId() async {
+    final prefs = await _tryGetPreferences();
+    return prefs?.getString(_currentStaffIdKey);
+  }
+
+  Future<void> clearCurrentStaffId() async {
+    final prefs = await _tryGetPreferences();
+    if (prefs == null) {
+      return;
+    }
+
+    await prefs.remove(_currentStaffIdKey);
   }
 
   Future<void> saveThemeModeForUser(String username, ThemeMode mode) async {

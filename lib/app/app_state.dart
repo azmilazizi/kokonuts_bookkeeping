@@ -24,6 +24,7 @@ class AppState extends ChangeNotifier {
   String? _authToken;
   String? _rawAuthToken;
   String? _username;
+  String? _staffId;
   ThemeMode _themeMode = ThemeMode.system;
 
   bool get isInitialized => _isInitialized;
@@ -31,6 +32,8 @@ class AppState extends ChangeNotifier {
   String? get authToken => _authToken;
   String? get username => _username;
   String? get rawAuthToken => _rawAuthToken;
+  String? get staffId => _staffId;
+  String? get currentUserId => _staffId ?? _username;
   ThemeMode get themeMode => _themeMode;
 
   /// Returns the active auth token, refreshing it from storage if needed.
@@ -56,6 +59,7 @@ class AppState extends ChangeNotifier {
 
     final storedToken = await _sessionManager.getAuthToken();
     final storedUsername = await _sessionManager.getCurrentUsername();
+    final storedStaffId = await _sessionManager.getCurrentStaffId();
 
     if (storedToken != null && storedToken.isNotEmpty) {
       _applyToken(storedToken);
@@ -70,13 +74,18 @@ class AppState extends ChangeNotifier {
       }
     }
 
+    if (storedStaffId != null && storedStaffId.isNotEmpty) {
+      _staffId = storedStaffId;
+    }
+
     _isInitialized = true;
     notifyListeners();
   }
 
   /// Attempts to log the user in using the provided credentials.
   Future<void> login({required String username, required String password}) async {
-    final token = await _authService.login(username: username, password: password);
+    final session = await _authService.login(username: username, password: password);
+    final token = session.token;
     _applyToken(token);
     unawaited(_sessionManager.saveAuthToken(token));
     _username = username.trim();
@@ -88,6 +97,14 @@ class AppState extends ChangeNotifier {
       } else {
         _themeMode = ThemeMode.system;
       }
+    }
+    final resolvedStaffId = session.staffId?.trim();
+    if (resolvedStaffId != null && resolvedStaffId.isNotEmpty) {
+      _staffId = resolvedStaffId;
+      await _sessionManager.saveCurrentStaffId(resolvedStaffId);
+    } else {
+      _staffId = null;
+      await _sessionManager.clearCurrentStaffId();
     }
     _isLoggedIn = true;
     notifyListeners();
@@ -104,6 +121,8 @@ class AppState extends ChangeNotifier {
     }
     await _sessionManager.clearAuthToken();
     _username = null;
+    _staffId = null;
+    await _sessionManager.clearCurrentStaffId();
     _themeMode = ThemeMode.system;
     notifyListeners();
   }

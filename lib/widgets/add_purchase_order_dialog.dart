@@ -637,7 +637,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
             amount: amount,
             paymentMode: paymentMode,
             date: payment.date,
-            requester: appState.username,
+            requester: appState.currentUserId,
           ),
         );
       }
@@ -665,7 +665,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       discountValue: _orderDiscountValue,
       isDiscountPercentage: _orderDiscountType == DiscountType.percentage,
       payments: payments,
-      userId: appState.username,
+      userId: appState.currentUserId,
       nextPurchaseOrderNumber: _nextPurchaseOrderNumber,
       isUpdate: _isEditing,
       removedLineItemIds: _isEditing
