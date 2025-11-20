@@ -616,7 +616,7 @@ class _ExpensesHeader extends StatelessWidget {
   final bool sortAscending;
   final ValueChanged<ExpensesSortColumn> onSort;
 
-  static const _columnFlex = [4, 4, 3, 2, 3, 2, 3, 3];
+  static const _columnFlex = [4, 4, 3, 2, 3, 3, 3];
 
   @override
   Widget build(BuildContext context) {
@@ -666,19 +666,9 @@ class _ExpensesHeader extends StatelessWidget {
             ascending: sortAscending,
             onTap: () => onSort(ExpensesSortColumn.date),
           ),
-          Expanded(
-            flex: _columnFlex[5],
-            child: Align(
-              alignment: Alignment.center,
-              child: Text(
-                'Receipt',
-                style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
           SortableHeaderCell(
             label: 'Payment mode',
-            flex: _columnFlex[6],
+            flex: _columnFlex[5],
             theme: theme,
             textAlign: TextAlign.center,
             isActive: sortColumn == ExpensesSortColumn.paymentMode,
@@ -686,7 +676,7 @@ class _ExpensesHeader extends StatelessWidget {
             onTap: () => onSort(ExpensesSortColumn.paymentMode),
           ),
           Expanded(
-            flex: _columnFlex[7],
+            flex: _columnFlex[6],
             child: Align(
               alignment: Alignment.center,
               child: Text(
@@ -723,7 +713,7 @@ class _ExpenseRow extends StatefulWidget {
 class _ExpenseRowState extends State<_ExpenseRow> {
   bool _hovering = false;
 
-  static const _columnFlex = [4, 4, 3, 2, 3, 2, 3, 3];
+  static const _columnFlex = [4, 4, 3, 2, 3, 3, 3];
 
   @override
   Widget build(BuildContext context) {
@@ -767,24 +757,13 @@ class _ExpenseRowState extends State<_ExpenseRow> {
                 flex: _columnFlex[4],
                 textAlign: TextAlign.center,
               ),
-              Expanded(
-                flex: _columnFlex[5],
-                child: Align(
-                  alignment: Alignment.center,
-                  child: Text(
-                    widget.expense.receiptLabel,
-                    style: widget.theme.textTheme.bodyMedium,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
               _DataCell(
                 widget.expense.paymentMode,
-                flex: _columnFlex[6],
+                flex: _columnFlex[5],
                 textAlign: TextAlign.center,
               ),
               Expanded(
-                flex: _columnFlex[7],
+                flex: _columnFlex[6],
                 child: Align(
                   alignment: Alignment.center,
                   child: Row(
