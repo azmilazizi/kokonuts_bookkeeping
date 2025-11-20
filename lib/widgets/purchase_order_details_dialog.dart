@@ -1366,7 +1366,7 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
           amount: amount,
           paymentMode: method,
           date: entry.date ?? DateTime.now(),
-          requester: appState.username,
+          requester: appState.currentUserId,
         ),
       );
     }

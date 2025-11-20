@@ -27,7 +27,10 @@ class AuthService {
   final SessionManager _sessionManager;
 
   /// Attempts to log the user in and returns the auth token if successful.
-  Future<String> login({required String username, required String password}) async {
+  Future<AuthSession> login({
+    required String username,
+    required String password,
+  }) async {
     late http.Response response;
     try {
       response = await _client.post(
@@ -46,7 +49,13 @@ class AuthService {
         throw const AuthException('The server response did not include a token.');
       }
       await _sessionManager.saveAuthToken(token);
-      return token;
+      final staffId = _extractStaffId(decoded);
+      if (staffId != null && staffId.isNotEmpty) {
+        await _sessionManager.saveCurrentStaffId(staffId);
+      } else {
+        await _sessionManager.clearCurrentStaffId();
+      }
+      return AuthSession(token: token, staffId: staffId);
     }
 
     final fallbackMessage = 'Login failed with status code ${response.statusCode}.';
@@ -88,6 +97,7 @@ class AuthService {
   /// Clears persisted authentication state.
   Future<void> logout() async {
     await _sessionManager.clearAuthToken();
+    await _sessionManager.clearCurrentStaffId();
   }
 
   String? _extractToken(Map<String, dynamic>? decoded) {
@@ -119,6 +129,105 @@ class AuthService {
               return nestedToken;
             }
           }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  String? _extractStaffId(Map<String, dynamic>? decoded) {
+    if (decoded == null) {
+      return null;
+    }
+
+    const prioritizedKeys = <String>{
+      'staff_id',
+      'staffid',
+      'staffId',
+      'staff',
+      'user_id',
+      'userid',
+      'userId',
+      'user',
+    };
+
+    for (final key in prioritizedKeys) {
+      final resolved = _resolveStaffId(decoded[key]);
+      if (resolved != null && resolved.isNotEmpty) {
+        return resolved;
+      }
+    }
+
+    for (final entry in decoded.entries) {
+      final value = entry.value;
+      if (value is Map<String, dynamic>) {
+        final nested = _extractStaffId(value);
+        if (nested != null && nested.isNotEmpty) {
+          return nested;
+        }
+      } else if (value is Iterable) {
+        for (final element in value) {
+          if (element is Map<String, dynamic>) {
+            final nested = _extractStaffId(element);
+            if (nested != null && nested.isNotEmpty) {
+              return nested;
+            }
+          } else {
+            final resolved = _resolveStaffId(element);
+            if (resolved != null && resolved.isNotEmpty) {
+              return resolved;
+            }
+          }
+        }
+      } else {
+        final resolved = _resolveStaffId(value);
+        if (resolved != null && resolved.isNotEmpty) {
+          return resolved;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  String? _resolveStaffId(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is String) {
+      final trimmed = value.trim();
+      return trimmed.isEmpty ? null : trimmed;
+    }
+
+    if (value is num) {
+      return value.toString();
+    }
+
+    if (value is Map<String, dynamic>) {
+      const potentialKeys = <String>{
+        'id',
+        'staff_id',
+        'staffid',
+        'staffId',
+        'user_id',
+        'userid',
+        'userId',
+      };
+      for (final key in potentialKeys) {
+        final nested = _resolveStaffId(value[key]);
+        if (nested != null && nested.isNotEmpty) {
+          return nested;
+        }
+      }
+    }
+
+    if (value is Iterable) {
+      for (final element in value) {
+        final resolved = _resolveStaffId(element);
+        if (resolved != null && resolved.isNotEmpty) {
+          return resolved;
         }
       }
     }
@@ -210,4 +319,12 @@ class AuthService {
       ifAbsent: () => List<String>.from(messages),
     );
   }
+}
+
+/// Represents an authenticated session returned from the login endpoint.
+class AuthSession {
+  const AuthSession({required this.token, this.staffId});
+
+  final String token;
+  final String? staffId;
 }
