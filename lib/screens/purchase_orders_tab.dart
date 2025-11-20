@@ -52,8 +52,6 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   bool _hasMore = true;
   int _nextPage = 1;
   String? _error;
-  String? _statusMessage;
-  bool _statusIsError = false;
 
   @override
   void initState() {
@@ -245,16 +243,27 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
         _error = null;
       });
 
-      _showStatusBanner('Purchase order "${order.number}" deleted.');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Purchase order "${order.number}" deleted.'),
+          ),
+        );
+      }
     } on PurchaseOrdersException catch (error) {
       if (mounted) {
-        _showStatusBanner(error.message, isError: true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.message),
+          ),
+        );
       }
     } catch (error) {
       if (mounted) {
-        _showStatusBanner(
-          'Failed to delete purchase order: $error',
-          isError: true,
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete purchase order: $error'),
+          ),
         );
       }
     } finally {
@@ -266,28 +275,12 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
     }
   }
 
-  void _showStatusBanner(String message, {bool isError = false}) {
-    setState(() {
-      _statusMessage = message;
-      _statusIsError = isError;
-    });
-  }
-
-  void _dismissStatusBanner() {
-    if (_statusMessage == null) {
-      return;
-    }
-    setState(() {
-      _statusMessage = null;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mediaQuery = MediaQuery.of(context);
 
-    final content = RefreshIndicator(
+    return RefreshIndicator(
       onRefresh: () => _fetchPage(reset: true),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -377,46 +370,6 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
         },
       ),
     );
-
-    return Stack(
-      children: [
-        content,
-        Positioned(
-          left: 16,
-          right: 16,
-          bottom: 16 + mediaQuery.padding.bottom,
-          child: IgnorePointer(
-            ignoring: _statusMessage == null,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              switchInCurve: Curves.easeOut,
-              switchOutCurve: Curves.easeIn,
-              transitionBuilder: (child, animation) {
-                final offsetAnimation = Tween<Offset>(
-                  begin: const Offset(0, 1),
-                  end: Offset.zero,
-                ).animate(animation);
-                return SlideTransition(
-                  position: offsetAnimation,
-                  child: FadeTransition(
-                    opacity: animation,
-                    child: child,
-                  ),
-                );
-              },
-              child: _statusMessage == null
-                  ? const SizedBox.shrink()
-                  : AlertBanner(
-                      key: ValueKey('${_statusIsError}-${_statusMessage!}'),
-                      message: _statusMessage!,
-                      isError: _statusIsError,
-                      onDismiss: _dismissStatusBanner,
-                    ),
-            ),
-          ),
-        ),
-      ],
-    );
   }
 
   void _handleSort(PurchaseOrderSortColumn column) {
@@ -470,11 +423,15 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       _applySorting();
       _applyFilters();
       _error = null;
-      if (successMessage != null) {
-        _statusMessage = successMessage;
-        _statusIsError = false;
-      }
     });
+
+    if (successMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(successMessage),
+        ),
+      );
+    }
   }
 
   void _applySorting() {
