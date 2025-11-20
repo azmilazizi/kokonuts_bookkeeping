@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 
 class ExpensesService {
@@ -8,6 +9,8 @@ class ExpensesService {
   final http.Client _client;
 
   static const _baseUrl = 'https://crm.kokonuts.my/api/v1/expenses';
+  static const _baseUrlWithoutV1 = 'https://crm.kokonuts.my/api/expenses'; // Fallback or specific endpoint if needed
+  static const _attachmentFieldName = 'file';
 
   Future<ExpensesPage> fetchExpenses({
     required int page,
@@ -51,6 +54,172 @@ class ExpensesService {
     return ExpensesPage(expenses: expenses, hasMore: pagination.hasMore);
   }
 
+  Future<Expense> updateExpense({
+    required String id,
+    required Map<String, String> headers,
+    required Map<String, dynamic> data,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/$id');
+
+    http.Response response;
+    try {
+      response = await _client.put(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: jsonEncode(data),
+      );
+    } catch (error) {
+      throw ExpensesException('Failed to update expense: $error');
+    }
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw ExpensesException(
+        'Update failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error) {
+      throw ExpensesException('Unable to parse update response: $error');
+    }
+
+    // The response structure might be { "status": true, "message": "...", "data": { ... } }
+    // or directly the object or wrapped in 'expense'
+    final expenseJson = _extractExpense(decoded);
+    if (expenseJson == null) {
+      throw ExpensesException(
+        'Update response did not include an expense payload.',
+      );
+    }
+
+    return Expense.fromJson(expenseJson);
+  }
+
+  Future<void> uploadAttachments({
+    required String id,
+    required Map<String, String> headers,
+    required List<PlatformFile> attachments,
+  }) async {
+    if (attachments.isEmpty) {
+      return;
+    }
+
+    final files = await Future.wait(
+      attachments.map(_buildMultipartFile),
+      eagerError: false,
+    );
+
+    final uploadFiles =
+        files.whereType<http.MultipartFile>().toList(growable: false);
+    if (uploadFiles.isEmpty) {
+      return;
+    }
+
+    // Assumption: Expense attachment endpoint follows similar pattern
+    // POST /api/expenses/{id}/attachments
+    // Note: The base URL for expenses is /api/v1/expenses.
+    // Adjust if necessary based on backend knowledge.
+    final uri = Uri.parse('$_baseUrl/$id/attachments');
+
+    final request = http.MultipartRequest('POST', uri)
+      ..headers.addAll({
+        'Accept': 'application/json',
+        ...headers,
+      })
+      ..files.addAll(uploadFiles);
+
+    http.StreamedResponse response;
+    try {
+      response = await _client.send(request);
+    } catch (error) {
+      throw ExpensesException('Failed to upload attachments: $error');
+    }
+
+    final resolved = await http.Response.fromStream(response);
+    if (resolved.statusCode != 200 &&
+        resolved.statusCode != 201 &&
+        resolved.statusCode != 204) {
+      throw ExpensesException(
+        'Attachment upload failed with status ${resolved.statusCode}: ${resolved.body}',
+      );
+    }
+  }
+
+  Future<void> deleteAttachments({
+    required String id,
+    required Map<String, String> headers,
+    required List<String> attachmentIds,
+  }) async {
+    if (attachmentIds.isEmpty) {
+      return;
+    }
+
+    final uri = Uri.parse('$_baseUrl/$id/attachments');
+
+    final request = http.Request('DELETE', uri)
+      ..headers.addAll({
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        ...headers,
+      })
+      ..body = jsonEncode({'ids': attachmentIds});
+
+    http.StreamedResponse response;
+    try {
+      response = await _client.send(request);
+    } catch (error) {
+      throw ExpensesException('Failed to delete attachments: $error');
+    }
+
+    final resolved = await http.Response.fromStream(response);
+    if (resolved.statusCode != 200 && resolved.statusCode != 204) {
+      throw ExpensesException(
+        'Attachment delete failed with status ${resolved.statusCode}: ${resolved.body}',
+      );
+    }
+  }
+
+  Future<http.MultipartFile?> _buildMultipartFile(PlatformFile file) async {
+    final sanitizedName = file.name.trim();
+    if (sanitizedName.isEmpty) {
+      return null;
+    }
+
+    if (file.readStream != null) {
+      return http.MultipartFile(
+        _attachmentFieldName,
+        file.readStream!,
+        file.size,
+        filename: sanitizedName,
+      );
+    }
+
+    if (file.bytes != null) {
+      return http.MultipartFile.fromBytes(
+        _attachmentFieldName,
+        file.bytes!,
+        filename: sanitizedName,
+      );
+    }
+
+    final path = file.path?.trim();
+    if (path != null && path.isNotEmpty) {
+      return http.MultipartFile.fromPath(
+        _attachmentFieldName,
+        path,
+        filename: sanitizedName,
+      );
+    }
+
+    return null;
+  }
+
   List<dynamic> _extractExpensesList(dynamic decoded) {
     if (decoded is List) {
       return decoded;
@@ -75,6 +244,28 @@ class ExpensesService {
     }
 
     return const [];
+  }
+
+  Map<String, dynamic>? _extractExpense(dynamic decoded) {
+    if (decoded is Map<String, dynamic>) {
+      if (_looksLikeExpense(decoded)) {
+        return decoded;
+      }
+      const preferredKeys = ['data', 'expense', 'result', 'item'];
+      for (final key in preferredKeys) {
+        final value = decoded[key];
+        final candidate = _extractExpense(value);
+        if (candidate != null) {
+          return candidate;
+        }
+      }
+    }
+    return null;
+  }
+
+  bool _looksLikeExpense(Map<String, dynamic> map) {
+    return map.containsKey('id') &&
+        (map.containsKey('expense_name') || map.containsKey('amount'));
   }
 
   PaginationInfo _resolvePagination(
@@ -191,6 +382,7 @@ class Expense {
     required this.receipt,
     required this.paymentMode,
     required this.createdBy,
+    this.attachments = const [],
   });
 
   factory Expense.fromJson(Map<String, dynamic> json) {
@@ -239,6 +431,15 @@ class Expense {
         _stringValue(json['user_name']) ??
         '—';
 
+    final attachments = _extractRelatedCollection(json, const [
+      'attachments',
+      'files',
+      'documents',
+    ])
+        .whereType<Map<String, dynamic>>()
+        .map(ExpenseAttachment.fromJson)
+        .toList(growable: false);
+
     return Expense(
       id: _stringValue(json['id']) ?? '',
       vendor: vendorName ??
@@ -263,6 +464,7 @@ class Expense {
       receipt: receipt,
       paymentMode: paymentMode,
       createdBy: createdBy,
+      attachments: attachments,
     );
   }
 
@@ -277,6 +479,7 @@ class Expense {
   final String? receipt;
   final String paymentMode;
   final String createdBy;
+  final List<ExpenseAttachment> attachments;
 
   String get formattedDate {
     final value = date;
@@ -332,6 +535,72 @@ class Expense {
     }
     return value.toString();
   }
+}
+
+class ExpenseAttachment {
+  const ExpenseAttachment({
+    required this.fileName,
+    this.description,
+    this.downloadUrl,
+    this.uploadedBy,
+    this.uploadedAt,
+    this.sizeLabel,
+    this.id,
+  });
+
+  factory ExpenseAttachment.fromJson(Map<String, dynamic> json) {
+    final fileName = Expense._stringValue(json['file_name']) ??
+        Expense._stringValue(json['filename']) ??
+        Expense._stringValue(json['name']) ??
+        Expense._stringValue(json['title']) ??
+        'Attachment';
+
+    final id = Expense._stringValue(json['id']) ??
+        Expense._stringValue(json['attachment_id']) ??
+        Expense._stringValue(json['file_id']);
+
+    final description = Expense._stringValue(json['description']) ??
+        Expense._stringValue(json['note']) ??
+        Expense._stringValue(json['remarks']);
+
+    final downloadUrl = Expense._stringValue(json['download_url']) ??
+        Expense._stringValue(json['url']) ??
+        Expense._stringValue(json['file_url']) ??
+        Expense._stringValue(json['link']) ??
+        Expense._stringValue(json['file_path']) ??
+        Expense._stringValue(json['path']);
+
+    final uploadedBy = Expense._stringValue(json['uploaded_by']) ??
+        Expense._stringValue(json['created_by']) ??
+        Expense._stringValue(json['owner']);
+
+    final uploadedAt = _parseDateString(Expense._stringValue(json['uploaded_at']) ??
+        Expense._stringValue(json['created_at']) ??
+        Expense._stringValue(json['date']));
+
+    final sizeLabel = Expense._stringValue(json['file_size_formatted']) ??
+        Expense._stringValue(json['size_formatted']) ??
+        Expense._stringValue(json['file_size']) ??
+        Expense._stringValue(json['size']);
+
+    return ExpenseAttachment(
+      fileName: fileName,
+      description: description,
+      downloadUrl: downloadUrl,
+      uploadedBy: uploadedBy,
+      uploadedAt: uploadedAt,
+      sizeLabel: sizeLabel,
+      id: id,
+    );
+  }
+
+  final String fileName;
+  final String? description;
+  final String? downloadUrl;
+  final String? uploadedBy;
+  final DateTime? uploadedAt;
+  final String? sizeLabel;
+  final String? id;
 }
 
 class PaginationInfo {
@@ -482,4 +751,55 @@ String? _resolveReceipt(dynamic value) {
     }
   }
   return null;
+}
+
+List<dynamic> _extractRelatedCollection(
+  dynamic source,
+  List<String> candidateKeys,
+) {
+  if (source is Map<String, dynamic>) {
+    for (final key in candidateKeys) {
+      if (source.containsKey(key)) {
+        final extracted = _extractItems(source[key]);
+        if (extracted.isNotEmpty) {
+          return extracted;
+        }
+      }
+    }
+
+    for (final value in source.values) {
+      final extracted = _extractRelatedCollection(value, candidateKeys);
+      if (extracted.isNotEmpty) {
+        return extracted;
+      }
+    }
+  } else if (source is List) {
+    for (final element in source) {
+      final extracted = _extractRelatedCollection(element, candidateKeys);
+      if (extracted.isNotEmpty) {
+        return extracted;
+      }
+    }
+  }
+
+  return const [];
+}
+
+List<dynamic> _extractItems(dynamic source) {
+  if (source is List) {
+    return source;
+  }
+  if (source is Map<String, dynamic>) {
+    if (source.containsKey('data')) {
+      return _extractItems(source['data']);
+    }
+    if (source.containsKey('items')) {
+      return _extractItems(source['items']);
+    }
+    return source.values
+        .map(_extractItems)
+        .expand((element) => element)
+        .toList();
+  }
+  return const [];
 }
