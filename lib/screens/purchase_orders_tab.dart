@@ -875,14 +875,20 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
     final double horizontalPadding = widget.isCompactLayout ? 16.0 : 24.0;
     final double columnGap = widget.isCompactLayout ? 8.0 : 12.0;
     final double actionSpacing = widget.isCompactLayout ? 4.0 : 8.0;
-    final BoxConstraints? iconConstraints = widget.isCompactLayout
+
+    // Match Expenses table button style
+    const double iconSize = 22.0;
+    const BoxConstraints iconConstraints =
+        BoxConstraints.tightFor(width: 40, height: 40);
+    const VisualDensity iconDensity = VisualDensity.compact;
+
+    // Use the existing compact logic if needed, but user requested to match Expenses table style
+    // If we want to strictly respect compact layout, we might need to adjust, but sticking to the request:
+    final double effectiveIconSize =
+        widget.isCompactLayout ? 20.0 : iconSize;
+    final BoxConstraints effectiveIconConstraints = widget.isCompactLayout
         ? const BoxConstraints.tightFor(width: 36, height: 36)
-        : null;
-    final EdgeInsetsGeometry? iconPadding =
-        widget.isCompactLayout ? EdgeInsets.zero : null;
-    final double iconSize = widget.isCompactLayout ? 20.0 : 24.0;
-    final VisualDensity? iconDensity =
-        widget.isCompactLayout ? VisualDensity.compact : null;
+        : iconConstraints;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -945,9 +951,8 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
                       IconButton(
                         icon: const Icon(Icons.edit_outlined),
                         tooltip: 'Edit',
-                        iconSize: iconSize,
-                        padding: iconPadding,
-                        constraints: iconConstraints,
+                        iconSize: effectiveIconSize,
+                        constraints: effectiveIconConstraints,
                         visualDensity: iconDensity,
                         onPressed: () => _showEditDialog(context),
                       ),
@@ -958,9 +963,8 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
                         style: IconButton.styleFrom(
                           foregroundColor: widget.theme.colorScheme.error,
                         ),
-                        iconSize: iconSize,
-                        padding: iconPadding,
-                        constraints: iconConstraints,
+                        iconSize: effectiveIconSize,
+                        constraints: effectiveIconConstraints,
                         visualDensity: iconDensity,
                         onPressed: widget.isDeleting ? null : widget.onDelete,
                       ),
