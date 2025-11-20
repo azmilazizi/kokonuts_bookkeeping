@@ -67,14 +67,14 @@ class PurchaseOrdersService {
 
     final request = http.Request(
       'DELETE',
-      Uri.parse('$_singleOrderBaseUrl/$id/payments'),
+      Uri.parse('$_baseUrl/$id/payments'),
     )
       ..headers.addAll({
         'Accept': 'application/json',
         'Content-Type': 'application/json',
         ...headers,
       })
-      ..body = jsonEncode({'payments': normalizedIds});
+      ..body = jsonEncode({'ids': normalizedIds});
 
     http.StreamedResponse response;
     try {
