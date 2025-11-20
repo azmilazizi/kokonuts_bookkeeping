@@ -398,7 +398,24 @@ class Expense {
     final amount = _parseDouble(amountValue);
     final amountLabel = _stringValue(amountValue) ?? amount?.toStringAsFixed(2) ?? '—';
 
-    final receipt = _resolveReceipt(json['receipt']) ??
+    // Check for 'attachment' filename and construct URL if needed
+    String? resolvedReceipt;
+    final attachmentName = _stringValue(json['attachment']);
+    final expenseId = _stringValue(json['id']) ?? _stringValue(json['expenseid']);
+
+    if (attachmentName != null && expenseId != null && attachmentName.isNotEmpty) {
+      // Construct standard Perfex CRM attachment URL
+      // Format: base_url/uploads/expenses/{id}/{filename}
+      // We must encode the filename to handle spaces and special characters.
+      final encodedName = Uri.encodeComponent(attachmentName);
+      // Parse the base URL to get the scheme and authority
+      final baseUri = Uri.parse(_baseUrl);
+      final origin = '${baseUri.scheme}://${baseUri.host}';
+      resolvedReceipt = '$origin/uploads/expenses/$expenseId/$encodedName';
+    }
+
+    final receipt = resolvedReceipt ??
+        _resolveReceipt(json['receipt']) ??
         _resolveReceipt(json['receipt_url']) ??
         _resolveReceipt(json['receipt_link']) ??
         _resolveReceipt(json['attachments']) ??
