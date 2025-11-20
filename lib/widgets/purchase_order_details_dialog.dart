@@ -50,11 +50,16 @@ class _ErrorView extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Icon(Icons.error_outline,
-                    color: theme.colorScheme.error, size: 48),
+                Icon(
+                  Icons.error_outline,
+                  color: theme.colorScheme.error,
+                  size: 48,
+                ),
                 const SizedBox(height: 16),
-                Text('Something went wrong',
-                    style: theme.textTheme.titleMedium),
+                Text(
+                  'Something went wrong',
+                  style: theme.textTheme.titleMedium,
+                ),
                 const SizedBox(height: 8),
                 Text(
                   error?.toString() ?? 'Unable to load purchase order details.',
@@ -63,7 +68,10 @@ class _ErrorView extends StatelessWidget {
                 ),
                 if (onRetry != null) ...[
                   const SizedBox(height: 24),
-                  ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
+                  ElevatedButton(
+                    onPressed: onRetry,
+                    child: const Text('Retry'),
+                  ),
                 ],
               ],
             ),
@@ -142,10 +150,8 @@ class _PurchaseOrderDetailsDialogState
     final added = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => _AddAttachmentsDialog(
-        orderId: detail.id,
-        orderNumber: detail.number,
-      ),
+      builder: (context) =>
+          _AddAttachmentsDialog(orderId: detail.id, orderNumber: detail.number),
     );
 
     if (added == true) {
@@ -879,10 +885,7 @@ class _EmptyTabMessage extends StatelessWidget {
             style: theme.textTheme.bodyMedium?.copyWith(color: color),
             textAlign: TextAlign.center,
           ),
-          if (action != null) ...[
-            const SizedBox(height: 16),
-            action!,
-          ],
+          if (action != null) ...[const SizedBox(height: 16), action!],
         ],
       ),
     );
@@ -1424,20 +1427,16 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
                 ],
               ),
               const SizedBox(height: 16),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: _PaymentEntriesTable(
-                    entries: _payments,
-                    isLoadingPaymentModes: _isLoadingPaymentModes,
-                    paymentModes: _paymentModes,
-                    paymentModesError: _paymentModesError,
-                    onAdd: _addPayment,
-                    onRemove: _removePayment,
-                    onPickDate: _pickDate,
-                    onPaymentModeChanged: (entry, modeId) =>
-                        setState(() => entry.setPaymentModeId(modeId)),
-                  ),
-                ),
+              _PaymentEntriesTable(
+                entries: _payments,
+                isLoadingPaymentModes: _isLoadingPaymentModes,
+                paymentModes: _paymentModes,
+                paymentModesError: _paymentModesError,
+                onAdd: _addPayment,
+                onRemove: _removePayment,
+                onPickDate: _pickDate,
+                onPaymentModeChanged: (entry, modeId) =>
+                    setState(() => entry.setPaymentModeId(modeId)),
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
@@ -1735,8 +1734,8 @@ class _PaymentEntryDraft {
     DateTime? initialDate,
     this.paymentModeLabel,
   }) : amountController = TextEditingController(
-          text: CurrencyInputFormatter.normalizeExistingValue(amountText),
-        ),
+         text: CurrencyInputFormatter.normalizeExistingValue(amountText),
+       ),
        date = initialDate;
 
   final TextEditingController amountController;
@@ -1805,10 +1804,7 @@ class _ResponsiveFieldsRow extends StatelessWidget {
 }
 
 class _AttachmentsTab extends StatelessWidget {
-  const _AttachmentsTab({
-    required this.detail,
-    required this.onAddAttachment,
-  });
+  const _AttachmentsTab({required this.detail, required this.onAddAttachment});
 
   final PurchaseOrderDetail detail;
   final VoidCallback onAddAttachment;
@@ -1896,8 +1892,10 @@ class _AddAttachmentsDialogState extends State<_AddAttachmentsDialog> {
     }
 
     final validFiles = result.files
-        .where((file) =>
-            isAllowedAttachmentExtension(attachmentExtension(file.name)))
+        .where(
+          (file) =>
+              isAllowedAttachmentExtension(attachmentExtension(file.name)),
+        )
         .toList();
 
     if (validFiles.isEmpty) {
@@ -1967,8 +1965,9 @@ class _AddAttachmentsDialogState extends State<_AddAttachmentsDialog> {
       }
     } catch (error) {
       if (mounted) {
-        setState(() =>
-            _error = 'Failed to upload attachments: ${error.toString()}');
+        setState(
+          () => _error = 'Failed to upload attachments: ${error.toString()}',
+        );
       }
     } finally {
       if (mounted) {
@@ -1979,16 +1978,18 @@ class _AddAttachmentsDialogState extends State<_AddAttachmentsDialog> {
 
   Map<String, String> _buildAuthHeaders(AppState appState, String token) {
     final rawToken = (appState.rawAuthToken ?? token).trim();
-    final sanitizedToken =
-        token.replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
-            .trim();
-    final normalizedAuth =
-        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
-    final autoTokenValue =
-        rawToken.replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
-            .trim();
-    final authtokenHeader =
-        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
+    final autoTokenValue = rawToken
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
 
     return {
       'Accept': 'application/json',
@@ -2001,7 +2002,9 @@ class _AddAttachmentsDialogState extends State<_AddAttachmentsDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AlertDialog(
-      title: Text('Add attachment${widget.orderNumber.isNotEmpty ? ' — ${widget.orderNumber}' : ''}'),
+      title: Text(
+        'Add attachment${widget.orderNumber.isNotEmpty ? ' — ${widget.orderNumber}' : ''}',
+      ),
       content: SizedBox(
         width: 520,
         child: Column(

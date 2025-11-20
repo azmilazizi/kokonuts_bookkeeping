@@ -9,7 +9,8 @@ class ExpensesService {
   final http.Client _client;
 
   static const _baseUrl = 'https://crm.kokonuts.my/api/v1/expenses';
-  static const _baseUrlWithoutV1 = 'https://crm.kokonuts.my/api/expenses'; // Fallback or specific endpoint if needed
+  static const _baseUrlWithoutV1 =
+      'https://crm.kokonuts.my/api/expenses'; // Fallback or specific endpoint if needed
   static const _attachmentFieldName = 'file';
 
   Future<ExpensesPage> fetchExpenses({
@@ -17,10 +18,9 @@ class ExpensesService {
     required int perPage,
     required Map<String, String> headers,
   }) async {
-    final uri = Uri.parse(_baseUrl).replace(queryParameters: {
-      'page': '$page',
-      'per_page': '$perPage',
-    });
+    final uri = Uri.parse(
+      _baseUrl,
+    ).replace(queryParameters: {'page': '$page', 'per_page': '$perPage'});
 
     http.Response response;
     try {
@@ -48,8 +48,11 @@ class ExpensesService {
         .map(Expense.fromJson)
         .toList();
 
-    final pagination =
-        _resolvePagination(decoded, currentPage: page, perPage: perPage);
+    final pagination = _resolvePagination(
+      decoded,
+      currentPage: page,
+      perPage: perPage,
+    );
 
     return ExpensesPage(expenses: expenses, hasMore: pagination.hasMore);
   }
@@ -115,8 +118,9 @@ class ExpensesService {
       eagerError: false,
     );
 
-    final uploadFiles =
-        files.whereType<http.MultipartFile>().toList(growable: false);
+    final uploadFiles = files.whereType<http.MultipartFile>().toList(
+      growable: false,
+    );
     if (uploadFiles.isEmpty) {
       return;
     }
@@ -128,10 +132,7 @@ class ExpensesService {
     final uri = Uri.parse('$_baseUrl/$id/attachments');
 
     final request = http.MultipartRequest('POST', uri)
-      ..headers.addAll({
-        'Accept': 'application/json',
-        ...headers,
-      })
+      ..headers.addAll({'Accept': 'application/json', ...headers})
       ..files.addAll(uploadFiles);
 
     http.StreamedResponse response;
@@ -329,7 +330,10 @@ class ExpensesService {
       return source.length;
     }
     if (source is Map<String, dynamic>) {
-      return source.values.fold<int>(0, (count, value) => count + _countItems(value));
+      return source.values.fold<int>(
+        0,
+        (count, value) => count + _countItems(value),
+      );
     }
     return 0;
   }
@@ -385,36 +389,44 @@ class Expense {
     this.attachments = const [],
   });
 
+  static const _baseUrl = 'https://crm.kokonuts.my/api/v1/expenses';
+
   factory Expense.fromJson(Map<String, dynamic> json) {
     final vendorData = json['vendor'];
     String? vendorName;
     if (vendorData is Map<String, dynamic>) {
-      vendorName = _stringValue(vendorData['name']) ??
+      vendorName =
+          _stringValue(vendorData['name']) ??
           _stringValue(vendorData['vendor_name']) ??
           _stringValue(vendorData['company_name']);
     }
 
     final amountValue = json['amount'] ?? json['total'] ?? json['value'];
     final amount = _parseDouble(amountValue);
-    final amountLabel = _stringValue(amountValue) ?? amount?.toStringAsFixed(2) ?? '—';
+    final amountLabel =
+        _stringValue(amountValue) ?? amount?.toStringAsFixed(2) ?? '—';
 
     // Check for 'attachment' filename and construct URL if needed
     String? resolvedReceipt;
     final attachmentName = _stringValue(json['attachment']);
-    final expenseId = _stringValue(json['id']) ?? _stringValue(json['expenseid']);
+    final expenseId =
+        _stringValue(json['id']) ?? _stringValue(json['expenseid']);
 
-    if (attachmentName != null && expenseId != null && attachmentName.isNotEmpty) {
+    if (attachmentName != null &&
+        expenseId != null &&
+        attachmentName.isNotEmpty) {
       // Construct standard Perfex CRM attachment URL
       // Format: base_url/uploads/expenses/{id}/{filename}
       // We must encode the filename to handle spaces and special characters.
       final encodedName = Uri.encodeComponent(attachmentName);
       // Parse the base URL to get the scheme and authority
-      final baseUri = Uri.parse(ExpensesService._baseUrl);
+      final baseUri = Uri.parse(_baseUrl);
       final origin = '${baseUri.scheme}://${baseUri.host}';
       resolvedReceipt = '$origin/uploads/expenses/$expenseId/$encodedName';
     }
 
-    final receipt = resolvedReceipt ??
+    final receipt =
+        resolvedReceipt ??
         _resolveReceipt(json['receipt']) ??
         _resolveReceipt(json['receipt_url']) ??
         _resolveReceipt(json['receipt_link']) ??
@@ -423,20 +435,23 @@ class Expense {
         _stringValue(json['receipt_url']) ??
         _stringValue(json['receipt_link']);
 
-    final dateString = _stringValue(json['expense_date']) ??
+    final dateString =
+        _stringValue(json['expense_date']) ??
         _stringValue(json['date']) ??
         _stringValue(json['created_at']) ??
         _stringValue(json['updated_at']) ??
         '';
 
-    final paymentMode = _stringValue(json['payment_mode_name']) ??
+    final paymentMode =
+        _stringValue(json['payment_mode_name']) ??
         _stringValue(json['payment_mode']) ??
         _stringValue(json['paymentMode']) ??
         _stringValue(json['mode']) ??
         _stringValue(json['payment_method']) ??
         '—';
 
-    final createdBy = _resolveCreatedBy(json['created_by']) ??
+    final createdBy =
+        _resolveCreatedBy(json['created_by']) ??
         _resolveCreatedBy(json['createdBy']) ??
         _resolveCreatedBy(json['staff']) ??
         _resolveCreatedBy(json['user']) ??
@@ -448,32 +463,37 @@ class Expense {
         _stringValue(json['user_name']) ??
         '—';
 
-    final attachments = _extractRelatedCollection(json, const [
-      'attachments',
-      'files',
-      'documents',
-    ])
-        .whereType<Map<String, dynamic>>()
-        .map(ExpenseAttachment.fromJson)
-        .toList(growable: false);
+    final attachments =
+        _extractRelatedCollection(json, const [
+              'attachments',
+              'files',
+              'documents',
+            ])
+            .whereType<Map<String, dynamic>>()
+            .map(ExpenseAttachment.fromJson)
+            .toList(growable: false);
 
     return Expense(
       id: _stringValue(json['id']) ?? '',
-      vendor: vendorName ??
+      vendor:
+          vendorName ??
           _stringValue(json['vendor_name']) ??
           _stringValue(json['vendor']) ??
           '—',
-      name: _stringValue(json['expense_name']) ??
+      name:
+          _stringValue(json['expense_name']) ??
           _stringValue(json['name']) ??
           _stringValue(json['description']) ??
           _stringValue(json['title']) ??
           '—',
-      categoryName: _stringValue(json['category_name']) ??
+      categoryName:
+          _stringValue(json['category_name']) ??
           _stringValue(json['category']) ??
           '—',
       amount: amount,
       amountLabel: amountLabel,
-      currencySymbol: _stringValue(json['currency_symbol']) ??
+      currencySymbol:
+          _stringValue(json['currency_symbol']) ??
           _stringValue(json['currency']) ??
           _stringValue(json['currency_code']) ??
           '',
@@ -566,36 +586,44 @@ class ExpenseAttachment {
   });
 
   factory ExpenseAttachment.fromJson(Map<String, dynamic> json) {
-    final fileName = Expense._stringValue(json['file_name']) ??
+    final fileName =
+        Expense._stringValue(json['file_name']) ??
         Expense._stringValue(json['filename']) ??
         Expense._stringValue(json['name']) ??
         Expense._stringValue(json['title']) ??
         'Attachment';
 
-    final id = Expense._stringValue(json['id']) ??
+    final id =
+        Expense._stringValue(json['id']) ??
         Expense._stringValue(json['attachment_id']) ??
         Expense._stringValue(json['file_id']);
 
-    final description = Expense._stringValue(json['description']) ??
+    final description =
+        Expense._stringValue(json['description']) ??
         Expense._stringValue(json['note']) ??
         Expense._stringValue(json['remarks']);
 
-    final downloadUrl = Expense._stringValue(json['download_url']) ??
+    final downloadUrl =
+        Expense._stringValue(json['download_url']) ??
         Expense._stringValue(json['url']) ??
         Expense._stringValue(json['file_url']) ??
         Expense._stringValue(json['link']) ??
         Expense._stringValue(json['file_path']) ??
         Expense._stringValue(json['path']);
 
-    final uploadedBy = Expense._stringValue(json['uploaded_by']) ??
+    final uploadedBy =
+        Expense._stringValue(json['uploaded_by']) ??
         Expense._stringValue(json['created_by']) ??
         Expense._stringValue(json['owner']);
 
-    final uploadedAt = _parseDateString(Expense._stringValue(json['uploaded_at']) ??
-        Expense._stringValue(json['created_at']) ??
-        Expense._stringValue(json['date']));
+    final uploadedAt = _parseDateString(
+      Expense._stringValue(json['uploaded_at']) ??
+          Expense._stringValue(json['created_at']) ??
+          Expense._stringValue(json['date']),
+    );
 
-    final sizeLabel = Expense._stringValue(json['file_size_formatted']) ??
+    final sizeLabel =
+        Expense._stringValue(json['file_size_formatted']) ??
         Expense._stringValue(json['size_formatted']) ??
         Expense._stringValue(json['file_size']) ??
         Expense._stringValue(json['size']);
@@ -674,8 +702,9 @@ DateTime? _parseDateString(String? value) {
     if (segments[0].length == 4) {
       final isoDate =
           '${segments[0]}-${segments[1].padLeft(2, '0')}-${segments[2].padLeft(2, '0')}';
-      final candidate =
-          timePart != null && timePart.isNotEmpty ? '$isoDate $timePart' : isoDate;
+      final candidate = timePart != null && timePart.isNotEmpty
+          ? '$isoDate $timePart'
+          : isoDate;
       final parsed = _tryParseDate(candidate);
       if (parsed != null) {
         return parsed;
