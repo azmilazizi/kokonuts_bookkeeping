@@ -25,7 +25,7 @@ class PurchaseOrdersService {
       return;
     }
 
-    final uri = Uri.parse('$_singleOrderBaseUrl/$id/payments');
+    final uri = Uri.parse('$_baseUrl/$id/payments');
     final payload = {
       'payments': payments.map((payment) => payment.toJson()).toList(),
     };

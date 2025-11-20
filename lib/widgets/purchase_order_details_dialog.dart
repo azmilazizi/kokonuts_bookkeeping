@@ -1424,16 +1424,20 @@ class _CreatePaymentsDialogState extends State<_CreatePaymentsDialog> {
                 ],
               ),
               const SizedBox(height: 16),
-              _PaymentEntriesTable(
-                entries: _payments,
-                isLoadingPaymentModes: _isLoadingPaymentModes,
-                paymentModes: _paymentModes,
-                paymentModesError: _paymentModesError,
-                onAdd: _addPayment,
-                onRemove: _removePayment,
-                onPickDate: _pickDate,
-                onPaymentModeChanged: (entry, modeId) =>
-                    setState(() => entry.setPaymentModeId(modeId)),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: _PaymentEntriesTable(
+                    entries: _payments,
+                    isLoadingPaymentModes: _isLoadingPaymentModes,
+                    paymentModes: _paymentModes,
+                    paymentModesError: _paymentModesError,
+                    onAdd: _addPayment,
+                    onRemove: _removePayment,
+                    onPickDate: _pickDate,
+                    onPaymentModeChanged: (entry, modeId) =>
+                        setState(() => entry.setPaymentModeId(modeId)),
+                  ),
+                ),
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
