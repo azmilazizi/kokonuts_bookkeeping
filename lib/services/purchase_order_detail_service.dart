@@ -607,6 +607,7 @@ class PurchaseOrderAttachment {
     this.uploadedBy,
     this.uploadedAt,
     this.sizeLabel,
+    this.id,
   });
 
   factory PurchaseOrderAttachment.fromJson(Map<String, dynamic> json) {
@@ -615,6 +616,10 @@ class PurchaseOrderAttachment {
         _string(json['name']) ??
         _string(json['title']) ??
         'Attachment';
+
+    final id = _string(json['id']) ??
+        _string(json['attachment_id']) ??
+        _string(json['file_id']);
 
     final description = _string(json['description']) ??
         _string(json['note']) ??
@@ -665,6 +670,7 @@ class PurchaseOrderAttachment {
       uploadedBy: uploadedBy,
       uploadedAt: uploadedAt,
       sizeLabel: sizeLabel,
+      id: id,
     );
   }
 
@@ -674,6 +680,7 @@ class PurchaseOrderAttachment {
   final String? uploadedBy;
   final DateTime? uploadedAt;
   final String? sizeLabel;
+  final String? id;
 
   String get uploadedAtLabel => _formatDate(uploadedAt) ?? '—';
 

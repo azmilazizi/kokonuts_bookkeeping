@@ -292,9 +292,9 @@ class PurchaseOrdersService {
   Future<void> deleteAttachments({
     required String id,
     required Map<String, String> headers,
-    required List<String> fileNames,
+    required List<String> attachmentIds,
   }) async {
-    if (fileNames.isEmpty) {
+    if (attachmentIds.isEmpty) {
       return;
     }
 
@@ -307,7 +307,7 @@ class PurchaseOrdersService {
         'Content-Type': 'application/json',
         ...headers,
       })
-      ..body = jsonEncode({'files': fileNames});
+      ..body = jsonEncode({'ids': attachmentIds});
 
     http.StreamedResponse response;
     try {
