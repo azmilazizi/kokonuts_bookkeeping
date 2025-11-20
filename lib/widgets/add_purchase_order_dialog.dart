@@ -722,7 +722,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           await _service.deleteAttachments(
             id: created.id,
             headers: headers,
-            fileNames: _attachmentsMarkedForDeletion.toList(growable: false),
+            attachmentIds: _attachmentsMarkedForDeletion.toList(growable: false),
           );
         } catch (error) {
           if (mounted) {
@@ -1007,7 +1007,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   void _scheduleExistingAttachmentRemoval(int index) {
     setState(() {
       final removed = _existingAttachments.removeAt(index);
-      _attachmentsMarkedForDeletion.add(removed.fileName);
+      if (removed.id != null && removed.id!.isNotEmpty) {
+        _attachmentsMarkedForDeletion.add(removed.id!);
+      } else {
+        _attachmentsMarkedForDeletion.add(removed.fileName);
+      }
     });
   }
 
