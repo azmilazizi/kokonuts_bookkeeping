@@ -138,6 +138,50 @@ class ExpensesService {
     return Expense.fromJson(expenseJson);
   }
 
+  Future<Expense> createExpense({
+    required Map<String, String> headers,
+    required Map<String, dynamic> data,
+  }) async {
+    final uri = Uri.parse(_baseUrl);
+
+    http.Response response;
+    try {
+      response = await _client.post(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: jsonEncode(data),
+      );
+    } catch (error) {
+      throw ExpensesException('Failed to create expense: $error');
+    }
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw ExpensesException(
+        'Create failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error) {
+      throw ExpensesException('Unable to parse create response: $error');
+    }
+
+    final expenseJson = _extractExpense(decoded);
+    if (expenseJson == null) {
+      throw ExpensesException(
+        'Create response did not include an expense payload.',
+      );
+    }
+
+    return Expense.fromJson(expenseJson);
+  }
+
   Future<void> uploadAttachments({
     required String id,
     required Map<String, String> headers,
@@ -218,6 +262,38 @@ class ExpensesService {
         'Attachment delete failed with status ${resolved.statusCode}: ${resolved.body}',
       );
     }
+  }
+
+  Future<List<ExpenseCategory>> fetchCategories({
+    required Map<String, String> headers,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/categories');
+
+    http.Response response;
+    try {
+      response = await _client.get(uri, headers: headers);
+    } catch (error) {
+      throw ExpensesException('Failed to reach server: $error');
+    }
+
+    if (response.statusCode != 200) {
+      throw ExpensesException(
+        'Request failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error) {
+      throw ExpensesException('Unable to parse response: $error');
+    }
+
+    final list = _extractItems(decoded);
+    return list
+        .whereType<Map<String, dynamic>>()
+        .map(ExpenseCategory.fromJson)
+        .toList();
   }
 
   Future<http.MultipartFile?> _buildMultipartFile(PlatformFile file) async {
@@ -680,6 +756,23 @@ class ExpenseAttachment {
   final DateTime? uploadedAt;
   final String? sizeLabel;
   final String? id;
+}
+
+class ExpenseCategory {
+  const ExpenseCategory({required this.id, required this.name});
+
+  factory ExpenseCategory.fromJson(Map<String, dynamic> json) {
+    return ExpenseCategory(
+      id: Expense._stringValue(json['id']) ?? '',
+      name:
+          Expense._stringValue(json['name']) ??
+          Expense._stringValue(json['category_name']) ??
+          '—',
+    );
+  }
+
+  final String id;
+  final String name;
 }
 
 class PaginationInfo {
