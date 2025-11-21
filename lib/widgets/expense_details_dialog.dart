@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'attachment_pdf_preview.dart';
 import '../services/expenses_service.dart';
 
@@ -60,10 +61,7 @@ class ExpenseDetailsDialog extends StatelessWidget {
                         value: expense.formattedDate,
                       ),
                       const SizedBox(height: 12),
-                      _AttachmentSection(
-                          attachmentUrl: expense.receipt,
-                          expense: expense,
-                      ),
+                      _AttachmentSection(expense: expense),
                     ],
                   ),
                 ),
@@ -138,15 +136,27 @@ class _DetailField extends StatelessWidget {
 }
 
 class _AttachmentSection extends StatelessWidget {
-  const _AttachmentSection({required this.attachmentUrl, required this.expense});
+  const _AttachmentSection({required this.expense});
 
-  final String? attachmentUrl;
   final Expense expense;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final resolved = attachmentUrl;
+
+    List<ExpenseAttachment> attachments = expense.attachments;
+    if (attachments.isEmpty &&
+        expense.receipt != null &&
+        expense.receipt!.isNotEmpty) {
+      // Fallback to create attachment from receipt URL
+      attachments = [
+        ExpenseAttachment(
+          fileName: _extractFileName(expense.receipt!),
+          downloadUrl: expense.receipt,
+          uploadedBy: expense.createdBy,
+        )
+      ];
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,12 +169,37 @@ class _AttachmentSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        if (resolved == null || resolved.isEmpty)
+        if (attachments.isEmpty)
           Text('No attachment available', style: theme.textTheme.bodyMedium)
         else
-          _ExpenseAttachmentCard(attachmentUrl: resolved, expense: expense),
+          Column(
+            children: attachments
+                .map(
+                  (attachment) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _ExpenseAttachmentCard(
+                      attachment: attachment,
+                      expenseId: expense.id,
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
       ],
     );
+  }
+
+  String _extractFileName(String url) {
+    try {
+      final uri = Uri.parse(url);
+      final segments = uri.pathSegments;
+      if (segments.isNotEmpty) {
+        return segments.last;
+      }
+    } catch (_) {
+      // ignore
+    }
+    return 'Attachment';
   }
 }
 
@@ -235,31 +270,28 @@ String _normalizeAttachmentDownloadUrl(String url) {
 }
 
 class _ExpenseAttachmentCard extends StatelessWidget {
-  const _ExpenseAttachmentCard({required this.attachmentUrl, required this.expense});
+  const _ExpenseAttachmentCard({
+    required this.attachment,
+    required this.expenseId,
+  });
 
-  final String attachmentUrl;
-  final Expense expense;
-
-  String _extractFileName(String url) {
-    try {
-      final uri = Uri.parse(url);
-      final segments = uri.pathSegments;
-      if (segments.isNotEmpty) {
-        return segments.last;
-      }
-    } catch (_) {
-      // ignore
-    }
-    return 'Attachment';
-  }
+  final ExpenseAttachment attachment;
+  final String expenseId;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final labelColor = theme.colorScheme.onSurfaceVariant;
-    final normalizedDownloadUrl = _normalizeAttachmentDownloadUrl(attachmentUrl);
-    final fileName = _extractFileName(attachmentUrl);
-    final previewType = _resolvePreviewType(fileName, normalizedDownloadUrl);
+
+    final normalizedDownloadUrl = attachment.downloadUrl != null
+        ? _normalizeAttachmentDownloadUrl(attachment.downloadUrl!)
+        : null;
+
+    // We use the special API URL for previewing
+    const baseUrl = 'https://crm.kokonuts.my/api/v1/expenses';
+    final previewApiUrl = '$baseUrl/$expenseId/attachment';
+
+    final previewType = _resolvePreviewType(attachment.fileName, normalizedDownloadUrl);
 
     final children = <Widget>[
       Row(
@@ -268,7 +300,7 @@ class _ExpenseAttachmentCard extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              fileName,
+              attachment.fileName,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -279,32 +311,67 @@ class _ExpenseAttachmentCard extends StatelessWidget {
       const SizedBox(height: 12),
     ];
 
-    if (expense.createdBy.trim().isNotEmpty) {
-      children.add(
+    if (attachment.uploadedAt != null) {
+       children.add(
         _LabelValueRow(
-          label: 'Uploaded by',
-          value: expense.createdBy.trim(),
+          label: 'Uploaded on',
+          value: DateFormat.yMMMd().format(attachment.uploadedAt!),
         ),
       );
     }
 
-    children.addAll([
-      const SizedBox(height: 12),
-      Text(
-        'Download URL',
-        style: theme.textTheme.labelMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-          color: labelColor,
+    if (attachment.uploadedBy != null && attachment.uploadedBy!.trim().isNotEmpty) {
+      children.add(
+        _LabelValueRow(
+          label: 'Uploaded by',
+          value: attachment.uploadedBy!.trim(),
         ),
-      ),
-      const SizedBox(height: 4),
-      SelectableText(
-        normalizedDownloadUrl,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.colorScheme.primary,
+      );
+    }
+
+    if (attachment.sizeLabel != null && attachment.sizeLabel!.trim().isNotEmpty) {
+      children.add(
+        _LabelValueRow(
+          label: 'Size',
+          value: attachment.sizeLabel!.trim(),
         ),
-      ),
-    ]);
+      );
+    }
+
+    if (attachment.description != null && attachment.description!.trim().isNotEmpty) {
+      children.addAll([
+        const SizedBox(height: 12),
+        Text(
+          'Description',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: labelColor,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(attachment.description!.trim(), style: theme.textTheme.bodyMedium),
+      ]);
+    }
+
+    if (normalizedDownloadUrl != null) {
+      children.addAll([
+        const SizedBox(height: 12),
+        Text(
+          'Download URL',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: labelColor,
+          ),
+        ),
+        const SizedBox(height: 4),
+        SelectableText(
+          normalizedDownloadUrl,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.primary,
+          ),
+        ),
+      ]);
+    }
 
     if (previewType != null) {
       children.addAll([
@@ -317,8 +384,9 @@ class _ExpenseAttachmentCard extends StatelessWidget {
             onPressed: () {
               _showAttachmentPreview(
                 context: context,
-                fileName: fileName,
-                downloadUrl: normalizedDownloadUrl,
+                fileName: attachment.fileName,
+                // Use the API URL for preview as requested
+                downloadUrl: previewApiUrl,
                 previewType: previewType,
               );
             },
@@ -345,7 +413,7 @@ enum _AttachmentPreviewType { image, pdf }
 
 _AttachmentPreviewType? _resolvePreviewType(
   String fileName,
-  String downloadUrl,
+  String? downloadUrl,
 ) {
   if (_matchesExtension(fileName, _imageExtensions) ||
       _matchesExtension(downloadUrl, _imageExtensions)) {
