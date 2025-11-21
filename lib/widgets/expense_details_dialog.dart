@@ -18,6 +18,7 @@ class _ExpenseDetailsDialogState extends State<ExpenseDetailsDialog> {
   late Future<Expense> _future;
   final _expensesService = ExpensesService();
   bool _initialized = false;
+  Map<String, String>? _apiHeaders;
 
   @override
   void didChangeDependencies() {
@@ -41,6 +42,7 @@ class _ExpenseDetailsDialogState extends State<ExpenseDetailsDialog> {
     }
 
     final headers = _buildAuthHeaders(appState, token);
+    _apiHeaders = headers;
 
     return _expensesService.getExpense(
       id: widget.expense.id,
@@ -144,7 +146,10 @@ class _ExpenseDetailsDialogState extends State<ExpenseDetailsDialog> {
                             value: expense.formattedDate,
                           ),
                           const SizedBox(height: 12),
-                          _AttachmentSection(expense: expense),
+                          _AttachmentSection(
+                            expense: expense,
+                            apiHeaders: _apiHeaders,
+                          ),
                         ],
                       ),
                     ),
@@ -221,9 +226,10 @@ class _DetailField extends StatelessWidget {
 }
 
 class _AttachmentSection extends StatelessWidget {
-  const _AttachmentSection({required this.expense});
+  const _AttachmentSection({required this.expense, this.apiHeaders});
 
   final Expense expense;
+  final Map<String, String>? apiHeaders;
 
   @override
   Widget build(BuildContext context) {
@@ -265,6 +271,7 @@ class _AttachmentSection extends StatelessWidget {
                     child: _ExpenseAttachmentCard(
                       attachment: attachment,
                       expenseId: expense.id,
+                      apiHeaders: apiHeaders,
                     ),
                   ),
                 )
@@ -358,10 +365,12 @@ class _ExpenseAttachmentCard extends StatelessWidget {
   const _ExpenseAttachmentCard({
     required this.attachment,
     required this.expenseId,
+    this.apiHeaders,
   });
 
   final ExpenseAttachment attachment;
   final String expenseId;
+  final Map<String, String>? apiHeaders;
 
   @override
   Widget build(BuildContext context) {
@@ -473,6 +482,7 @@ class _ExpenseAttachmentCard extends StatelessWidget {
                 // Use the API URL for preview as requested
                 downloadUrl: previewApiUrl,
                 previewType: previewType,
+                apiHeaders: apiHeaders,
               );
             },
           ),
@@ -559,14 +569,17 @@ void _showAttachmentPreview({
   required String fileName,
   required String downloadUrl,
   required _AttachmentPreviewType previewType,
+  Map<String, String>? apiHeaders,
 }) {
   showDialog<void>(
     context: context,
-    builder: (context) => _AttachmentPreviewDialog(
-      fileName: fileName,
-      downloadUrl: downloadUrl,
-      previewType: previewType,
-    ),
+    builder:
+        (context) => _AttachmentPreviewDialog(
+          fileName: fileName,
+          downloadUrl: downloadUrl,
+          previewType: previewType,
+          apiHeaders: apiHeaders,
+        ),
   );
 }
 
@@ -575,11 +588,13 @@ class _AttachmentPreviewDialog extends StatelessWidget {
     required this.fileName,
     required this.downloadUrl,
     required this.previewType,
+    this.apiHeaders,
   });
 
   final String fileName;
   final String downloadUrl;
   final _AttachmentPreviewType previewType;
+  final Map<String, String>? apiHeaders;
 
   @override
   Widget build(BuildContext context) {
@@ -589,10 +604,13 @@ class _AttachmentPreviewDialog extends StatelessWidget {
 
     switch (previewType) {
       case _AttachmentPreviewType.image:
-        content = _ImagePreview(downloadUrl: downloadUrl);
+        content = _ImagePreview(
+          downloadUrl: downloadUrl,
+          apiHeaders: apiHeaders,
+        );
         break;
       case _AttachmentPreviewType.pdf:
-        content = _PdfPreview(downloadUrl: downloadUrl);
+        content = _PdfPreview(downloadUrl: downloadUrl, apiHeaders: apiHeaders);
         break;
     }
 
@@ -634,9 +652,10 @@ class _AttachmentPreviewDialog extends StatelessWidget {
 }
 
 class _ImagePreview extends StatelessWidget {
-  const _ImagePreview({required this.downloadUrl});
+  const _ImagePreview({required this.downloadUrl, this.apiHeaders});
 
   final String downloadUrl;
+  final Map<String, String>? apiHeaders;
 
   @override
   Widget build(BuildContext context) {
@@ -644,6 +663,7 @@ class _ImagePreview extends StatelessWidget {
       child: Center(
         child: Image.network(
           downloadUrl,
+          headers: apiHeaders,
           fit: BoxFit.contain,
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) {
@@ -666,12 +686,13 @@ class _ImagePreview extends StatelessWidget {
 }
 
 class _PdfPreview extends StatelessWidget {
-  const _PdfPreview({required this.downloadUrl});
+  const _PdfPreview({required this.downloadUrl, this.apiHeaders});
 
   final String downloadUrl;
+  final Map<String, String>? apiHeaders;
 
   @override
   Widget build(BuildContext context) {
-    return buildAttachmentPdfPreview(downloadUrl);
+    return buildAttachmentPdfPreview(downloadUrl, headers: apiHeaders);
   }
 }
