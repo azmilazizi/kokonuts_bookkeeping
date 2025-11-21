@@ -1,62 +1,173 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:kokonuts_bookkeeping/app/app_state.dart';
+import 'package:kokonuts_bookkeeping/app/app_state_scope.dart';
+import 'attachment_pdf_preview.dart';
 
 import '../services/bills_service.dart';
 
-class BillDetailsDialog extends StatelessWidget {
-  const BillDetailsDialog({super.key, required this.bill, required this.vendorName});
+class BillDetailsDialog extends StatefulWidget {
+  const BillDetailsDialog({
+    super.key,
+    required this.bill,
+    required this.vendorName,
+  });
 
   final Bill bill;
   final String vendorName;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+  State<BillDetailsDialog> createState() => _BillDetailsDialogState();
+}
 
+class _BillDetailsDialogState extends State<BillDetailsDialog> {
+  late Future<Bill> _future;
+  final _billsService = BillsService();
+  bool _initialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _future = _loadDetails();
+      _initialized = true;
+    }
+  }
+
+  Future<Bill> _loadDetails() async {
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      throw const BillsException('Dialog no longer mounted');
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      throw const BillsException('You are not logged in.');
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    return _billsService.getBill(
+      id: widget.bill.id,
+      headers: headers,
+    );
+  }
+
+  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
+    final rawToken = (appState.rawAuthToken ?? token).trim();
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
+    final autoTokenValue = rawToken
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
+    return {
+      'Accept': 'application/json',
+      'authtoken': authtokenHeader,
+      'Authorization': normalizedAuth,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Dialog(
       insetPadding: const EdgeInsets.all(24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 640, maxHeight: 720),
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _DialogHeader(onClose: () => Navigator.of(context).pop()),
-              const SizedBox(height: 12),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _DetailField(label: 'Vendor', value: vendorName.isEmpty ? '—' : vendorName),
-                      const SizedBox(height: 12),
-                      _DetailField(label: 'Bill ID', value: bill.id.isEmpty ? '—' : bill.id),
-                      const SizedBox(height: 12),
-                      _DetailField(label: 'Bill date', value: bill.formattedDate),
-                      const SizedBox(height: 12),
-                      _DetailField(label: 'Due date', value: bill.formattedDueDate),
-                      const SizedBox(height: 20),
-                      const Divider(thickness: 1.2),
-                      const SizedBox(height: 20),
-                      _DetailField(
-                        label: 'Status',
-                        value: bill.status.label,
-                        valueStyle: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+          child: FutureBuilder<Bill>(
+            future: _future,
+            initialData: widget.bill,
+            builder: (context, snapshot) {
+              final bill = snapshot.data ?? widget.bill;
+              final isLoading = snapshot.connectionState == ConnectionState.waiting;
+              final hasError = snapshot.hasError;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _DialogHeader(onClose: () => Navigator.of(context).pop()),
+                  const SizedBox(height: 12),
+                  if (hasError)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        'Failed to load details: ${snapshot.error}',
+                        style: const TextStyle(color: Colors.red),
                       ),
-                      const SizedBox(height: 12),
-                      _DetailField(
-                        label: 'Total amount',
-                        value: bill.totalLabel,
-                        valueStyle: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: theme.colorScheme.error,
+                    ),
+                  if (isLoading && snapshot.data == null)
+                    const Expanded(
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  if (!isLoading || snapshot.data != null)
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (isLoading) const LinearProgressIndicator(),
+                            _DetailField(
+                              label: 'Vendor',
+                              value: widget.vendorName.isEmpty
+                                  ? '—'
+                                  : widget.vendorName,
+                            ),
+                            const SizedBox(height: 12),
+                            _DetailField(
+                              label: 'Bill ID',
+                              value: bill.id.isEmpty ? '—' : bill.id,
+                            ),
+                            const SizedBox(height: 12),
+                            _DetailField(
+                              label: 'Bill date',
+                              value: bill.formattedDate,
+                            ),
+                            const SizedBox(height: 12),
+                            _DetailField(
+                              label: 'Due date',
+                              value: bill.formattedDueDate,
+                            ),
+                            const SizedBox(height: 20),
+                            const Divider(thickness: 1.2),
+                            const SizedBox(height: 20),
+                            _DetailField(
+                              label: 'Status',
+                              value: bill.status.label,
+                              valueStyle: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 12),
+                            _DetailField(
+                              label: 'Total amount',
+                              value: bill.totalLabel,
+                              valueStyle: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                            ),
+                            const SizedBox(height: 24),
+                            _AttachmentSection(bill: bill),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+                    ),
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -77,7 +188,9 @@ class _DialogHeader extends StatelessWidget {
         Expanded(
           child: Text(
             'Bill Details',
-            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         IconButton(
@@ -120,5 +233,446 @@ class _DetailField extends StatelessWidget {
         Text(resolvedValue, style: valueStyle ?? theme.textTheme.bodyMedium),
       ],
     );
+  }
+}
+
+class _AttachmentSection extends StatelessWidget {
+  const _AttachmentSection({required this.bill});
+
+  final Bill bill;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    if (bill.attachments.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Attachment',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text('No attachment available', style: theme.textTheme.bodyMedium),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Attachment',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Column(
+          children:
+              bill.attachments
+                  .map(
+                    (attachment) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _BillAttachmentCard(
+                        attachment: attachment,
+                        billId: bill.id,
+                      ),
+                    ),
+                  )
+                  .toList(),
+        ),
+      ],
+    );
+  }
+}
+
+class _BillAttachmentCard extends StatelessWidget {
+  const _BillAttachmentCard({required this.attachment, required this.billId});
+
+  final BillAttachment attachment;
+  final String billId;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labelColor = theme.colorScheme.onSurfaceVariant;
+
+    final normalizedDownloadUrl =
+        attachment.downloadUrl != null
+            ? _normalizeAttachmentDownloadUrl(attachment.downloadUrl!)
+            : null;
+
+    final previewType = _resolvePreviewType(
+      attachment.fileName,
+      normalizedDownloadUrl,
+    );
+
+    final children = <Widget>[
+      Row(
+        children: [
+          Icon(Icons.attach_file, color: labelColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              attachment.fileName,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+    ];
+
+    if (attachment.uploadedAt != null) {
+      children.add(
+        _LabelValueRow(
+          label: 'Uploaded on',
+          value: DateFormat.yMMMd().format(attachment.uploadedAt!),
+        ),
+      );
+    }
+
+    if (attachment.uploadedBy != null &&
+        attachment.uploadedBy!.trim().isNotEmpty) {
+      children.add(
+        _LabelValueRow(
+          label: 'Uploaded by',
+          value: attachment.uploadedBy!.trim(),
+        ),
+      );
+    }
+
+    if (attachment.sizeLabel != null &&
+        attachment.sizeLabel!.trim().isNotEmpty) {
+      children.add(
+        _LabelValueRow(label: 'Size', value: attachment.sizeLabel!.trim()),
+      );
+    }
+
+    if (attachment.description != null &&
+        attachment.description!.trim().isNotEmpty) {
+      children.addAll([
+        const SizedBox(height: 12),
+        Text(
+          'Description',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: labelColor,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(attachment.description!.trim(), style: theme.textTheme.bodyMedium),
+      ]);
+    }
+
+    if (normalizedDownloadUrl != null) {
+      children.addAll([
+        const SizedBox(height: 12),
+        Text(
+          'Download URL',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: labelColor,
+          ),
+        ),
+        const SizedBox(height: 4),
+        SelectableText(
+          normalizedDownloadUrl,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.primary,
+          ),
+        ),
+      ]);
+    }
+
+    if (previewType != null && normalizedDownloadUrl != null) {
+      children.addAll([
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.icon(
+            icon: const Icon(Icons.visibility),
+            label: const Text('Preview'),
+            onPressed: () {
+              _showAttachmentPreview(
+                context: context,
+                fileName: attachment.fileName,
+                downloadUrl: normalizedDownloadUrl,
+                previewType: previewType,
+              );
+            },
+          ),
+        ),
+      ]);
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.dividerColor),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
+}
+
+class _LabelValueRow extends StatelessWidget {
+  const _LabelValueRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labelColor = theme.colorScheme.onSurfaceVariant;
+    final labelStyle = theme.textTheme.labelMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+      color: labelColor,
+    );
+
+    final displayValue = value.trim().isEmpty ? '—' : value;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 120, child: Text(label, style: labelStyle)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              displayValue,
+              style: theme.textTheme.bodyMedium,
+              softWrap: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _normalizeAttachmentDownloadUrl(String url) {
+  final trimmed = url.trim();
+  if (trimmed.isEmpty) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('//')) {
+    return 'https:$trimmed';
+  }
+
+  final uri = Uri.tryParse(trimmed);
+  if (uri == null) {
+    return trimmed;
+  }
+
+  if (uri.hasScheme) {
+    return uri.toString();
+  }
+
+  final base = Uri.base;
+  final canUseBase =
+      base.hasScheme && (base.scheme == 'http' || base.scheme == 'https');
+  if (canUseBase) {
+    return base.resolveUri(uri).toString();
+  }
+
+  return uri.toString();
+}
+
+enum _AttachmentPreviewType { image, pdf }
+
+_AttachmentPreviewType? _resolvePreviewType(
+  String fileName,
+  String? downloadUrl,
+) {
+  if (_matchesExtension(fileName, _imageExtensions) ||
+      _matchesExtension(downloadUrl, _imageExtensions)) {
+    return _AttachmentPreviewType.image;
+  }
+
+  if (_matchesExtension(fileName, _pdfExtensions) ||
+      _matchesExtension(downloadUrl, _pdfExtensions)) {
+    return _AttachmentPreviewType.pdf;
+  }
+
+  return null;
+}
+
+const _imageExtensions = <String>{
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.bmp',
+  '.webp',
+  '.heic',
+};
+
+const _pdfExtensions = <String>{'.pdf'};
+
+bool _matchesExtension(String? value, Set<String> extensions) {
+  if (value == null || value.trim().isEmpty) {
+    return false;
+  }
+
+  bool match(String candidate) {
+    final lower = candidate.toLowerCase();
+    for (final ext in extensions) {
+      final normalizedExt = ext.startsWith('.') ? ext : '.$ext';
+      if (lower.endsWith(normalizedExt)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  final trimmed = value.trim();
+  if (match(trimmed)) {
+    return true;
+  }
+
+  final parsed = Uri.tryParse(trimmed);
+  if (parsed != null && match(parsed.path)) {
+    return true;
+  }
+
+  return false;
+}
+
+void _showAttachmentPreview({
+  required BuildContext context,
+  required String fileName,
+  required String downloadUrl,
+  required _AttachmentPreviewType previewType,
+}) {
+  showDialog<void>(
+    context: context,
+    builder:
+        (context) => _AttachmentPreviewDialog(
+          fileName: fileName,
+          downloadUrl: downloadUrl,
+          previewType: previewType,
+        ),
+  );
+}
+
+class _AttachmentPreviewDialog extends StatelessWidget {
+  const _AttachmentPreviewDialog({
+    required this.fileName,
+    required this.downloadUrl,
+    required this.previewType,
+  });
+
+  final String fileName;
+  final String downloadUrl;
+  final _AttachmentPreviewType previewType;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = '$fileName preview';
+    final theme = Theme.of(context);
+    Widget content;
+
+    switch (previewType) {
+      case _AttachmentPreviewType.image:
+        content = _ImagePreview(downloadUrl: downloadUrl);
+        break;
+      case _AttachmentPreviewType.pdf:
+        content = _PdfPreview(downloadUrl: downloadUrl);
+        break;
+    }
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: SizedBox(
+        width: 720,
+        height: 560,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close preview',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(child: content),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ImagePreview extends StatelessWidget {
+  const _ImagePreview({required this.downloadUrl});
+
+  final String downloadUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return InteractiveViewer(
+      child: Center(
+        child: Image.network(
+          downloadUrl,
+          fit: BoxFit.contain,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) {
+              return child;
+            }
+            return const Center(child: CircularProgressIndicator());
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Unable to load image preview.'),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _PdfPreview extends StatelessWidget {
+  const _PdfPreview({required this.downloadUrl});
+
+  final String downloadUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return buildAttachmentPdfPreview(downloadUrl);
   }
 }
