@@ -1,72 +1,157 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:kokonuts_bookkeeping/app/app_state.dart';
+import 'package:kokonuts_bookkeeping/app/app_state_scope.dart';
 import 'attachment_pdf_preview.dart';
 import '../services/expenses_service.dart';
 
-class ExpenseDetailsDialog extends StatelessWidget {
+class ExpenseDetailsDialog extends StatefulWidget {
   const ExpenseDetailsDialog({super.key, required this.expense});
 
   final Expense expense;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+  State<ExpenseDetailsDialog> createState() => _ExpenseDetailsDialogState();
+}
 
+class _ExpenseDetailsDialogState extends State<ExpenseDetailsDialog> {
+  late Future<Expense> _future;
+  final _expensesService = ExpensesService();
+  bool _initialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _future = _loadDetails();
+      _initialized = true;
+    }
+  }
+
+  Future<Expense> _loadDetails() async {
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      throw const ExpensesException('Dialog no longer mounted');
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      throw const ExpensesException('You are not logged in.');
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    return _expensesService.getExpense(
+      id: widget.expense.id,
+      headers: headers,
+    );
+  }
+
+  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
+    final rawToken = (appState.rawAuthToken ?? token).trim();
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
+    final autoTokenValue = rawToken
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
+    return {
+      'Accept': 'application/json',
+      'authtoken': authtokenHeader,
+      'Authorization': normalizedAuth,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Dialog(
       insetPadding: const EdgeInsets.all(24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 640, maxHeight: 720),
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _DialogHeader(onClose: () => Navigator.of(context).pop()),
-              const SizedBox(height: 12),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _DetailField(
-                        label: 'Expense category',
-                        value: expense.categoryName,
+          child: FutureBuilder<Expense>(
+            future: _future,
+            initialData: widget.expense,
+            builder: (context, snapshot) {
+              // Use initial data (list item) while loading, but specific data might be missing
+              // Ideally, we show a loader or just show what we have.
+              // The user asked to call the API to get more detailed info.
+              // I will show the updated data when available.
+
+              final expense = snapshot.data ?? widget.expense;
+              final isLoading = snapshot.connectionState == ConnectionState.waiting;
+              final hasError = snapshot.hasError;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _DialogHeader(onClose: () => Navigator.of(context).pop()),
+                  const SizedBox(height: 12),
+                  if (hasError)
+                    Padding(
+                       padding: const EdgeInsets.only(bottom: 12),
+                       child: Text('Failed to load details: ${snapshot.error}', style: const TextStyle(color: Colors.red)),
+                    ),
+
+                  if (isLoading && snapshot.data == null)
+                     const Expanded(child: Center(child: CircularProgressIndicator())),
+
+                  if (!isLoading || snapshot.data != null)
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (isLoading) const LinearProgressIndicator(),
+                          _DetailField(
+                            label: 'Expense category',
+                            value: expense.categoryName,
+                          ),
+                          const SizedBox(height: 12),
+                          _DetailField(label: 'Expense name', value: expense.name),
+                          const SizedBox(height: 12),
+                          _DetailField(
+                            label: 'Created by',
+                            value: expense.createdBy,
+                          ),
+                          const SizedBox(height: 20),
+                          const Divider(thickness: 1.2),
+                          const SizedBox(height: 20),
+                          _DetailField(
+                            label: 'Amount',
+                            value: expense.formattedAmountWithoutCurrency,
+                            valueStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: Colors.red,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _DetailField(
+                            label: 'Payment method',
+                            value: expense.paymentMode,
+                          ),
+                          const SizedBox(height: 12),
+                          _DetailField(
+                            label: 'Expense date',
+                            value: expense.formattedDate,
+                          ),
+                          const SizedBox(height: 12),
+                          _AttachmentSection(expense: expense),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                      _DetailField(label: 'Expense name', value: expense.name),
-                      const SizedBox(height: 12),
-                      _DetailField(
-                        label: 'Created by',
-                        value: expense.createdBy,
-                      ),
-                      const SizedBox(height: 20),
-                      const Divider(thickness: 1.2),
-                      const SizedBox(height: 20),
-                      _DetailField(
-                        label: 'Amount',
-                        value: expense.formattedAmountWithoutCurrency,
-                        valueStyle: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: Colors.red,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      _DetailField(
-                        label: 'Payment method',
-                        value: expense.paymentMode,
-                      ),
-                      const SizedBox(height: 12),
-                      _DetailField(
-                        label: 'Expense date',
-                        value: expense.formattedDate,
-                      ),
-                      const SizedBox(height: 12),
-                      _AttachmentSection(expense: expense),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
         ),
       ),

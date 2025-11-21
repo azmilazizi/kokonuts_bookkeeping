@@ -53,6 +53,45 @@ class BillsService {
     return BillsPage(bills: bills, hasMore: pagination.hasMore);
   }
 
+  Future<Bill> getBill({
+    required String id,
+    required Map<String, String> headers,
+  }) async {
+    // The base URL is /api/v1/bills (plural).
+    // The single resource endpoint is /accounting/api/v1/bill/{id} (singular).
+    // We construct the URL directly as requested.
+    final uri = Uri.parse('https://crm.kokonuts.my/accounting/api/v1/bill/$id');
+
+    http.Response response;
+    try {
+      response = await _client.get(uri, headers: headers);
+    } catch (error) {
+      throw BillsException('Failed to reach server: $error');
+    }
+
+    if (response.statusCode != 200) {
+      throw BillsException(
+        'Request failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error) {
+      throw BillsException('Unable to parse response: $error');
+    }
+
+    // Usually single resource response is wrapped in `data` or just the object
+    // or `{ "status": true, "data": ... }`
+    final billJson = _extractBill(decoded);
+    if (billJson == null) {
+      throw BillsException('Response did not include a bill payload.');
+    }
+
+    return Bill.fromJson(billJson);
+  }
+
   Future<String?> resolveVendorName({
     required String vendorId,
     required Map<String, String> headers,
@@ -141,6 +180,28 @@ class BillsService {
     }
 
     return const [];
+  }
+
+  Map<String, dynamic>? _extractBill(dynamic decoded) {
+    if (decoded is Map<String, dynamic>) {
+      if (_looksLikeBill(decoded)) {
+        return decoded;
+      }
+      const preferredKeys = ['data', 'bill', 'result', 'item'];
+      for (final key in preferredKeys) {
+        final value = decoded[key];
+        final candidate = _extractBill(value);
+        if (candidate != null) {
+          return candidate;
+        }
+      }
+    }
+    return null;
+  }
+
+  bool _looksLikeBill(Map<String, dynamic> map) {
+    return map.containsKey('id') &&
+        (map.containsKey('bill_date') || map.containsKey('date') || map.containsKey('amount'));
   }
 
   PaginationInfo _resolvePagination(
@@ -266,19 +327,34 @@ class Bill {
     required this.status,
     required this.totalAmount,
     required this.currencySymbol,
+    this.attachments = const [],
   });
 
   factory Bill.fromJson(Map<String, dynamic> json) {
     final totalValue = json['amount'] ?? json['total'];
     final statusValue = json['status'];
+
+    final attachments = _extractRelatedCollection(json, const [
+          'attachments',
+          'files',
+          'documents',
+        ])
+        .whereType<Map<String, dynamic>>()
+        .map(BillAttachment.fromJson)
+        .toList(growable: false);
+
     return Bill(
       id: _stringValue(json['id']) ?? '',
       vendorId: _stringValue(json['vendor_id']) ?? '',
       billDate: _parseDate(_stringValue(json['date'])),
-      dueDate: _parseDate(_stringValue(json['due_date'])) ?? _parseDate(_stringValue(json['date'])),
+      dueDate: _parseDate(_stringValue(json['due_date'])) ??
+          _parseDate(_stringValue(json['date'])),
       status: BillStatus.fromCode(_parseInt(statusValue)),
       totalAmount: _parseDouble(totalValue),
-      currencySymbol: _stringValue(json['currency_symbol']) ?? _stringValue(json['currency']) ?? '',
+      currencySymbol: _stringValue(json['currency_symbol']) ??
+          _stringValue(json['currency']) ??
+          '',
+      attachments: attachments,
     );
   }
 
@@ -289,6 +365,7 @@ class Bill {
   final BillStatus status;
   final double? totalAmount;
   final String currencySymbol;
+  final List<BillAttachment> attachments;
 
   String get formattedDate {
     final date = billDate;
@@ -365,6 +442,80 @@ class Bill {
   }
 }
 
+class BillAttachment {
+  const BillAttachment({
+    required this.fileName,
+    this.description,
+    this.downloadUrl,
+    this.uploadedBy,
+    this.uploadedAt,
+    this.sizeLabel,
+    this.id,
+  });
+
+  factory BillAttachment.fromJson(Map<String, dynamic> json) {
+    final fileName =
+        _stringValue(json['file_name']) ??
+        _stringValue(json['filename']) ??
+        _stringValue(json['name']) ??
+        _stringValue(json['title']) ??
+        'Attachment';
+
+    final id =
+        _stringValue(json['id']) ??
+        _stringValue(json['attachment_id']) ??
+        _stringValue(json['file_id']);
+
+    final description =
+        _stringValue(json['description']) ??
+        _stringValue(json['note']) ??
+        _stringValue(json['remarks']);
+
+    final downloadUrl =
+        _stringValue(json['download_url']) ??
+        _stringValue(json['url']) ??
+        _stringValue(json['file_url']) ??
+        _stringValue(json['link']) ??
+        _stringValue(json['file_path']) ??
+        _stringValue(json['path']);
+
+    final uploadedBy =
+        _stringValue(json['uploaded_by']) ??
+        _stringValue(json['created_by']) ??
+        _stringValue(json['owner']);
+
+    final uploadedAt = Bill._parseDate(
+      _stringValue(json['uploaded_at']) ??
+          _stringValue(json['created_at']) ??
+          _stringValue(json['date']),
+    );
+
+    final sizeLabel =
+        _stringValue(json['file_size_formatted']) ??
+        _stringValue(json['size_formatted']) ??
+        _stringValue(json['file_size']) ??
+        _stringValue(json['size']);
+
+    return BillAttachment(
+      fileName: fileName,
+      description: description,
+      downloadUrl: downloadUrl,
+      uploadedBy: uploadedBy,
+      uploadedAt: uploadedAt,
+      sizeLabel: sizeLabel,
+      id: id,
+    );
+  }
+
+  final String fileName;
+  final String? description;
+  final String? downloadUrl;
+  final String? uploadedBy;
+  final DateTime? uploadedAt;
+  final String? sizeLabel;
+  final String? id;
+}
+
 String? _stringValue(dynamic value) {
   if (value == null) {
     return null;
@@ -373,6 +524,57 @@ String? _stringValue(dynamic value) {
     return value;
   }
   return value.toString();
+}
+
+List<dynamic> _extractRelatedCollection(
+  dynamic source,
+  List<String> candidateKeys,
+) {
+  if (source is Map<String, dynamic>) {
+    for (final key in candidateKeys) {
+      if (source.containsKey(key)) {
+        final extracted = _extractItems(source[key]);
+        if (extracted.isNotEmpty) {
+          return extracted;
+        }
+      }
+    }
+
+    for (final value in source.values) {
+      final extracted = _extractRelatedCollection(value, candidateKeys);
+      if (extracted.isNotEmpty) {
+        return extracted;
+      }
+    }
+  } else if (source is List) {
+    for (final element in source) {
+      final extracted = _extractRelatedCollection(element, candidateKeys);
+      if (extracted.isNotEmpty) {
+        return extracted;
+      }
+    }
+  }
+
+  return const [];
+}
+
+List<dynamic> _extractItems(dynamic source) {
+  if (source is List) {
+    return source;
+  }
+  if (source is Map<String, dynamic>) {
+    if (source.containsKey('data')) {
+      return _extractItems(source['data']);
+    }
+    if (source.containsKey('items')) {
+      return _extractItems(source['items']);
+    }
+    return source.values
+        .map(_extractItems)
+        .expand((element) => element)
+        .toList();
+  }
+  return const [];
 }
 
 class BillStatus {

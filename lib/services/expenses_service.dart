@@ -57,6 +57,40 @@ class ExpensesService {
     return ExpensesPage(expenses: expenses, hasMore: pagination.hasMore);
   }
 
+  Future<Expense> getExpense({
+    required String id,
+    required Map<String, String> headers,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/$id');
+
+    http.Response response;
+    try {
+      response = await _client.get(uri, headers: headers);
+    } catch (error) {
+      throw ExpensesException('Failed to reach server: $error');
+    }
+
+    if (response.statusCode != 200) {
+      throw ExpensesException(
+        'Request failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error) {
+      throw ExpensesException('Unable to parse response: $error');
+    }
+
+    final expenseJson = _extractExpense(decoded);
+    if (expenseJson == null) {
+      throw ExpensesException('Response did not include an expense payload.');
+    }
+
+    return Expense.fromJson(expenseJson);
+  }
+
   Future<Expense> updateExpense({
     required String id,
     required Map<String, String> headers,
