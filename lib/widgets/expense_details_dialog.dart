@@ -50,27 +50,6 @@ class _ExpenseDetailsDialogState extends State<ExpenseDetailsDialog> {
     );
   }
 
-  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
-    final rawToken = (appState.rawAuthToken ?? token).trim();
-    final sanitizedToken = token
-        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
-        .trim();
-    final normalizedAuth = sanitizedToken.isNotEmpty
-        ? 'Bearer $sanitizedToken'
-        : token.trim();
-    final autoTokenValue = rawToken
-        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
-        .trim();
-    final authtokenHeader = autoTokenValue.isNotEmpty
-        ? autoTokenValue
-        : sanitizedToken;
-    return {
-      'Accept': 'application/json',
-      'authtoken': authtokenHeader,
-      'Authorization': normalizedAuth,
-    };
-  }
-
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -472,19 +451,11 @@ class _ExpenseAttachmentCard extends StatelessWidget {
         const SizedBox(height: 16),
         Align(
           alignment: Alignment.centerRight,
-          child: FilledButton.icon(
-            icon: const Icon(Icons.visibility),
-            label: const Text('Preview'),
-            onPressed: () {
-              _showAttachmentPreview(
-                context: context,
-                fileName: attachment.fileName,
-                // Use the API URL for preview as requested
-                downloadUrl: previewApiUrl,
-                previewType: previewType,
-                apiHeaders: apiHeaders,
-              );
-            },
+          child: _PreviewButton(
+            fileName: attachment.fileName,
+            downloadUrl: previewApiUrl,
+            previewType: previewType,
+            apiHeaders: apiHeaders,
           ),
         ),
       ]);
@@ -694,5 +665,96 @@ class _PdfPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return buildAttachmentPdfPreview(downloadUrl, headers: apiHeaders);
+  }
+}
+
+Map<String, String> _buildAuthHeaders(AppState appState, String token) {
+  final rawToken = (appState.rawAuthToken ?? token).trim();
+  final sanitizedToken = token
+      .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+      .trim();
+  final normalizedAuth = sanitizedToken.isNotEmpty
+      ? 'Bearer $sanitizedToken'
+      : token.trim();
+  final autoTokenValue = rawToken
+      .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+      .trim();
+  final authtokenHeader = autoTokenValue.isNotEmpty
+      ? autoTokenValue
+      : sanitizedToken;
+  return {
+    'Accept': 'application/json',
+    'authtoken': authtokenHeader,
+    'Authorization': normalizedAuth,
+  };
+}
+
+class _PreviewButton extends StatefulWidget {
+  const _PreviewButton({
+    required this.fileName,
+    required this.downloadUrl,
+    required this.previewType,
+    this.apiHeaders,
+  });
+
+  final String fileName;
+  final String downloadUrl;
+  final _AttachmentPreviewType previewType;
+  final Map<String, String>? apiHeaders;
+
+  @override
+  State<_PreviewButton> createState() => _PreviewButtonState();
+}
+
+class _PreviewButtonState extends State<_PreviewButton> {
+  bool _isLoading = false;
+
+  Future<void> _onPressed() async {
+    if (_isLoading) return;
+
+    Map<String, String>? headers = widget.apiHeaders;
+
+    if (headers == null) {
+      setState(() => _isLoading = true);
+      try {
+        final appState = AppStateScope.of(context);
+        final token = await appState.getValidAuthToken();
+        if (token != null && mounted) {
+          headers = _buildAuthHeaders(appState, token);
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    }
+
+    if (!mounted) return;
+
+    _showAttachmentPreview(
+      context: context,
+      fileName: widget.fileName,
+      downloadUrl: widget.downloadUrl,
+      previewType: widget.previewType,
+      apiHeaders: headers,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.icon(
+      icon: _isLoading
+          ? const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          )
+          : const Icon(Icons.visibility),
+      label: const Text('Preview'),
+      onPressed: _onPressed,
+    );
   }
 }
