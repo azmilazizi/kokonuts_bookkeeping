@@ -6,7 +6,9 @@ import 'package:intl/intl.dart';
 import 'package:kokonuts_bookkeeping/app/app_state.dart';
 
 import '../app/app_state_scope.dart';
+import '../services/expenses_service.dart';
 import '../services/payment_modes_service.dart';
+import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
 
@@ -25,26 +27,24 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
       TextEditingController(text: CurrencyInputFormatter.normalizeExistingValue(null));
   final _notesController = TextEditingController();
   final _paymentModesService = PaymentModesService();
-
-  final List<String> _categories = const [
-    'Office Supplies',
-    'Travel',
-    'Meals & Entertainment',
-    'Utilities',
-    'Professional Services',
-    'Other',
-  ];
+  final _vendorsService = VendorsService();
+  final _expensesService = ExpensesService();
 
   DateTime _expenseDate = DateTime.now();
   String? _selectedCategory;
   String? _selectedPaymentMode;
+  String? _selectedVendorId;
   List<PlatformFile> _attachments = [];
   bool _isSubmitting = false;
   String? _submitError;
-  bool _isLoadingPaymentModes = false;
-  String? _paymentModeError;
-  bool _hasInitializedPaymentModes = false;
+
+  bool _isLoadingData = false;
+  String? _loadingError;
+  bool _hasInitializedData = false;
+
   List<PaymentMode> _paymentModes = const [];
+  List<VendorSummary> _vendors = const [];
+  List<ExpenseCategory> _categories = const [];
 
   @override
   void dispose() {
@@ -58,16 +58,16 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_hasInitializedPaymentModes) {
-      _hasInitializedPaymentModes = true;
-      _loadPaymentModes();
+    if (!_hasInitializedData) {
+      _hasInitializedData = true;
+      _loadData();
     }
   }
 
-  Future<void> _loadPaymentModes() async {
+  Future<void> _loadData() async {
     setState(() {
-      _paymentModeError = null;
-      _isLoadingPaymentModes = true;
+      _loadingError = null;
+      _isLoadingData = true;
     });
 
     final appState = AppStateScope.of(context);
@@ -79,8 +79,8 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
 
     if (token == null || token.trim().isEmpty) {
       setState(() {
-        _paymentModeError = 'You are not logged in.';
-        _isLoadingPaymentModes = false;
+        _loadingError = 'You are not logged in.';
+        _isLoadingData = false;
       });
       return;
     }
@@ -88,19 +88,36 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
     final headers = _buildAuthHeaders(appState, token);
 
     try {
-      final modes = await _paymentModesService.fetchPaymentModes(
-        headers: headers,
-      );
+      final results = await Future.wait([
+        _paymentModesService.fetchPaymentModes(headers: headers),
+        _vendorsService.fetchVendors(headers: headers),
+        _expensesService.fetchCategories(headers: headers),
+      ]);
 
       if (!mounted) {
         return;
       }
 
+      final modes = results[0] as List<PaymentMode>;
+      final vendors = results[1] as List<VendorSummary>;
+      final categories = results[2] as List<ExpenseCategory>;
+
       setState(() {
         _paymentModes = modes;
+        _vendors = vendors;
+        _categories = categories;
+
         if (_selectedPaymentMode != null &&
             !_paymentModes.any((mode) => mode.id == _selectedPaymentMode)) {
           _selectedPaymentMode = null;
+        }
+        if (_selectedVendorId != null &&
+            !_vendors.any((vendor) => vendor.id == _selectedVendorId)) {
+          _selectedVendorId = null;
+        }
+        if (_selectedCategory != null &&
+            !_categories.any((cat) => cat.id == _selectedCategory)) {
+          _selectedCategory = null;
         }
       });
     } catch (error) {
@@ -108,11 +125,11 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
         return;
       }
       setState(() {
-        _paymentModeError = error.toString();
+        _loadingError = error.toString();
       });
     } finally {
       if (mounted) {
-        setState(() => _isLoadingPaymentModes = false);
+        setState(() => _isLoadingData = false);
       }
     }
   }
@@ -154,20 +171,6 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Attachments', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 12),
-                AttachmentPicker(
-                  description:
-                      'Drag and drop receipts or supporting documents, or tap to browse.',
-                  files: _attachments,
-                  onPick: _pickAttachment,
-                  onFilesSelected: (files) =>
-                      setState(() => _attachments = files),
-                  onFileRemoved: (file) => setState(() {
-                    _attachments = List.of(_attachments)..remove(file);
-                  }),
-                ),
-                const SizedBox(height: 20),
                 _buildVendorField(),
                 const SizedBox(height: 12),
                 _buildExpenseNameField(),
@@ -187,6 +190,20 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                     labelText: 'Notes (optional)',
                     hintText: 'Add any additional details for this expense',
                   ),
+                ),
+                const SizedBox(height: 20),
+                Text('Attachments', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 12),
+                AttachmentPicker(
+                  description:
+                      'Drag and drop receipts or supporting documents, or tap to browse.',
+                  files: _attachments,
+                  onPick: _pickAttachment,
+                  onFilesSelected: (files) =>
+                      setState(() => _attachments = files),
+                  onFileRemoved: (file) => setState(() {
+                    _attachments = List.of(_attachments)..remove(file);
+                  }),
                 ),
                 if (_submitError != null) ...[
                   const SizedBox(height: 12),
@@ -222,15 +239,39 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   }
 
   Widget _buildVendorField() {
-    return TextFormField(
-      controller: _vendorController,
-      decoration: const InputDecoration(
+    return DropdownButtonFormField<String>(
+      value: _selectedVendorId,
+      decoration: InputDecoration(
         labelText: 'Vendor',
-        hintText: 'e.g., ABC Supplies',
+        helperText: _loadingError,
       ),
-      textInputAction: TextInputAction.next,
+      isExpanded: true,
+      hint: _isLoadingData
+          ? Row(
+              children: const [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 8),
+                Text('Loading vendors...'),
+              ],
+            )
+          : const Text('Select a vendor'),
+      items: _vendors
+          .map(
+            (vendor) => DropdownMenuItem<String>(
+              value: vendor.id,
+              child: Text(vendor.name),
+            ),
+          )
+          .toList(),
+      onChanged: _vendors.isEmpty || _isLoadingData
+          ? null
+          : (value) => setState(() => _selectedVendorId = value),
       validator: (value) {
-        if (value == null || value.trim().isEmpty) {
+        if (value == null || value.isEmpty) {
           return 'Vendor is required.';
         }
         return null;
@@ -258,17 +299,34 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   Widget _buildCategoryDropdown() {
     return DropdownButtonFormField<String>(
       value: _selectedCategory,
-      decoration: const InputDecoration(labelText: 'Expense category'),
-      hint: const Text('Select a category'),
+      decoration: InputDecoration(
+        labelText: 'Expense category',
+        helperText: _loadingError,
+      ),
+      hint: _isLoadingData
+          ? Row(
+              children: const [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 8),
+                Text('Loading categories...'),
+              ],
+            )
+          : const Text('Select a category'),
       items: _categories
           .map(
             (category) => DropdownMenuItem<String>(
-              value: category,
-              child: Text(category),
+              value: category.id,
+              child: Text(category.name),
             ),
           )
           .toList(),
-      onChanged: (value) => setState(() => _selectedCategory = value),
+      onChanged: _categories.isEmpty || _isLoadingData
+          ? null
+          : (value) => setState(() => _selectedCategory = value),
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'Expense category is required.';
@@ -322,10 +380,10 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
       value: _selectedPaymentMode,
       decoration: InputDecoration(
         labelText: 'Payment mode',
-        helperText: _paymentModeError,
+        helperText: _loadingError,
       ),
       isExpanded: true,
-      hint: _isLoadingPaymentModes
+      hint: _isLoadingData
           ? Row(
               children: const [
                 SizedBox(
@@ -346,7 +404,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
             ),
           )
           .toList(),
-      onChanged: _paymentModes.isEmpty || _isLoadingPaymentModes
+      onChanged: _paymentModes.isEmpty || _isLoadingData
           ? null
           : (value) => setState(() => _selectedPaymentMode = value),
       validator: (value) {
@@ -411,23 +469,86 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
       _isSubmitting = true;
     });
 
-    await Future<void>.delayed(const Duration(milliseconds: 400));
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
 
     if (!mounted) {
       return;
     }
 
-    setState(() => _isSubmitting = false);
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _submitError = 'You are not logged in.';
+        _isSubmitting = false;
+      });
+      return;
+    }
 
-    Navigator.of(context).pop({
-      'vendor': _vendorController.text.trim(),
-      'name': _nameController.text.trim(),
-      'category': _selectedCategory,
-      'date': _expenseDate.toIso8601String(),
-      'amount': _amountController.text.trim(),
-      'paymentMode': _selectedPaymentMode,
-      'notes': _notesController.text.trim(),
-      'attachments': _attachments,
-    });
+    final headers = _buildAuthHeaders(appState, token);
+
+    final categoryName = _categories
+        .firstWhere(
+          (c) => c.id == _selectedCategory,
+          orElse: () => const ExpenseCategory(id: '', name: ''),
+        )
+        .name;
+
+    final parsedAmount = double.tryParse(
+      _amountController.text
+          .replaceAll(RegExp(r'[^0-9.,-]'), '')
+          .replaceAll(',', ''),
+    );
+
+    final requestData = {
+      'expense_name': _nameController.text.trim(),
+      'note': _notesController.text.trim(),
+      'date': DateFormat('yyyy-MM-dd').format(_expenseDate),
+      'amount': parsedAmount ?? 0,
+      'vendor': _selectedVendorId ?? '',
+      'category': categoryName.isNotEmpty ? categoryName : _selectedCategory,
+      'payment_mode': _selectedPaymentMode ?? '',
+    };
+
+    try {
+      final created = await _expensesService.createExpense(
+        headers: headers,
+        data: requestData,
+      );
+
+      if (_attachments.isNotEmpty) {
+        try {
+          await _expensesService.uploadAttachments(
+            id: created.id,
+            headers: headers,
+            attachments: _attachments,
+          );
+        } catch (error) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Expense created but failed to upload attachments: $error',
+                ),
+              ),
+            );
+          }
+        }
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() => _isSubmitting = false);
+      Navigator.of(context).pop(created);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _submitError = error.toString();
+        _isSubmitting = false;
+      });
+    }
   }
 }
