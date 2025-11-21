@@ -4,7 +4,10 @@ import 'dart:ui_web' as ui;
 
 import 'package:flutter/widgets.dart';
 
-Widget createAttachmentPdfPreview(String downloadUrl) {
+Widget createAttachmentPdfPreview(
+  String downloadUrl, {
+  Map<String, String>? headers,
+}) {
   return _HtmlPdfPreview(downloadUrl: downloadUrl);
 }
 
