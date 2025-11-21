@@ -361,6 +361,7 @@ class _ExpenseAttachmentCard extends StatelessWidget {
         : null;
 
     // We use the special API URL for previewing
+    // This URL requires 'authtoken' in headers, which is handled by _PreviewButton
     const baseUrl = 'https://crm.kokonuts.my/api/v1/expenses';
     final previewApiUrl = '$baseUrl/$expenseId/attachment';
 
@@ -714,7 +715,7 @@ class _PreviewButtonState extends State<_PreviewButton> {
 
     Map<String, String>? headers = widget.apiHeaders;
 
-    if (headers == null) {
+    if (headers == null || !headers.containsKey('authtoken')) {
       setState(() => _isLoading = true);
       try {
         final appState = AppStateScope.of(context);
