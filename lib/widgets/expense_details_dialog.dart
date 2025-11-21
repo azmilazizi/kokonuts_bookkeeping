@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:kokonuts_bookkeeping/app/app_state.dart';
 import 'package:kokonuts_bookkeeping/app/app_state_scope.dart';
+import 'authenticated_image.dart';
 import 'attachment_pdf_preview.dart';
 import '../services/expenses_service.dart';
 
@@ -633,14 +634,17 @@ class _ImagePreview extends StatelessWidget {
   Widget build(BuildContext context) {
     return InteractiveViewer(
       child: Center(
-        child: Image.network(
-          downloadUrl,
+        child: AuthenticatedImage(
+          imageUrl: downloadUrl,
           headers: apiHeaders,
           fit: BoxFit.contain,
           loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) {
-              return child;
-            }
+            // AuthenticatedImage handles loading internally or via this builder if provided,
+            // but since it's async, the future builder handles the main loading state.
+            // We can pass a simple placeholder here if needed, but the FutureBuilder in AuthenticatedImage
+            // already shows a CircularProgressIndicator.
+            // However, the API of AuthenticatedImage I wrote calls loadingBuilder if waiting.
+            // Let's keep it simple.
             return const Center(child: CircularProgressIndicator());
           },
           errorBuilder: (context, error, stackTrace) {
