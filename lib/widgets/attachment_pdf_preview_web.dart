@@ -3,6 +3,7 @@ import 'dart:html' as html;
 import 'dart:ui_web' as ui;
 
 import 'package:flutter/widgets.dart';
+import 'package:http/http.dart' as http;
 
 Widget createAttachmentPdfPreview(
   String downloadUrl, {
@@ -83,28 +84,23 @@ class _HtmlPdfPreviewState extends State<_HtmlPdfPreview> {
 
   Future<void> _loadPdf() async {
     try {
-      final request = html.HttpRequest();
-      request.open('GET', widget.downloadUrl);
-      request.responseType = 'blob';
+      final response = await http.get(
+        Uri.parse(widget.downloadUrl),
+        headers: widget.headers,
+      );
 
-      widget.headers?.forEach((key, value) {
-        request.setRequestHeader(key, value);
-      });
-
-      await request.onLoad.first;
-
-      if (request.status == 200) {
-        final blob = request.response as html.Blob;
+      if (response.statusCode == 200) {
+        final blob = html.Blob([response.bodyBytes], 'application/pdf');
         _blobUrl = html.Url.createObjectUrlFromBlob(blob);
         _iframe?.src = _blobUrl!;
       } else {
         // Fallback or error handling
         // For now, if fetch fails, maybe try direct load?
-         _iframe?.src = widget.downloadUrl;
+        _iframe?.src = widget.downloadUrl;
       }
     } catch (e) {
       // If error (e.g. CORS), fallback to direct URL
-       _iframe?.src = widget.downloadUrl;
+      _iframe?.src = widget.downloadUrl;
     }
   }
 
