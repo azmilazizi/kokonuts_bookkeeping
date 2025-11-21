@@ -39,19 +39,16 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     final token = await appState.getValidAuthToken();
 
     if (!mounted) {
-      throw const BillsException('Dialog no longer mounted');
+      throw BillsException('Dialog no longer mounted');
     }
 
     if (token == null || token.trim().isEmpty) {
-      throw const BillsException('You are not logged in.');
+      throw BillsException('You are not logged in.');
     }
 
     final headers = _buildAuthHeaders(appState, token);
 
-    return _billsService.getBill(
-      id: widget.bill.id,
-      headers: headers,
-    );
+    return _billsService.getBill(id: widget.bill.id, headers: headers);
   }
 
   Map<String, String> _buildAuthHeaders(AppState appState, String token) {
@@ -88,7 +85,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
             initialData: widget.bill,
             builder: (context, snapshot) {
               final bill = snapshot.data ?? widget.bill;
-              final isLoading = snapshot.connectionState == ConnectionState.waiting;
+              final isLoading =
+                  snapshot.connectionState == ConnectionState.waiting;
               final hasError = snapshot.hasError;
 
               return Column(
@@ -142,18 +140,14 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                             _DetailField(
                               label: 'Status',
                               value: bill.status.label,
-                              valueStyle: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
+                              valueStyle: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(fontWeight: FontWeight.w700),
                             ),
                             const SizedBox(height: 12),
                             _DetailField(
                               label: 'Total amount',
                               value: bill.totalLabel,
-                              valueStyle: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
+                              valueStyle: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
                                     fontWeight: FontWeight.w700,
                                     color: Theme.of(context).colorScheme.error,
@@ -274,18 +268,17 @@ class _AttachmentSection extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Column(
-          children:
-              bill.attachments
-                  .map(
-                    (attachment) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _BillAttachmentCard(
-                        attachment: attachment,
-                        billId: bill.id,
-                      ),
-                    ),
-                  )
-                  .toList(),
+          children: bill.attachments
+              .map(
+                (attachment) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _BillAttachmentCard(
+                    attachment: attachment,
+                    billId: bill.id,
+                  ),
+                ),
+              )
+              .toList(),
         ),
       ],
     );
@@ -303,10 +296,9 @@ class _BillAttachmentCard extends StatelessWidget {
     final theme = Theme.of(context);
     final labelColor = theme.colorScheme.onSurfaceVariant;
 
-    final normalizedDownloadUrl =
-        attachment.downloadUrl != null
-            ? _normalizeAttachmentDownloadUrl(attachment.downloadUrl!)
-            : null;
+    final normalizedDownloadUrl = attachment.downloadUrl != null
+        ? _normalizeAttachmentDownloadUrl(attachment.downloadUrl!)
+        : null;
 
     final previewType = _resolvePreviewType(
       attachment.fileName,
@@ -562,12 +554,11 @@ void _showAttachmentPreview({
 }) {
   showDialog<void>(
     context: context,
-    builder:
-        (context) => _AttachmentPreviewDialog(
-          fileName: fileName,
-          downloadUrl: downloadUrl,
-          previewType: previewType,
-        ),
+    builder: (context) => _AttachmentPreviewDialog(
+      fileName: fileName,
+      downloadUrl: downloadUrl,
+      previewType: previewType,
+    ),
   );
 }
 
