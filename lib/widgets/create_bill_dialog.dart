@@ -51,6 +51,45 @@ class _CreateBillDialogState extends State<CreateBillDialog>
     return qty * price;
   }
 
+  Future<void> _pickAttachments() async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      withData: true,
+      withReadStream: true,
+      type: FileType.custom,
+      allowedExtensions: allowedAttachmentExtensions.toList(),
+    );
+
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+
+    final validFiles = result.files
+        .where(
+          (file) =>
+              isAllowedAttachmentExtension(attachmentExtension(file.name)),
+        )
+        .toList();
+
+    if (validFiles.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _attachments = [..._attachments, ...validFiles];
+    });
+  }
+
+  void _onFilesSelected(List<PlatformFile> files) {
+    setState(() => _attachments = files);
+  }
+
+  void _removeAttachment(PlatformFile file) {
+    setState(() {
+      _attachments = List.of(_attachments)..remove(file);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -109,7 +148,9 @@ class _CreateBillDialogState extends State<CreateBillDialog>
                 description:
                     'Drag and drop supporting files here, or click to browse for uploads.',
                 files: _attachments,
-                onFilesChanged: (files) => setState(() => _attachments = files),
+                onPick: _pickAttachments,
+                onFilesSelected: _onFilesSelected,
+                onFileRemoved: _removeAttachment,
               ),
               const SizedBox(height: 20),
               Column(
