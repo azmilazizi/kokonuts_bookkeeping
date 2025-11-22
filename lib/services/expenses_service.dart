@@ -204,10 +204,10 @@ class ExpensesService {
     }
 
     // Assumption: Expense attachment endpoint follows similar pattern
-    // POST /api/expenses/{id}/attachments
+    // POST /api/expenses/{id}/attachment
     // Note: The base URL for expenses is /api/v1/expenses.
     // Adjust if necessary based on backend knowledge.
-    final uri = Uri.parse('$_baseUrl/$id/attachments');
+    final uri = Uri.parse('$_baseUrl/$id/attachment');
 
     final request = http.MultipartRequest('POST', uri)
       ..headers.addAll({'Accept': 'application/json', ...headers})
