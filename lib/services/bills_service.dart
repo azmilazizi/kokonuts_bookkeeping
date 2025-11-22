@@ -258,31 +258,6 @@ class BillsService {
     return PaginationInfo(hasMore: _countItems(decoded) >= perPage);
   }
 
-  Map<String, dynamic>? _findMap(dynamic source, List<String> keys) {
-    if (source is Map<String, dynamic>) {
-      for (final key in keys) {
-        final value = source[key];
-        if (value is Map<String, dynamic>) {
-          return value;
-        }
-      }
-      for (final value in source.values) {
-        final nested = _findMap(value, keys);
-        if (nested != null) {
-          return nested;
-        }
-      }
-    } else if (source is List) {
-      for (final item in source) {
-        final nested = _findMap(item, keys);
-        if (nested != null) {
-          return nested;
-        }
-      }
-    }
-    return null;
-  }
-
   int _countItems(dynamic decoded) {
     final list = _extractBillsList(decoded);
     return list.length;
@@ -647,6 +622,31 @@ String? _stringValue(dynamic value) {
     return value;
   }
   return value.toString();
+}
+
+Map<String, dynamic>? _findMap(dynamic source, List<String> keys) {
+  if (source is Map<String, dynamic>) {
+    for (final key in keys) {
+      final value = source[key];
+      if (value is Map<String, dynamic>) {
+        return value;
+      }
+    }
+    for (final value in source.values) {
+      final nested = _findMap(value, keys);
+      if (nested != null) {
+        return nested;
+      }
+    }
+  } else if (source is List) {
+    for (final item in source) {
+      final nested = _findMap(item, keys);
+      if (nested != null) {
+        return nested;
+      }
+    }
+  }
+  return null;
 }
 
 List<dynamic> _extractRelatedCollection(
