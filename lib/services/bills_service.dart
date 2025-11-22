@@ -92,6 +92,26 @@ class BillsService {
     return Bill.fromJson(billJson);
   }
 
+  Future<void> deleteBill({
+    required String id,
+    required Map<String, String> headers,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/$id');
+
+    http.Response response;
+    try {
+      response = await _client.delete(uri, headers: headers);
+    } catch (error) {
+      throw BillsException('Failed to reach server: $error');
+    }
+
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw BillsException(
+        'Delete request failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+  }
+
   Future<String?> resolveVendorName({
     required String vendorId,
     required Map<String, String> headers,
@@ -325,6 +345,7 @@ class Bill {
   const Bill({
     required this.id,
     required this.vendorId,
+    this.vendorName,
     required this.billDate,
     required this.dueDate,
     required this.status,
@@ -349,6 +370,7 @@ class Bill {
     return Bill(
       id: _stringValue(json['id']) ?? '',
       vendorId: _stringValue(json['vendor_id']) ?? '',
+      vendorName: _stringValue(json['vendor_name']),
       billDate: _parseDate(_stringValue(json['date'])),
       dueDate: _parseDate(_stringValue(json['due_date'])) ??
           _parseDate(_stringValue(json['date'])),
@@ -363,6 +385,7 @@ class Bill {
 
   final String id;
   final String vendorId;
+  final String? vendorName;
   final DateTime? billDate;
   final DateTime? dueDate;
   final BillStatus status;

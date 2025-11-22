@@ -12,6 +12,7 @@ import '../services/expenses_service.dart';
 import '../services/purchase_orders_service.dart';
 import '../widgets/add_expense_dialog.dart';
 import '../widgets/add_purchase_order_dialog.dart';
+import '../widgets/create_bill_dialog.dart';
 import '../widgets/post_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -121,22 +122,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       case 2:
         await showDialog<void>(
           context: context,
-          builder: (context) => const PostDialog(
-            title: 'Create Bill (POST)',
-            apiPath: 'https://crm.kokonuts.my/accounting/api/v1/bills',
-            description:
-                'Submit a POST request to record a new bill. Adjust the sample '
-                'payload to match your bill data before sending.',
-            samplePayload: {
-              'vendor_id': '123',
-              'bill_number': 'BILL-001',
-              'bill_date': '2024-04-01',
-              'due_date': '2024-04-15',
-              'status': 'pending',
-              'total_amount': 240.75,
-              'notes': 'Pay before due date to avoid surcharge',
-            },
-          ),
+          builder: (context) => const CreateBillDialog(),
         );
         break;
       default:

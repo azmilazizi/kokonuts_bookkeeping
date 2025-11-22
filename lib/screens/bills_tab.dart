@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
 import '../services/bills_service.dart';
 import '../widgets/bill_details_dialog.dart';
@@ -99,28 +100,14 @@ class _BillsTabState extends State<BillsTab> {
       return;
     }
 
-    final rawToken = (appState.rawAuthToken ?? token).trim();
-    final sanitizedToken =
-        token.replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '').trim();
-    final normalizedAuth =
-        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
-    final autoTokenValue = rawToken
-        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
-        .trim();
-
-    final authtokenHeader = autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
-
     final pageToLoad = reset ? 1 : _nextPage;
+    final headers = _buildAuthHeaders(appState, token);
 
     try {
       final result = await _service.fetchBills(
         page: pageToLoad,
         perPage: _perPage,
-        headers: {
-          'Accept': 'application/json',
-          'authtoken': authtokenHeader,
-          'Authorization': normalizedAuth,
-        },
+        headers: headers,
       );
 
       if (!mounted) {
@@ -128,24 +115,20 @@ class _BillsTabState extends State<BillsTab> {
       }
 
       setState(() {
+        _seedVendorNames(result.bills);
         _mergeBills(result.bills, reset: reset);
         _error = null;
         _hasMore = result.hasMore;
         _nextPage = result.hasMore ? pageToLoad + 1 : pageToLoad;
       });
 
-      final vendorHeaders = {
-        'Accept': 'application/json',
-        'authtoken': authtokenHeader,
-        'Authorization': normalizedAuth,
-      };
       final vendorIds = result.bills
           .map((bill) => bill.vendorId)
           .where((id) => id.isNotEmpty && !_vendorNames.containsKey(id))
           .toSet();
 
       for (final vendorId in vendorIds) {
-        unawaited(_loadVendorName(vendorId, vendorHeaders));
+        unawaited(_loadVendorName(vendorId, headers));
       }
     } on BillsException catch (error) {
       if (!mounted) {
@@ -206,6 +189,52 @@ class _BillsTabState extends State<BillsTab> {
           _applyFilters();
         }
       });
+    }
+  }
+
+  Future<void> _deleteBill(Bill bill) async {
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You are not logged in.')),
+      );
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      await _service.deleteBill(id: bill.id, headers: headers);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _allBills.removeWhere((item) => _billKey(item) == _billKey(bill));
+        _bills.removeWhere((item) => _billKey(item) == _billKey(bill));
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bill deleted successfully.')),
+      );
+    } on BillsException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete bill: ${error.message}')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete bill: $error')),
+      );
     }
   }
 
@@ -280,6 +309,7 @@ class _BillsTabState extends State<BillsTab> {
                                   vendorName: _vendorLabel(bill),
                                   theme: theme,
                                   showTopBorder: index == 0,
+                                  onDelete: () => _deleteBill(bill),
                                 );
                               },
                               childCount: _bills.length,
@@ -337,6 +367,25 @@ class _BillsTabState extends State<BillsTab> {
     });
   }
 
+  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
+    final rawToken = (appState.rawAuthToken ?? token).trim();
+    final sanitizedToken =
+        token.replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '').trim();
+    final normalizedAuth =
+        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final autoTokenValue = rawToken
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+
+    final authtokenHeader = autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+
+    return {
+      'Accept': 'application/json',
+      'authtoken': authtokenHeader,
+      'Authorization': normalizedAuth,
+    };
+  }
+
   void _mergeBills(List<Bill> newBills, {required bool reset}) {
     if (reset) {
       _allBills.clear();
@@ -355,6 +404,17 @@ class _BillsTabState extends State<BillsTab> {
 
     _applySorting();
     _applyFilters();
+  }
+
+  void _seedVendorNames(List<Bill> bills) {
+    for (final bill in bills) {
+      final vendorId = bill.vendorId;
+      final vendorName = bill.vendorName?.trim();
+      if (vendorId.isEmpty || vendorName == null || vendorName.isEmpty) {
+        continue;
+      }
+      _vendorNames.putIfAbsent(vendorId, () => vendorName);
+    }
   }
 
   String _billKey(Bill bill) {
@@ -504,6 +564,10 @@ class _BillsTabState extends State<BillsTab> {
   }
 
   String _vendorLabel(Bill bill) {
+    final name = bill.vendorName?.trim();
+    if (name != null && name.isNotEmpty) {
+      return name;
+    }
     return _vendorNames[bill.vendorId] ?? 'Loading vendor…';
   }
 
@@ -719,12 +783,14 @@ class _BillRow extends StatefulWidget {
     required this.vendorName,
     required this.theme,
     required this.showTopBorder,
+    required this.onDelete,
   });
 
   final Bill bill;
   final String vendorName;
   final ThemeData theme;
   final bool showTopBorder;
+  final Future<void> Function() onDelete;
 
   @override
   State<_BillRow> createState() => _BillRowState();
@@ -732,6 +798,7 @@ class _BillRow extends StatefulWidget {
 
 class _BillRowState extends State<_BillRow> {
   bool _hovering = false;
+  bool _isDeleting = false;
 
   static const _columnFlex = [4, 3, 3, 3, 2, 3];
 
@@ -811,7 +878,7 @@ class _BillRowState extends State<_BillRow> {
                         visualDensity: VisualDensity.compact,
                         constraints: const BoxConstraints.tightFor(width: 40, height: 40),
                         color: widget.theme.colorScheme.error,
-                        onPressed: _handleDelete,
+                        onPressed: _isDeleting ? null : _handleDelete,
                       ),
                     ],
                   ),
@@ -842,12 +909,15 @@ class _BillRowState extends State<_BillRow> {
     ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 
-  void _handleDelete() {
-    final snackBar = SnackBar(
-      content: Text('Delete action for ${widget.vendorName} bill'),
-      duration: const Duration(seconds: 2),
-    );
-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
+  Future<void> _handleDelete() async {
+    setState(() => _isDeleting = true);
+    try {
+      await widget.onDelete();
+    } finally {
+      if (mounted) {
+        setState(() => _isDeleting = false);
+      }
+    }
   }
 }
 
