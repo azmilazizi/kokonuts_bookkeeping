@@ -507,6 +507,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
       'vendor': _selectedVendorId ?? '',
       'category': categoryName.isNotEmpty ? categoryName : _selectedCategory,
       'payment_mode': _selectedPaymentMode ?? '',
+      if (_attachments.isNotEmpty) 'attachment': _attachments.first.name,
     };
 
     try {
