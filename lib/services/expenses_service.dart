@@ -264,6 +264,32 @@ class ExpensesService {
     }
   }
 
+  Future<void> deleteExpense({
+    required String id,
+    required Map<String, String> headers,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/$id');
+
+    http.Response response;
+    try {
+      response = await _client.delete(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          ...headers,
+        },
+      );
+    } catch (error) {
+      throw ExpensesException('Failed to delete expense: $error');
+    }
+
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw ExpensesException(
+        'Delete failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+  }
+
   Future<List<ExpenseCategory>> fetchCategories({
     required Map<String, String> headers,
   }) async {
