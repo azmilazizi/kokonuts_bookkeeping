@@ -231,7 +231,8 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
                 Text('Attachments', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 12),
                 AttachmentPicker(
-                  description: 'Drag and drop files or tap to browse.',
+                  description:
+                      'Drag and drop files or tap to browse for receipts or supporting documents.',
                   files: _supportingAttachments,
                   onPick: _pickAttachment,
                   onFilesSelected: (files) =>
@@ -241,12 +242,14 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
                       ..remove(file);
                   }),
                 ),
-                const SizedBox(height: 12),
-                _ExistingAttachmentsList(
+                if (_existingAttachments.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _ExistingAttachmentsList(
                     attachments: _existingAttachments,
                     onRemove: _scheduleExistingAttachmentRemoval,
                     pendingDeletionCount: _attachmentsMarkedForDeletion.length,
                   ),
+                ],
                 if (_supportingAttachments.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   _NewAttachmentsList(
