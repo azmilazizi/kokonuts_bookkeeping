@@ -8,6 +8,7 @@ import 'bills_tab.dart';
 import 'expenses_tab.dart';
 import 'purchase_orders_tab.dart';
 
+import '../services/expenses_service.dart';
 import '../services/purchase_orders_service.dart';
 import '../widgets/add_expense_dialog.dart';
 import '../widgets/add_purchase_order_dialog.dart';
@@ -103,10 +104,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     switch (_controller.index) {
       case 1:
-        await showDialog<void>(
+        final createdExpense = await showDialog<Expense>(
           context: context,
           builder: (context) => const AddExpenseDialog(),
         );
+
+        if (createdExpense != null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Expense created successfully.')),
+          );
+        }
         break;
       case 2:
         await showDialog<void>(
