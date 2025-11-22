@@ -128,23 +128,26 @@ class BillsService {
 
     String? vendorName;
     if (decoded is Map<String, dynamic>) {
-      vendorName = _stringValue(decoded['name']) ??
-          _stringValue(decoded['vendor_name']) ??
-          _stringValue(decoded['company_name']);
+      vendorName = _stringValue(decoded['company']) ??
+          _stringValue(decoded['company_name']) ??
+          _stringValue(decoded['name']) ??
+          _stringValue(decoded['vendor_name']);
       if (vendorName == null) {
         final candidate = _findMap(decoded, const ['data', 'vendor']);
         if (candidate != null) {
-          vendorName = _stringValue(candidate['name']) ??
-              _stringValue(candidate['vendor_name']) ??
-              _stringValue(candidate['company_name']);
+          vendorName = _stringValue(candidate['company']) ??
+              _stringValue(candidate['company_name']) ??
+              _stringValue(candidate['name']) ??
+              _stringValue(candidate['vendor_name']);
         }
       }
     } else if (decoded is List) {
       for (final item in decoded) {
         if (item is Map<String, dynamic>) {
-          vendorName = _stringValue(item['name']) ??
-              _stringValue(item['vendor_name']) ??
-              _stringValue(item['company_name']);
+          vendorName = _stringValue(item['company']) ??
+              _stringValue(item['company_name']) ??
+              _stringValue(item['name']) ??
+              _stringValue(item['vendor_name']);
           if (vendorName != null && vendorName.isNotEmpty) {
             break;
           }
