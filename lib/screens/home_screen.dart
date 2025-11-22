@@ -26,6 +26,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   late final List<_HomeTab> _tabs;
   final GlobalKey<PurchaseOrdersTabState> _purchaseOrdersTabKey =
       GlobalKey<PurchaseOrdersTabState>();
+  final GlobalKey<ExpensesTabState> _expensesTabKey =
+      GlobalKey<ExpensesTabState>();
 
   @override
   void initState() {
@@ -39,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       _HomeTab(
         title: 'Expenses',
         icon: Icons.payments_outlined,
-        builder: (_, __) => const ExpensesTab(),
+        builder: (_, __) => ExpensesTab(key: _expensesTabKey),
       ),
       _HomeTab(
         title: 'Bills',
@@ -110,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         );
 
         if (createdExpense != null && mounted) {
+          _expensesTabKey.currentState?.insertCreatedExpense(createdExpense);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Expense created successfully.')),
           );
