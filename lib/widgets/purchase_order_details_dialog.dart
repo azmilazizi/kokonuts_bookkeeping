@@ -1804,13 +1804,25 @@ class _ResponsiveFieldsRow extends StatelessWidget {
 }
 
 class _AttachmentsTab extends StatelessWidget {
-  const _AttachmentsTab({required this.detail, required this.onAddAttachment});
+  const _AttachmentsTab({
+    super.key,
+    this.detail,
+    this.onAddAttachment,
+  });
 
-  final PurchaseOrderDetail detail;
-  final VoidCallback onAddAttachment;
+  final PurchaseOrderDetail? detail;
+  final VoidCallback? onAddAttachment;
 
   @override
   Widget build(BuildContext context) {
+    final detail = this.detail;
+
+    if (detail == null) {
+      return const _ErrorView(
+        error: 'Purchase order details are unavailable.',
+      );
+    }
+
     if (!detail.hasAttachments) {
       return Column(
         children: [
@@ -1818,11 +1830,13 @@ class _AttachmentsTab extends StatelessWidget {
             child: _EmptyTabMessage(
               icon: Icons.attach_file,
               message: 'No attachments were uploaded for this purchase order.',
-              action: ElevatedButton.icon(
-                onPressed: onAddAttachment,
-                icon: const Icon(Icons.attach_file),
-                label: const Text('Add attachment'),
-              ),
+              action: onAddAttachment == null
+                  ? null
+                  : ElevatedButton.icon(
+                      onPressed: onAddAttachment,
+                      icon: const Icon(Icons.attach_file),
+                      label: const Text('Add attachment'),
+                    ),
             ),
           ),
         ],
@@ -1847,11 +1861,12 @@ class _AttachmentsTab extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            ElevatedButton.icon(
-              onPressed: onAddAttachment,
-              icon: const Icon(Icons.attach_file),
-              label: const Text('Add attachment'),
-            ),
+            if (onAddAttachment != null)
+              ElevatedButton.icon(
+                onPressed: onAddAttachment,
+                icon: const Icon(Icons.attach_file),
+                label: const Text('Add attachment'),
+              ),
           ],
         ),
       ],
