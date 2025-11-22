@@ -867,7 +867,7 @@ DateTime? _parseDateString(String value) {
     return null;
   }
 
-  final normalized = trimmed.replaceAll('/', '-');
+  final normalized = trimmed.replaceAll(RegExp(r'[/.]'), '-');
   final direct = _tryParseDate(normalized);
   if (direct != null) {
     return direct;

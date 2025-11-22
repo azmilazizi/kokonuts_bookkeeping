@@ -1108,7 +1108,7 @@ DateTime? _parseDate(dynamic value) {
     return null;
   }
 
-  final normalized = stringValue.replaceAll('/', '-');
+  final normalized = stringValue.replaceAll(RegExp(r'[/.]'), '-');
   try {
     return DateTime.parse(normalized);
   } catch (_) {
