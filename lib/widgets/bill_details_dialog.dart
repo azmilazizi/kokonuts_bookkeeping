@@ -8,6 +8,7 @@ import 'attachment_pdf_preview.dart';
 import '../services/accounts_service.dart';
 import '../services/bills_service.dart';
 import '../services/payment_modes_service.dart';
+import 'currency_input_formatter.dart';
 
 class BillDetailsDialog extends StatefulWidget {
   const BillDetailsDialog({
@@ -456,16 +457,40 @@ class _AccountRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _DetailField(label: 'Credit Account', value: creditAccount),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _DetailField(label: 'Debit Account', value: debitAccount),
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth > 520;
+            final children = [
+              Expanded(
+                child: _DetailField(
+                  label: 'Credit Account',
+                  value: creditAccount,
+                  ellipsize: true,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _DetailField(
+                  label: 'Debit Account',
+                  value: debitAccount,
+                  ellipsize: true,
+                ),
+              ),
+            ];
+
+            if (isWide) {
+              return Row(children: children);
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                children[0],
+                const SizedBox(height: 12),
+                children[2],
+              ],
+            );
+          },
         ),
         if (isLoading) ...[
           const SizedBox(height: 8),
@@ -608,11 +633,13 @@ class _DetailField extends StatelessWidget {
     required this.label,
     required this.value,
     this.valueStyle,
+    this.ellipsize = false,
   });
 
   final String label;
   final String value;
   final TextStyle? valueStyle;
+  final bool ellipsize;
 
   @override
   Widget build(BuildContext context) {
@@ -630,7 +657,12 @@ class _DetailField extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Text(resolvedValue, style: valueStyle ?? theme.textTheme.bodyMedium),
+        Text(
+          resolvedValue,
+          style: valueStyle ?? theme.textTheme.bodyMedium,
+          maxLines: ellipsize ? 1 : null,
+          overflow: ellipsize ? TextOverflow.ellipsis : null,
+        ),
       ],
     );
   }
@@ -1110,6 +1142,8 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
   @override
   void initState() {
     super.initState();
+    _amountController.text =
+        CurrencyInputFormatter.normalizeExistingValue(_amountController.text);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadOptions());
   }
 
@@ -1333,6 +1367,7 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                       controller: _amountController,
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: const [CurrencyInputFormatter()],
                       decoration: InputDecoration(
                         labelText:
                             'Amount (${widget.currencySymbol.isEmpty ? 'value' : widget.currencySymbol})',
