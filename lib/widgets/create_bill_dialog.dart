@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import 'attachment_picker.dart';
+import 'currency_input_formatter.dart';
 
 class CreateBillDialog extends StatefulWidget {
   const CreateBillDialog({super.key});
@@ -11,16 +12,10 @@ class CreateBillDialog extends StatefulWidget {
   State<CreateBillDialog> createState() => _CreateBillDialogState();
 }
 
-class _CreateBillDialogState extends State<CreateBillDialog>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController = TabController(length: 2, vsync: this);
+class _CreateBillDialogState extends State<CreateBillDialog> {
   final _nameController = TextEditingController();
-  final _referenceController = TextEditingController();
   final _debitAmountController = TextEditingController();
   final _creditAmountController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  final _quantityController = TextEditingController(text: '1');
-  final _priceController = TextEditingController(text: '0.00');
 
   DateTime _billDate = DateTime.now();
   DateTime _dueDate = DateTime.now();
@@ -34,21 +29,10 @@ class _CreateBillDialogState extends State<CreateBillDialog>
 
   @override
   void dispose() {
-    _tabController.dispose();
     _nameController.dispose();
-    _referenceController.dispose();
     _debitAmountController.dispose();
     _creditAmountController.dispose();
-    _descriptionController.dispose();
-    _quantityController.dispose();
-    _priceController.dispose();
     super.dispose();
-  }
-
-  double get _itemTotal {
-    final qty = double.tryParse(_quantityController.text) ?? 0;
-    final price = double.tryParse(_priceController.text) ?? 0;
-    return qty * price;
   }
 
   Future<void> _pickAttachments() async {
@@ -91,6 +75,15 @@ class _CreateBillDialogState extends State<CreateBillDialog>
   }
 
   @override
+  void initState() {
+    super.initState();
+    _debitAmountController.text =
+        CurrencyInputFormatter.normalizeExistingValue(_debitAmountController.text);
+    _creditAmountController.text =
+        CurrencyInputFormatter.normalizeExistingValue(_creditAmountController.text);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final dialogWidth = (MediaQuery.of(context).size.width * 0.95).clamp(420.0, 1040.0);
@@ -120,8 +113,6 @@ class _CreateBillDialogState extends State<CreateBillDialog>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildEndpointPill(theme),
-              const SizedBox(height: 16),
               Wrap(
                 spacing: 16,
                 runSpacing: 12,
@@ -133,7 +124,6 @@ class _CreateBillDialogState extends State<CreateBillDialog>
                     onTap: () => _pickDate(isBillDate: true),
                   ),
                   _buildNameField(),
-                  _buildReferenceField(),
                   _buildDateField(
                     label: 'Due date',
                     value: _dueDate,
@@ -153,29 +143,8 @@ class _CreateBillDialogState extends State<CreateBillDialog>
                 onFileRemoved: _removeAttachment,
               ),
               const SizedBox(height: 20),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TabBar(
-                    controller: _tabController,
-                    labelColor: theme.colorScheme.onSurface,
-                    tabs: const [
-                      Tab(text: 'Expenses'),
-                      Tab(text: 'Items'),
-                    ],
-                  ),
-                  SizedBox(
-                    height: 260,
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildExpensesTab(),
-                        _buildItemsTab(),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+              Text('Expenses', style: theme.textTheme.titleMedium),
+              _buildExpensesTab(),
             ],
           ),
         ),
@@ -188,34 +157,11 @@ class _CreateBillDialogState extends State<CreateBillDialog>
         ),
         FilledButton(
           onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Bill form saved locally. Submit to POST /accounting/api/v1/bills'),
-              ),
-            );
             Navigator.of(context).pop();
           },
           child: const Text('Save'),
         ),
       ],
-    );
-  }
-
-  Widget _buildEndpointPill(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: const Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 10,
-        children: [
-          Chip(label: Text('POST')),
-          SelectableText('https://crm.kokonuts.my/accounting/api/v1/bills'),
-        ],
-      ),
     );
   }
 
@@ -242,16 +188,6 @@ class _CreateBillDialogState extends State<CreateBillDialog>
       child: TextFormField(
         controller: _nameController,
         decoration: const InputDecoration(labelText: 'Name'),
-      ),
-    );
-  }
-
-  Widget _buildReferenceField() {
-    return SizedBox(
-      width: 300,
-      child: TextFormField(
-        controller: _referenceController,
-        decoration: const InputDecoration(labelText: 'Reference #'),
       ),
     );
   }
@@ -328,55 +264,12 @@ class _CreateBillDialogState extends State<CreateBillDialog>
           child: TextFormField(
             controller: amountController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: const [CurrencyInputFormatter()],
             decoration: const InputDecoration(labelText: 'Amount'),
+            textAlign: TextAlign.right,
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildItemsTab() {
-    final totalLabel = _itemTotal.toStringAsFixed(2);
-    return Padding(
-      padding: const EdgeInsets.only(top: 12, right: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextFormField(
-            controller: _descriptionController,
-            decoration: const InputDecoration(labelText: 'Description'),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: _quantityController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Quantity'),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextFormField(
-                  controller: _priceController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Price'),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: InputDecorator(
-                  decoration: const InputDecoration(labelText: 'Total'),
-                  child: Text(totalLabel),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 
