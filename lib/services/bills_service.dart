@@ -352,6 +352,11 @@ class Bill {
     required this.totalAmount,
     required this.currencySymbol,
     this.attachments = const [],
+    this.creditAccount,
+    this.debitAccount,
+    this.totalPaid,
+    this.totalDue,
+    this.payments = const [],
   });
 
   factory Bill.fromJson(Map<String, dynamic> json) {
@@ -367,6 +372,18 @@ class Bill {
         .map(BillAttachment.fromJson)
         .toList(growable: false);
 
+    final payments = _extractRelatedCollection(json, const [
+          'payments',
+          'payment_history',
+          'paymentHistory',
+          'payment_logs',
+          'paymentRecords',
+          'payment_details',
+        ])
+        .whereType<Map<String, dynamic>>()
+        .map(BillPayment.fromJson)
+        .toList(growable: false);
+
     return Bill(
       id: _stringValue(json['id']) ?? '',
       vendorId: _stringValue(json['vendor_id']) ?? '',
@@ -380,6 +397,15 @@ class Bill {
           _stringValue(json['currency']) ??
           '',
       attachments: attachments,
+      creditAccount: _stringValue(json['credit_account_name']) ??
+          _stringValue(json['credit_account']) ??
+          _stringValue(json['creditAccount']),
+      debitAccount: _stringValue(json['debit_account_name']) ??
+          _stringValue(json['debit_account']) ??
+          _stringValue(json['debitAccount']),
+      totalPaid: _parseDouble(json['total_paid'] ?? json['paid']),
+      totalDue: _parseDouble(json['total_due'] ?? json['due']),
+      payments: payments,
     );
   }
 
@@ -392,6 +418,11 @@ class Bill {
   final double? totalAmount;
   final String currencySymbol;
   final List<BillAttachment> attachments;
+  final String? creditAccount;
+  final String? debitAccount;
+  final double? totalPaid;
+  final double? totalDue;
+  final List<BillPayment> payments;
 
   String get formattedDate {
     final date = billDate;
@@ -417,6 +448,14 @@ class Bill {
 
   String get totalLabel {
     final amount = totalAmount;
+    return _formatCurrency(amount);
+  }
+
+  String get totalPaidLabel => _formatCurrency(totalPaid);
+
+  String get totalDueLabel => _formatCurrency(totalDue);
+
+  String _formatCurrency(double? amount) {
     if (amount == null) {
       return '-';
     }
@@ -477,6 +516,9 @@ class BillAttachment {
     this.uploadedAt,
     this.sizeLabel,
     this.id,
+    this.paymentId,
+    this.paymentDate,
+    this.amount,
   });
 
   factory BillAttachment.fromJson(Map<String, dynamic> json) {
@@ -522,6 +564,19 @@ class BillAttachment {
         _stringValue(json['file_size']) ??
         _stringValue(json['size']);
 
+    final paymentDate = Bill._parseDate(
+      _stringValue(json['payment_date']) ??
+          _stringValue(json['date']) ??
+          _stringValue(json['uploaded_at']),
+    );
+
+    final amount = Bill._parseDouble(
+      json['payment_amount'] ??
+          json['amount'] ??
+          json['total_amount'] ??
+          json['total'],
+    );
+
     return BillAttachment(
       fileName: fileName,
       description: description,
@@ -530,6 +585,11 @@ class BillAttachment {
       uploadedAt: uploadedAt,
       sizeLabel: sizeLabel,
       id: id,
+      paymentId: _stringValue(json['payment_id']) ??
+          _stringValue(json['paymentId']) ??
+          _stringValue(json['id']),
+      paymentDate: paymentDate,
+      amount: amount,
     );
   }
 
@@ -540,6 +600,43 @@ class BillAttachment {
   final DateTime? uploadedAt;
   final String? sizeLabel;
   final String? id;
+  final String? paymentId;
+  final DateTime? paymentDate;
+  final double? amount;
+}
+
+class BillPayment {
+  const BillPayment({
+    required this.id,
+    this.date,
+    this.amount,
+    this.attachment,
+  });
+
+  factory BillPayment.fromJson(Map<String, dynamic> json) {
+    final attachment = _findMap(json, const ['attachment', 'file', 'document']);
+
+    return BillPayment(
+      id: _stringValue(json['id']) ??
+          _stringValue(json['payment_id']) ??
+          _stringValue(json['payment_no']) ??
+          _stringValue(json['paymentId']) ??
+          '',
+      date: Bill._parseDate(
+        _stringValue(json['payment_date']) ??
+            _stringValue(json['date']) ??
+            _stringValue(json['created_at']),
+      ),
+      amount: Bill._parseDouble(json['payment_amount'] ?? json['amount']),
+      attachment:
+          attachment == null ? null : BillAttachment.fromJson(attachment),
+    );
+  }
+
+  final String id;
+  final DateTime? date;
+  final double? amount;
+  final BillAttachment? attachment;
 }
 
 String? _stringValue(dynamic value) {
