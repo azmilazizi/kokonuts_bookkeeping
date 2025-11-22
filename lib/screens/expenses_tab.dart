@@ -415,15 +415,65 @@ class _ExpensesTabState extends State<ExpensesTab> {
     );
   }
 
-  void _handleExpenseDeleted(Expense expense) {
-    setState(() {
-      _allExpenses.removeWhere((item) => _isSameExpense(item, expense));
-      _applyFilters();
-    });
+  Future<void> _handleExpenseDeleted(Expense expense) async {
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+    if (!mounted) {
+      return;
+    }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${expense.name} deleted.')),
-    );
+    if (token == null || token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You are not logged in.')),
+      );
+      return;
+    }
+
+    final rawToken = (appState.rawAuthToken ?? token).trim();
+    final sanitizedToken =
+        token.replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '').trim();
+    final normalizedAuth =
+        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final autoTokenValue = rawToken
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+
+    final authtokenHeader =
+        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+
+    try {
+      await _service.deleteExpense(
+        id: expense.id,
+        headers: {
+          'Accept': 'application/json',
+          'authtoken': authtokenHeader,
+          'Authorization': normalizedAuth,
+        },
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _allExpenses.removeWhere((item) => _isSameExpense(item, expense));
+        _applyFilters();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${expense.name} deleted.')),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete expense: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
   }
 
   bool _isSameExpense(Expense a, Expense b) {
@@ -704,7 +754,7 @@ class _ExpenseRow extends StatefulWidget {
   final ThemeData theme;
   final bool showTopBorder;
   final ValueChanged<Expense> onUpdated;
-  final ValueChanged<Expense> onDeleted;
+  final Future<void> Function(Expense) onDeleted;
 
   @override
   State<_ExpenseRow> createState() => _ExpenseRowState();
@@ -843,7 +893,7 @@ class _ExpenseRowState extends State<_ExpenseRow> {
     );
 
     if (confirmed == true) {
-      widget.onDeleted(widget.expense);
+      await widget.onDeleted(widget.expense);
     }
   }
 }
