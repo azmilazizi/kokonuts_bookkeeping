@@ -15,10 +15,10 @@ class ExpensesTab extends StatefulWidget {
   const ExpensesTab({super.key});
 
   @override
-  State<ExpensesTab> createState() => _ExpensesTabState();
+  ExpensesTabState createState() => ExpensesTabState();
 }
 
-class _ExpensesTabState extends State<ExpensesTab> {
+class ExpensesTabState extends State<ExpensesTab> {
   final _service = ExpensesService();
   final _scrollController = ScrollController();
   final _horizontalController = ScrollController();
@@ -390,6 +390,23 @@ class _ExpensesTabState extends State<ExpensesTab> {
     setState(() {
       _filterStartDate = null;
       _filterEndDate = null;
+      _applyFilters();
+    });
+  }
+
+  void insertCreatedExpense(Expense expense) {
+    setState(() {
+      final existingIndex = _allExpenses.indexWhere(
+        (item) => _isSameExpense(item, expense),
+      );
+
+      if (existingIndex != -1) {
+        _allExpenses[existingIndex] = expense;
+      } else {
+        _allExpenses.add(expense);
+      }
+
+      _applySorting();
       _applyFilters();
     });
   }
