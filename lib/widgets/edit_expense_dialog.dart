@@ -22,6 +22,130 @@ class EditExpenseDialog extends StatefulWidget {
 }
 
 class _EditExpenseDialogState extends State<EditExpenseDialog> {
+  final _expensesService = ExpensesService();
+  late Future<Expense> _future;
+  bool _initialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _future = _loadDetail();
+      _initialized = true;
+    }
+  }
+
+  Future<Expense> _loadDetail() async {
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      throw const ExpensesException('Dialog no longer mounted');
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      throw const ExpensesException('You are not logged in.');
+    }
+
+    final rawToken = (appState.rawAuthToken ?? token).trim();
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth =
+        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final autoTokenValue = rawToken
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final authtokenHeader =
+        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+
+    return _expensesService.getExpense(
+      id: widget.expense.id,
+      headers: {
+        'Accept': 'application/json',
+        'authtoken': authtokenHeader,
+        'Authorization': normalizedAuth,
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Expense>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Dialog(
+            child: SizedBox(
+              width: 400,
+              height: 300,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return AlertDialog(
+            title: Row(
+              children: [
+                const Expanded(
+                  child: Text('Unable to load expense details'),
+                ),
+                IconButton(
+                  tooltip: 'Close',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            content: Text(snapshot.error.toString()),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _future = _loadDetail();
+                  });
+                },
+                child: const Text('Retry'),
+              ),
+            ],
+          );
+        }
+
+        if (!snapshot.hasData) {
+          return AlertDialog(
+            title: Row(
+              children: [
+                const Expanded(
+                  child: Text('Unable to load expense details'),
+                ),
+                IconButton(
+                  tooltip: 'Close',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            content: const Text('No expense data was returned.'),
+          );
+        }
+
+        return _EditExpenseForm(expense: snapshot.data!);
+      },
+    );
+  }
+}
+
+class _EditExpenseForm extends StatefulWidget {
+  const _EditExpenseForm({required this.expense});
+
+  final Expense expense;
+
+  @override
+  State<_EditExpenseForm> createState() => _EditExpenseFormState();
+}
+
+class _EditExpenseFormState extends State<_EditExpenseForm> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _categoryController;
@@ -75,10 +199,12 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
     _existingAttachments = List.of(widget.expense.attachments);
 
     // Also verify if we can parse single receipt as attachment if not present in list
-    if (_existingAttachments.isEmpty && widget.expense.receipt != null && widget.expense.receipt!.isNotEmpty) {
-         // We might want to show the receipt URL as an attachment, but ExpenseAttachment needs ID to delete.
-         // If it's just a URL string without ID, we can only view it, not delete it via ID API.
-         // For now, we rely on the populated attachments list from the new service logic.
+    if (_existingAttachments.isEmpty &&
+        widget.expense.receipt != null &&
+        widget.expense.receipt!.isNotEmpty) {
+      // We might want to show the receipt URL as an attachment, but ExpenseAttachment needs ID to delete.
+      // If it's just a URL string without ID, we can only view it, not delete it via ID API.
+      // For now, we rely on the populated attachments list from the new service logic.
     }
 
     _selectedVendorName = widget.expense.vendor;
@@ -155,13 +281,13 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
     if (_vendors.isEmpty || _selectedVendorName == null) return;
 
     final matched = _vendors.firstWhere(
-        (v) => v.name.toLowerCase() == _selectedVendorName!.toLowerCase(),
-        orElse: () => VendorSummary(id: '', name: ''),
+      (v) => v.name.toLowerCase() == _selectedVendorName!.toLowerCase(),
+      orElse: () => const VendorSummary(id: '', name: ''),
     );
 
     if (matched.id.isNotEmpty) {
-        _selectedVendorId = matched.id;
-        _selectedVendorName = matched.name; // Normalized name
+      _selectedVendorId = matched.id;
+      _selectedVendorName = matched.name; // Normalized name
     }
   }
 
@@ -177,7 +303,8 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
     }
 
     final matched = _paymentModes.firstWhere(
-      (mode) => mode.name.toLowerCase() == _initialPaymentModeLabel.toLowerCase(),
+      (mode) =>
+          mode.name.toLowerCase() == _initialPaymentModeLabel.toLowerCase(),
       orElse: () => _paymentModes.first,
     );
 
@@ -201,7 +328,10 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final dialogWidth = (MediaQuery.of(context).size.width * 0.92).clamp(420.0, 900.0);
+    final dialogWidth = (MediaQuery.of(context).size.width * 0.92).clamp(
+      420.0,
+      900.0,
+    );
     final theme = Theme.of(context);
 
     return AlertDialog(
@@ -285,7 +415,7 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
   }
 
   Widget _buildVendorField() {
-     if (_isLoadingReferenceData && _vendors.isEmpty) {
+    if (_isLoadingReferenceData && _vendors.isEmpty) {
       return _ReferenceStatusField(
         label: 'Vendor',
         child: Row(
@@ -311,7 +441,7 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
     }
 
     return DropdownButtonFormField<String>(
-      value: _selectedVendorName, // Using name as value since ID might be missing on existing expense
+      value: _selectedVendorName,
       decoration: const InputDecoration(
         labelText: 'Vendor',
         hintText: 'Select a vendor',
@@ -325,15 +455,18 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
           )
           .toList(),
       onChanged: (value) {
-         if (value != null) {
-            setState(() {
-                _selectedVendorName = value;
-                final matched = _vendors.firstWhere((v) => v.name == value, orElse: () => VendorSummary(id: '', name: ''));
-                if (matched.id.isNotEmpty) {
-                    _selectedVendorId = matched.id;
-                }
-            });
-         }
+        if (value != null) {
+          setState(() {
+            _selectedVendorName = value;
+            final matched = _vendors.firstWhere(
+              (v) => v.name == value,
+              orElse: () => const VendorSummary(id: '', name: ''),
+            );
+            if (matched.id.isNotEmpty) {
+              _selectedVendorId = matched.id;
+            }
+          });
+        }
       },
       validator: (value) {
         if (value == null || value.trim().isEmpty) {
@@ -364,11 +497,14 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
   Widget _buildCategoryField() {
     final items = {
       ..._categories,
-      if (widget.expense.categoryName.trim().isNotEmpty) widget.expense.categoryName,
+      if (widget.expense.categoryName.trim().isNotEmpty)
+        widget.expense.categoryName,
     }.toList();
 
     return DropdownButtonFormField<String>(
-      value: items.contains(_categoryController.text) ? _categoryController.text : null,
+      value: items.contains(_categoryController.text)
+          ? _categoryController.text
+          : null,
       decoration: const InputDecoration(labelText: 'Expense category'),
       hint: const Text('Select a category'),
       items: items
@@ -424,8 +560,10 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
       textInputAction: TextInputAction.next,
       inputFormatters: const [CurrencyInputFormatter()],
       validator: (value) {
-        final sanitized =
-            value?.replaceAll(RegExp(r'[^0-9.,-]'), '').replaceAll(',', '').trim();
+        final sanitized = value
+            ?.replaceAll(RegExp(r'[^0-9.,-]'), '')
+            .replaceAll(',', '')
+            .trim();
         final parsed = double.tryParse(sanitized ?? '');
         if (parsed == null || parsed <= 0) {
           return 'Enter a valid amount.';
@@ -540,95 +678,83 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
     if (!mounted) return;
 
     if (token == null || token.trim().isEmpty) {
-        if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('You are not logged in.')),
-            );
-        }
-        setState(() => _isSaving = false);
-        return;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You are not logged in.')),
+        );
+      }
+      setState(() => _isSaving = false);
+      return;
     }
 
     final headers = _buildAuthHeaders(appState, token);
 
     final parsedAmount = double.tryParse(
-      _amountController.text.replaceAll(RegExp(r'[^0-9.,-]'), '').replaceAll(',', ''),
+      _amountController.text
+          .replaceAll(RegExp(r'[^0-9.,-]'), '')
+          .replaceAll(',', ''),
     );
     final resolvedAmount = parsedAmount ?? widget.expense.amount;
 
-    // Prepare request data
     final requestData = {
-        'expense_name': _nameController.text.trim(),
-        'amount': resolvedAmount,
-        'date': DateFormat('yyyy-MM-dd').format(_expenseDate),
-        'category': _categoryController.text.trim().isEmpty
+      'expense_name': _nameController.text.trim(),
+      'amount': resolvedAmount,
+      'date': DateFormat('yyyy-MM-dd').format(_expenseDate),
+      'category': _categoryController.text.trim().isEmpty
           ? widget.expense.categoryName
           : _categoryController.text.trim(),
-        'vendor': _selectedVendorId ?? '', // Send ID if available
-        // If vendor ID is not available, we might need to send vendor name or handle differently.
-        // Assuming backend accepts vendor name if ID is missing or we rely on what we have.
-        // But usually ID is required. If _selectedVendorId is null, it means user typed a name that is not in the list?
-        // Or we initialized with a name that is not in the list.
-        // Dropdown forces selection, so _selectedVendorId should be populated if list loaded.
-        'payment_mode': _selectedPaymentMode ?? '',
-        // 'tax': ..., 'tax2': ..., 'reference_no': ..., 'note': ... (add if needed)
+      'vendor': _selectedVendorId ?? '',
+      'payment_mode': _selectedPaymentMode ?? '',
     };
 
-    // Fallback for vendor if ID missing (e.g. free text if dropdown allowed it, but it doesn't here)
-    if ((requestData['vendor'] as String).isEmpty && _selectedVendorName != null) {
-        // Try to find it again just in case
-        final matched = _vendors.firstWhere(
-            (v) => v.name == _selectedVendorName,
-            orElse: () => VendorSummary(id: '', name: '')
-        );
-        if (matched.id.isNotEmpty) {
-            requestData['vendor'] = matched.id;
-        }
+    if ((requestData['vendor'] as String).isEmpty &&
+        _selectedVendorName != null) {
+      final matched = _vendors.firstWhere(
+        (v) => v.name == _selectedVendorName,
+        orElse: () => const VendorSummary(id: '', name: ''),
+      );
+      if (matched.id.isNotEmpty) {
+        requestData['vendor'] = matched.id;
+      }
     }
 
     try {
-        // 1. Update Expense
-        final updatedExpense = await _expensesService.updateExpense(
-            id: widget.expense.id,
-            headers: headers,
-            data: requestData,
+      // 1. Update Expense
+      final updatedExpense = await _expensesService.updateExpense(
+        id: widget.expense.id,
+        headers: headers,
+        data: requestData,
+      );
+
+      // 2. Delete Attachments
+      if (_attachmentsMarkedForDeletion.isNotEmpty) {
+        await _expensesService.deleteAttachments(
+          id: widget.expense.id,
+          headers: headers,
+          attachmentIds: _attachmentsMarkedForDeletion.toList(),
         );
+      }
 
-        // 2. Delete Attachments
-        if (_attachmentsMarkedForDeletion.isNotEmpty) {
-             await _expensesService.deleteAttachments(
-                id: widget.expense.id,
-                headers: headers,
-                attachmentIds: _attachmentsMarkedForDeletion.toList()
-             );
-        }
+      // 3. Upload New Attachments
+      if (_supportingAttachments.isNotEmpty) {
+        await _expensesService.uploadAttachments(
+          id: widget.expense.id,
+          headers: headers,
+          attachments: _supportingAttachments,
+        );
+      }
 
-        // 3. Upload New Attachments
-        if (_supportingAttachments.isNotEmpty) {
-            await _expensesService.uploadAttachments(
-                id: widget.expense.id,
-                headers: headers,
-                attachments: _supportingAttachments
-            );
-        }
-
-        // Since delete/upload are separate calls, the returned 'updatedExpense' from step 1
-        // might not contain the latest attachment changes. We might need to fetch it again
-        // OR construct it manually. For simplicity, we assume the caller (ExpensesTab) will refresh.
-        // Or we can construct the object to return.
-
-        setState(() => _isSaving = false);
-        if (mounted) {
-             Navigator.of(context).pop(updatedExpense);
-        }
-
+      setState(() => _isSaving = false);
+      if (mounted) {
+        Navigator.of(context).pop(updatedExpense);
+      }
     } catch (error) {
-        setState(() => _isSaving = false);
-        if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to save expense: $error')),
-            );
-        }
+      setState(() => _isSaving = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save expense: $error')),
+        );
+      }
     }
   }
 }
@@ -773,9 +899,8 @@ class _ExistingAttachmentsList extends StatelessWidget {
               if (uploadedBy != null && uploadedBy.isNotEmpty) {
                 subtitleParts.add('Uploaded by $uploadedBy');
               }
-              final subtitle = subtitleParts.isEmpty
-                  ? null
-                  : subtitleParts.join(' • ');
+              final subtitle =
+                  subtitleParts.isEmpty ? null : subtitleParts.join(' • ');
 
               return Card(
                 key: ValueKey(
