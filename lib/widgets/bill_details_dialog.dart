@@ -26,7 +26,11 @@ class BillDetailsDialog extends StatefulWidget {
 class _BillDetailsDialogState extends State<BillDetailsDialog> {
   late Future<Bill> _future;
   final _billsService = BillsService();
+  final _accountsService = AccountsService();
   bool _initialized = false;
+  bool _isLoadingAccounts = false;
+  String? _accountsError;
+  List<Account> _accounts = const [];
 
   @override
   void didChangeDependencies() {
@@ -51,7 +55,47 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
 
     final headers = _buildAuthHeaders(appState, token);
 
-    return _billsService.getBill(id: widget.bill.id, headers: headers);
+    setState(() {
+      _isLoadingAccounts = true;
+      _accountsError = null;
+    });
+
+    try {
+      final bill = await _billsService.getBill(id: widget.bill.id, headers: headers);
+
+      if (!mounted) {
+        return bill;
+      }
+
+      try {
+        final accounts = await _accountsService.fetchAccounts(
+          page: 1,
+          perPage: 200,
+          headers: headers,
+        );
+
+        if (mounted) {
+          setState(() {
+            _accounts = accounts.accounts;
+            _isLoadingAccounts = false;
+          });
+        }
+      } catch (error) {
+        if (mounted) {
+          setState(() {
+            _accountsError = error.toString();
+            _isLoadingAccounts = false;
+          });
+        }
+      }
+
+      return bill;
+    } catch (error) {
+      if (mounted) {
+        setState(() => _isLoadingAccounts = false);
+      }
+      rethrow;
+    }
   }
 
   Map<String, String> _buildAuthHeaders(AppState appState, String token) {
@@ -163,6 +207,23 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     );
   }
 
+  String _resolveAccountName(String? accountIdOrName) {
+    final value = accountIdOrName?.trim();
+    if (value == null || value.isEmpty) {
+      return '—';
+    }
+
+    for (final account in _accounts) {
+      final matchesId = account.id == value;
+      final matchesName = account.name.toLowerCase() == value.toLowerCase();
+      if (matchesId || matchesName) {
+        return account.name;
+      }
+    }
+
+    return value;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -221,6 +282,12 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                   _DetailsTab(
                                     bill: bill,
                                     vendorName: widget.vendorName,
+                                    creditAccountLabel:
+                                        _resolveAccountName(bill.creditAccount),
+                                    debitAccountLabel:
+                                        _resolveAccountName(bill.debitAccount),
+                                    isLoadingAccounts: _isLoadingAccounts,
+                                    accountsError: _accountsError,
                                   ),
                                   _PaymentsTab(
                                     bill: bill,
@@ -275,16 +342,25 @@ class _DialogHeader extends StatelessWidget {
 }
 
 class _DetailsTab extends StatelessWidget {
-  const _DetailsTab({required this.bill, required this.vendorName});
+  const _DetailsTab({
+    required this.bill,
+    required this.vendorName,
+    required this.creditAccountLabel,
+    required this.debitAccountLabel,
+    required this.isLoadingAccounts,
+    this.accountsError,
+  });
 
   final Bill bill;
   final String vendorName;
+  final String creditAccountLabel;
+  final String debitAccountLabel;
+  final bool isLoadingAccounts;
+  final String? accountsError;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final creditAccount = bill.creditAccount ?? '—';
-    final debitAccount = bill.debitAccount ?? '—';
 
     return Scrollbar(
       child: SingleChildScrollView(
@@ -300,12 +376,26 @@ class _DetailsTab extends StatelessWidget {
             const SizedBox(height: 16),
             _DateRow(bill: bill),
             const SizedBox(height: 16),
-            _AccountRow(creditAccount: creditAccount, debitAccount: debitAccount),
+            _AccountRow(
+              creditAccount: creditAccountLabel,
+              debitAccount: debitAccountLabel,
+              isLoading: isLoadingAccounts,
+            ),
+            if (accountsError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                accountsError!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
-            _SummaryRow(
+            _BillTotalsSection(
               totalAmount: bill.totalLabel,
               totalPaid: bill.totalPaidLabel,
               totalDue: bill.totalDueLabel,
+              theme: theme,
             ),
           ],
         ),
@@ -351,82 +441,119 @@ class _DateRow extends StatelessWidget {
 }
 
 class _AccountRow extends StatelessWidget {
-  const _AccountRow({required this.creditAccount, required this.debitAccount});
+  const _AccountRow({
+    required this.creditAccount,
+    required this.debitAccount,
+    this.isLoading = false,
+  });
 
   final String creditAccount;
   final String debitAccount;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: _DetailField(label: 'Credit Account', value: creditAccount),
+        Row(
+          children: [
+            Expanded(
+              child: _DetailField(label: 'Credit Account', value: creditAccount),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _DetailField(label: 'Debit Account', value: debitAccount),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _DetailField(label: 'Debit Account', value: debitAccount),
-        ),
+        if (isLoading) ...[
+          const SizedBox(height: 8),
+          LinearProgressIndicator(
+            minHeight: 4,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ],
       ],
     );
   }
 }
 
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({
+class _BillTotalsSection extends StatelessWidget {
+  const _BillTotalsSection({
     required this.totalAmount,
     required this.totalPaid,
     required this.totalDue,
+    required this.theme,
   });
 
   final String totalAmount;
   final String totalPaid;
   final String totalDue;
+  final ThemeData theme;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _BillTotalRow(
+            label: 'Total Amount',
+            value: totalAmount,
+            theme: theme,
+            emphasize: true,
+          ),
+          const SizedBox(height: 8),
+          _BillTotalRow(
+            label: 'Total Paid',
+            value: totalPaid,
+            theme: theme,
+          ),
+          const SizedBox(height: 8),
+          _BillTotalRow(
+            label: 'Total Due',
+            value: totalDue,
+            theme: theme,
+            emphasize: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-    Widget buildCard(String label, String value, {Color? valueColor}) {
-      return Expanded(
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            border: Border.all(color: theme.dividerColor),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: valueColor ?? theme.colorScheme.onSurface,
-                ),
-              ),
-            ],
-          ),
+class _BillTotalRow extends StatelessWidget {
+  const _BillTotalRow({
+    required this.label,
+    required this.value,
+    required this.theme,
+    this.emphasize = false,
+  });
+
+  final String label;
+  final String value;
+  final ThemeData theme;
+  final bool emphasize;
+
+  @override
+  Widget build(BuildContext context) {
+    final labelStyle = theme.textTheme.bodyMedium;
+    final valueStyle = emphasize
+        ? theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)
+        : theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600);
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text.rich(
+        TextSpan(
+          text: '$label: ',
+          style: labelStyle,
+          children: [TextSpan(text: value, style: valueStyle)],
         ),
-      );
-    }
-
-    return Row(
-      children: [
-        buildCard('Total Amount', totalAmount, valueColor: theme.colorScheme.error),
-        const SizedBox(width: 12),
-        buildCard('Total Paid', totalPaid, valueColor: Colors.green.shade700),
-        const SizedBox(width: 12),
-        buildCard('Total Due', totalDue, valueColor: theme.colorScheme.error),
-      ],
+        textAlign: TextAlign.left,
+      ),
     );
   }
 }
