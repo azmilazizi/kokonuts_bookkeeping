@@ -455,29 +455,19 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
     }
 
     final headers = _buildAuthHeaders(appState, token);
-    final loadedAccounts = <Account>[];
-    var page = 1;
-    var hasMore = true;
-
     try {
-      while (hasMore && mounted) {
-        final result = await _accountsService.fetchAccounts(
-          page: page,
-          perPage: _accountsPerPage,
-          headers: headers,
-        );
-
-        loadedAccounts.addAll(result.accounts);
-        hasMore = result.hasMore;
-        page++;
-      }
+      final result = await _accountsService.fetchAccounts(
+        page: 1,
+        perPage: _accountsPerPage,
+        headers: headers,
+      );
 
       if (!mounted) {
         return;
       }
 
       setState(() {
-        _accounts = loadedAccounts;
+        _accounts = result.accounts;
 
         if (_selectedDebitAccount != null &&
             !_accounts.any((account) => account.id == _selectedDebitAccount)) {
