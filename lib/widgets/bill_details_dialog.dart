@@ -29,15 +29,15 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
   final _billsService = BillsService();
   final _accountsService = AccountsService();
   bool _initialized = false;
-  bool _isLoadingAccounts = false;
-  String? _accountsError;
-  List<Account> _accounts = const [];
+  bool _isLoadingAccountNames = false;
+  Map<String, String> _accountNamesById = const {};
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_initialized) {
       _future = _loadDetails();
+      _loadAccountNames();
       _initialized = true;
     }
   }
@@ -96,6 +96,55 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
         setState(() => _isLoadingAccounts = false);
       }
       rethrow;
+    }
+  }
+
+  Future<void> _loadAccountNames() async {
+    setState(() => _isLoadingAccountNames = true);
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() => _isLoadingAccountNames = false);
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      const perPage = 200;
+      var page = 1;
+      var hasMore = true;
+      final namesById = <String, String>{};
+
+      while (hasMore && mounted) {
+        final result = await _accountsService.fetchAccounts(
+          page: page,
+          perPage: perPage,
+          headers: headers,
+        );
+
+        namesById.addAll(result.namesById);
+        hasMore = result.hasMore;
+        page += 1;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() => _accountNamesById = namesById);
+    } catch (_) {
+      // Account names are optional context for the details view; ignore failures.
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingAccountNames = false);
+      }
     }
   }
 
@@ -283,12 +332,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                   _DetailsTab(
                                     bill: bill,
                                     vendorName: widget.vendorName,
-                                    creditAccountLabel:
-                                        _resolveAccountName(bill.creditAccount),
-                                    debitAccountLabel:
-                                        _resolveAccountName(bill.debitAccount),
-                                    isLoadingAccounts: _isLoadingAccounts,
-                                    accountsError: _accountsError,
+                                    accountNamesById: _accountNamesById,
+                                    isLoadingAccountNames: _isLoadingAccountNames,
                                   ),
                                   _PaymentsTab(
                                     bill: bill,
@@ -346,22 +391,37 @@ class _DetailsTab extends StatelessWidget {
   const _DetailsTab({
     required this.bill,
     required this.vendorName,
-    required this.creditAccountLabel,
-    required this.debitAccountLabel,
-    required this.isLoadingAccounts,
-    this.accountsError,
+    required this.accountNamesById,
+    required this.isLoadingAccountNames,
   });
 
   final Bill bill;
   final String vendorName;
-  final String creditAccountLabel;
-  final String debitAccountLabel;
-  final bool isLoadingAccounts;
-  final String? accountsError;
+  final Map<String, String> accountNamesById;
+  final bool isLoadingAccountNames;
+
+  String _resolveAccountName(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return '—';
+    }
+
+    final mapped = accountNamesById[trimmed];
+    if (mapped != null && mapped.trim().isNotEmpty) {
+      return mapped;
+    }
+
+    return trimmed;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final creditAccount = _resolveAccountName(bill.creditAccount);
+    final debitAccount = _resolveAccountName(bill.debitAccount);
+    final isLoading = isLoadingAccountNames &&
+        (bill.creditAccount?.isNotEmpty == true ||
+            bill.debitAccount?.isNotEmpty == true);
 
     return Scrollbar(
       child: SingleChildScrollView(
@@ -377,26 +437,22 @@ class _DetailsTab extends StatelessWidget {
             const SizedBox(height: 16),
             _DateRow(bill: bill),
             const SizedBox(height: 16),
-            _AccountRow(
-              creditAccount: creditAccountLabel,
-              debitAccount: debitAccountLabel,
-              isLoading: isLoadingAccounts,
-            ),
-            if (accountsError != null) ...[
+            _AccountRow(creditAccount: creditAccount, debitAccount: debitAccount),
+            if (isLoading) ...[
               const SizedBox(height: 8),
-              Text(
-                accountsError!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
+              const _AccountsLoadingIndicator(),
+            ],
+            const SizedBox(height: 24),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: _SummaryRow(
+                  totalAmount: bill.totalLabel,
+                  totalPaid: bill.totalPaidLabel,
+                  totalDue: bill.totalDueLabel,
                 ),
               ),
-            ],
-            const SizedBox(height: 20),
-            _BillTotalsSection(
-              totalAmount: bill.totalLabel,
-              totalPaid: bill.totalPaidLabel,
-              totalDue: bill.totalDueLabel,
-              theme: theme,
             ),
           ],
         ),
@@ -549,36 +605,64 @@ class _BillTotalsSection extends StatelessWidget {
   }
 }
 
-class _BillTotalRow extends StatelessWidget {
-  const _BillTotalRow({
-    required this.label,
-    required this.value,
-    required this.theme,
-    this.emphasize = false,
-  });
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 520;
+        final cards = [
+          buildCard(
+            'Total Amount',
+            totalAmount,
+            valueColor: theme.colorScheme.error,
+          ),
+          const SizedBox(width: 12),
+          buildCard('Total Paid', totalPaid, valueColor: Colors.green.shade700),
+          const SizedBox(width: 12),
+          buildCard('Total Due', totalDue, valueColor: theme.colorScheme.error),
+        ];
 
-  final String label;
-  final String value;
-  final ThemeData theme;
-  final bool emphasize;
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              cards[0],
+              const SizedBox(height: 12),
+              cards[2],
+              const SizedBox(height: 12),
+              cards[4],
+            ],
+          );
+        }
+
+        return Row(children: cards);
+      },
+    );
+  }
+}
+
+class _AccountsLoadingIndicator extends StatelessWidget {
+  const _AccountsLoadingIndicator();
 
   @override
   Widget build(BuildContext context) {
-    final labelStyle = theme.textTheme.bodyMedium;
-    final valueStyle = emphasize
-        ? theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)
-        : theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600);
-
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text.rich(
-        TextSpan(
-          text: '$label: ',
-          style: labelStyle,
-          children: [TextSpan(text: value, style: valueStyle)],
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        SizedBox(
+          height: 16,
+          width: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
+          ),
         ),
-        textAlign: TextAlign.left,
-      ),
+        const SizedBox(width: 8),
+        Text(
+          'Loading account names…',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }
