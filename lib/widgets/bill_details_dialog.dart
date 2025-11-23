@@ -8,7 +8,6 @@ import 'attachment_pdf_preview.dart';
 import '../services/accounts_service.dart';
 import '../services/bills_service.dart';
 import '../services/payment_modes_service.dart';
-import 'currency_input_formatter.dart';
 
 class BillDetailsDialog extends StatefulWidget {
   const BillDetailsDialog({
@@ -29,15 +28,15 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
   final _billsService = BillsService();
   final _accountsService = AccountsService();
   bool _initialized = false;
-  bool _isLoadingAccountNames = false;
-  Map<String, String> _accountNamesById = const {};
+  bool _isLoadingAccounts = false;
+  String? _accountsError;
+  List<Account> _accounts = const [];
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_initialized) {
       _future = _loadDetails();
-      _loadAccountNames();
       _initialized = true;
     }
   }
@@ -62,7 +61,10 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     });
 
     try {
-      final bill = await _billsService.getBill(id: widget.bill.id, headers: headers);
+      final bill = await _billsService.getBill(
+        id: widget.bill.id,
+        headers: headers,
+      );
 
       if (!mounted) {
         return bill;
@@ -96,114 +98,6 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
         setState(() => _isLoadingAccounts = false);
       }
       rethrow;
-    }
-  }
-
-  Future<void> _loadAccountNames() async {
-    setState(() => _isLoadingAccountNames = true);
-
-    final appState = AppStateScope.of(context);
-    final token = await appState.getValidAuthToken();
-
-    if (!mounted) {
-      return;
-    }
-
-    if (token == null || token.trim().isEmpty) {
-      setState(() => _isLoadingAccountNames = false);
-      return;
-    }
-
-    final headers = _buildAuthHeaders(appState, token);
-
-    try {
-      const perPage = 200;
-      var page = 1;
-      var hasMore = true;
-      final namesById = <String, String>{};
-
-      while (hasMore && mounted) {
-        final result = await _accountsService.fetchAccounts(
-          page: page,
-          perPage: perPage,
-          headers: headers,
-        );
-
-        namesById.addAll(result.namesById);
-        hasMore = result.hasMore;
-        page += 1;
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() => _accountNamesById = namesById);
-    } catch (_) {
-      // Account names are optional context for the details view; ignore failures.
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingAccountNames = false);
-      }
-    }
-  }
-
-  Future<void> _loadAccountNames() async {
-    if (_isLoadingAccountNames) {
-      return;
-    }
-
-    setState(() => _isLoadingAccountNames = true);
-
-    final appState = AppStateScope.of(context);
-    final token = await appState.getValidAuthToken();
-
-    if (!mounted) {
-      return;
-    }
-
-    if (token == null || token.trim().isEmpty) {
-      setState(() {
-        _isLoadingAccountNames = false;
-        _accountNamesById = const {};
-      });
-      return;
-    }
-
-    final headers = _buildAuthHeaders(appState, token);
-
-    try {
-      const perPage = 200;
-      var page = 1;
-      var hasMore = true;
-      final namesById = <String, String>{};
-
-      while (hasMore && mounted) {
-        final result = await _accountsService.fetchAccounts(
-          page: page,
-          perPage: perPage,
-          headers: headers,
-        );
-
-        namesById.addAll(result.namesById);
-        hasMore = result.hasMore;
-        page += 1;
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() => _accountNamesById = namesById);
-    } catch (_) {
-      // Account names are optional context for the details view; ignore failures.
-      if (mounted) {
-        setState(() => _accountNamesById = const {});
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingAccountNames = false);
-      }
     }
   }
 
@@ -260,7 +154,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     final attachments = <BillAttachment>[];
 
     void addAttachment(BillAttachment attachment) {
-      final key = attachment.id ?? attachment.downloadUrl ?? attachment.fileName;
+      final key =
+          attachment.id ?? attachment.downloadUrl ?? attachment.fileName;
       if (seen.add(key)) {
         attachments.add(attachment);
       }
@@ -284,7 +179,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     final result = await showDialog<BillPayment>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => _AddPaymentDialog(currencySymbol: bill.currencySymbol),
+      builder: (context) =>
+          _AddPaymentDialog(currencySymbol: bill.currencySymbol),
     );
 
     if (result != null) {
@@ -303,7 +199,9 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
 
     if (normalizedDownloadUrl == null || previewType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No preview available for this attachment.')),
+        const SnackBar(
+          content: Text('No preview available for this attachment.'),
+        ),
       );
       return;
     }
@@ -391,15 +289,23 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                   _DetailsTab(
                                     bill: bill,
                                     vendorName: widget.vendorName,
-                                    accountNamesById: _accountNamesById,
-                                    isLoadingAccountNames: _isLoadingAccountNames,
+                                    creditAccountLabel: _resolveAccountName(
+                                      bill.creditAccount,
+                                    ),
+                                    debitAccountLabel: _resolveAccountName(
+                                      bill.debitAccount,
+                                    ),
+                                    isLoadingAccounts: _isLoadingAccounts,
+                                    accountsError: _accountsError,
                                   ),
                                   _PaymentsTab(
                                     bill: bill,
                                     payments: payments,
                                     attachments: attachments,
-                                    onAddPayment: () => _openAddPaymentDialog(bill),
-                                    onPreviewAttachment: _handlePreviewAttachment,
+                                    onAddPayment: () =>
+                                        _openAddPaymentDialog(bill),
+                                    onPreviewAttachment:
+                                        _handlePreviewAttachment,
                                   ),
                                 ],
                               ),
@@ -450,37 +356,22 @@ class _DetailsTab extends StatelessWidget {
   const _DetailsTab({
     required this.bill,
     required this.vendorName,
-    required this.accountNamesById,
-    required this.isLoadingAccountNames,
+    required this.creditAccountLabel,
+    required this.debitAccountLabel,
+    required this.isLoadingAccounts,
+    this.accountsError,
   });
 
   final Bill bill;
   final String vendorName;
-  final Map<String, String> accountNamesById;
-  final bool isLoadingAccountNames;
-
-  String _resolveAccountName(String? value) {
-    final trimmed = value?.trim();
-    if (trimmed == null || trimmed.isEmpty) {
-      return '—';
-    }
-
-    final mapped = accountNamesById[trimmed];
-    if (mapped != null && mapped.trim().isNotEmpty) {
-      return mapped;
-    }
-
-    return trimmed;
-  }
+  final String creditAccountLabel;
+  final String debitAccountLabel;
+  final bool isLoadingAccounts;
+  final String? accountsError;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final creditAccount = _resolveAccountName(bill.creditAccount);
-    final debitAccount = _resolveAccountName(bill.debitAccount);
-    final isLoading = isLoadingAccountNames &&
-        (bill.creditAccount?.isNotEmpty == true ||
-            bill.debitAccount?.isNotEmpty == true);
 
     return Scrollbar(
       child: SingleChildScrollView(
@@ -496,22 +387,26 @@ class _DetailsTab extends StatelessWidget {
             const SizedBox(height: 16),
             _DateRow(bill: bill),
             const SizedBox(height: 16),
-            _AccountRow(creditAccount: creditAccount, debitAccount: debitAccount),
-            if (isLoading) ...[
+            _AccountRow(
+              creditAccount: creditAccountLabel,
+              debitAccount: debitAccountLabel,
+              isLoading: isLoadingAccounts,
+            ),
+            if (accountsError != null) ...[
               const SizedBox(height: 8),
-              const _AccountsLoadingIndicator(),
-            ],
-            const SizedBox(height: 24),
-            Align(
-              alignment: Alignment.centerRight,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 640),
-                child: _SummaryRow(
-                  totalAmount: bill.totalLabel,
-                  totalPaid: bill.totalPaidLabel,
-                  totalDue: bill.totalDueLabel,
+              Text(
+                accountsError!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
                 ),
               ),
+            ],
+            const SizedBox(height: 20),
+            _BillTotalsSection(
+              totalAmount: bill.totalLabel,
+              totalPaid: bill.totalPaidLabel,
+              totalDue: bill.totalDueLabel,
+              theme: theme,
             ),
           ],
         ),
@@ -536,7 +431,10 @@ class _DateRow extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: _DetailField(label: 'Due date', value: bill.formattedDueDate),
+            child: _DetailField(
+              label: 'Due date',
+              value: bill.formattedDueDate,
+            ),
           ),
         ];
 
@@ -545,11 +443,7 @@ class _DateRow extends StatelessWidget {
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            children[0],
-            const SizedBox(height: 12),
-            children[2],
-          ],
+          children: [children[0], const SizedBox(height: 12), children[2]],
         );
       },
     );
@@ -572,40 +466,19 @@ class _AccountRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth > 520;
-            final children = [
-              Expanded(
-                child: _DetailField(
-                  label: 'Credit Account',
-                  value: creditAccount,
-                  ellipsize: true,
-                ),
+        Row(
+          children: [
+            Expanded(
+              child: _DetailField(
+                label: 'Credit Account',
+                value: creditAccount,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _DetailField(
-                  label: 'Debit Account',
-                  value: debitAccount,
-                  ellipsize: true,
-                ),
-              ),
-            ];
-
-            if (isWide) {
-              return Row(children: children);
-            }
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                children[0],
-                const SizedBox(height: 12),
-                children[2],
-              ],
-            );
-          },
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _DetailField(label: 'Debit Account', value: debitAccount),
+            ),
+          ],
         ),
         if (isLoading) ...[
           const SizedBox(height: 8),
@@ -646,11 +519,7 @@ class _BillTotalsSection extends StatelessWidget {
             emphasize: true,
           ),
           const SizedBox(height: 8),
-          _BillTotalRow(
-            label: 'Total Paid',
-            value: totalPaid,
-            theme: theme,
-          ),
+          _BillTotalRow(label: 'Total Paid', value: totalPaid, theme: theme),
           const SizedBox(height: 8),
           _BillTotalRow(
             label: 'Total Due',
@@ -664,92 +533,36 @@ class _BillTotalsSection extends StatelessWidget {
   }
 }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 520;
-        final cards = [
-          buildCard(
-            'Total Amount',
-            totalAmount,
-            valueColor: theme.colorScheme.error,
-          ),
-          const SizedBox(width: 12),
-          buildCard('Total Paid', totalPaid, valueColor: Colors.green.shade700),
-          const SizedBox(width: 12),
-          buildCard('Total Due', totalDue, valueColor: theme.colorScheme.error),
-        ];
+class _BillTotalRow extends StatelessWidget {
+  const _BillTotalRow({
+    required this.label,
+    required this.value,
+    required this.theme,
+    this.emphasize = false,
+  });
 
-        if (isNarrow) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              cards[0],
-              const SizedBox(height: 12),
-              cards[2],
-              const SizedBox(height: 12),
-              cards[4],
-            ],
-          );
-        }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 520;
-        final cards = [
-          buildCard(
-            'Total Amount',
-            totalAmount,
-            valueColor: theme.colorScheme.error,
-          ),
-          const SizedBox(width: 12),
-          buildCard('Total Paid', totalPaid, valueColor: Colors.green.shade700),
-          const SizedBox(width: 12),
-          buildCard('Total Due', totalDue, valueColor: theme.colorScheme.error),
-        ];
-
-        if (isNarrow) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              cards[0],
-              const SizedBox(height: 12),
-              cards[2],
-              const SizedBox(height: 12),
-              cards[4],
-            ],
-          );
-        }
-
-        return Row(children: cards);
-      },
-    );
-  }
-}
-
-class _AccountsLoadingIndicator extends StatelessWidget {
-  const _AccountsLoadingIndicator();
+  final String label;
+  final String value;
+  final ThemeData theme;
+  final bool emphasize;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        SizedBox(
-          height: 16,
-          width: 16,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
-          ),
+    final labelStyle = theme.textTheme.bodyMedium;
+    final valueStyle = emphasize
+        ? theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)
+        : theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600);
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text.rich(
+        TextSpan(
+          text: '$label: ',
+          style: labelStyle,
+          children: [TextSpan(text: value, style: valueStyle)],
         ),
-        const SizedBox(width: 8),
-        Text(
-          'Loading account names…',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
+        textAlign: TextAlign.left,
+      ),
     );
   }
 }
@@ -804,13 +617,11 @@ class _DetailField extends StatelessWidget {
     required this.label,
     required this.value,
     this.valueStyle,
-    this.ellipsize = false,
   });
 
   final String label;
   final String value;
   final TextStyle? valueStyle;
-  final bool ellipsize;
 
   @override
   Widget build(BuildContext context) {
@@ -828,12 +639,7 @@ class _DetailField extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          resolvedValue,
-          style: valueStyle ?? theme.textTheme.bodyMedium,
-          maxLines: ellipsize ? 1 : null,
-          overflow: ellipsize ? TextOverflow.ellipsis : null,
-        ),
+        Text(resolvedValue, style: valueStyle ?? theme.textTheme.bodyMedium),
       ],
     );
   }
@@ -1019,7 +825,11 @@ class _PaymentsTable extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text('Actions', style: headerStyle, textAlign: TextAlign.end),
+                child: Text(
+                  'Actions',
+                  style: headerStyle,
+                  textAlign: TextAlign.end,
+                ),
               ),
             ],
           ),
@@ -1066,7 +876,9 @@ class _PaymentsTable extends StatelessWidget {
                           icon: const Icon(Icons.edit_outlined),
                           onPressed: () {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Edit payment coming soon.')),
+                              const SnackBar(
+                                content: Text('Edit payment coming soon.'),
+                              ),
                             );
                           },
                         ),
@@ -1076,7 +888,9 @@ class _PaymentsTable extends StatelessWidget {
                           color: theme.colorScheme.error,
                           onPressed: () {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Delete payment coming soon.')),
+                              const SnackBar(
+                                content: Text('Delete payment coming soon.'),
+                              ),
                             );
                           },
                         ),
@@ -1313,8 +1127,6 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
   @override
   void initState() {
     super.initState();
-    _amountController.text =
-        CurrencyInputFormatter.normalizeExistingValue(_amountController.text);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadOptions());
   }
 
@@ -1348,8 +1160,9 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
     final headers = _buildAuthHeaders(appState, token);
 
     try {
-      final paymentModes =
-          await _paymentModesService.fetchPaymentModes(headers: headers);
+      final paymentModes = await _paymentModesService.fetchPaymentModes(
+        headers: headers,
+      );
       final accounts = await _accountsService.fetchAccounts(
         page: 1,
         perPage: 200,
@@ -1390,8 +1203,9 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
     final autoTokenValue = rawToken
         .replaceFirst(RegExp('^Bearer\s+', caseSensitive: false), '')
         .trim();
-    final authtokenHeader =
-        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
     return {
       'Accept': 'application/json',
       'authtoken': authtokenHeader,
@@ -1518,8 +1332,7 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                     style: const TextStyle(color: Colors.red),
                   ),
                 ),
-              if (_isLoadingOptions)
-                const LinearProgressIndicator(),
+              if (_isLoadingOptions) const LinearProgressIndicator(),
               const SizedBox(height: 12),
               Form(
                 key: _formKey,
@@ -1536,9 +1349,9 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _amountController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: const [CurrencyInputFormatter()],
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: InputDecoration(
                         labelText:
                             'Amount (${widget.currencySymbol.isEmpty ? 'value' : widget.currencySymbol})',
@@ -1573,8 +1386,9 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                         setState(() {
                           _selectedPaymentMode = value == null
                               ? null
-                              : _paymentModes
-                                  .firstWhere((mode) => mode.id == value);
+                              : _paymentModes.firstWhere(
+                                  (mode) => mode.id == value,
+                                );
                         });
                       },
                     ),
@@ -1590,10 +1404,14 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                             child: Row(
                               children: [
                                 Expanded(
-                                  child: Text(DateFormat.yMMMd().format(_selectedDate)),
+                                  child: Text(
+                                    DateFormat.yMMMd().format(_selectedDate),
+                                  ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.calendar_today_outlined),
+                                  icon: const Icon(
+                                    Icons.calendar_today_outlined,
+                                  ),
                                   onPressed: _pickDate,
                                 ),
                               ],
