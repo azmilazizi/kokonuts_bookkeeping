@@ -549,20 +549,66 @@ class _AccountRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    Widget buildCell(String text, {TextStyle? style}) {
+      final resolvedText = text.trim().isEmpty ? '—' : text.trim();
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        child: Text(resolvedText, style: style ?? theme.textTheme.bodyMedium),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Table(
+          columnWidths: const {
+            0: IntrinsicColumnWidth(),
+            1: FlexColumnWidth(),
+          },
+          border: TableBorder.all(
+            color: theme.dividerColor,
+            width: 1,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
           children: [
-            Expanded(
-              child: _DetailField(
-                label: 'Credit Account',
-                value: creditAccount,
+            TableRow(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(8),
+                ),
               ),
+              children: [
+                buildCell(
+                  'Type',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                buildCell(
+                  'Account',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _DetailField(label: 'Debit Account', value: debitAccount),
+            TableRow(
+              children: [
+                buildCell('Credit Account'),
+                buildCell(creditAccount),
+              ],
+            ),
+            TableRow(
+              children: [
+                buildCell('Debit Account'),
+                buildCell(debitAccount),
+              ],
             ),
           ],
         ),
