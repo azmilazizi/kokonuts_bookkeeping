@@ -9,6 +9,7 @@ class BillsService {
 
   static const _baseUrl = 'https://crm.kokonuts.my/accounting/api/v1/bills';
   static const _vendorBaseUrl = 'https://crm.kokonuts.my/purchase/api/v1/vendors';
+  static const _billBaseUrl = 'https://crm.kokonuts.my/accounting/api/v1/bill';
 
   final Map<String, String?> _vendorCache = {};
 
@@ -90,6 +91,50 @@ class BillsService {
     }
 
     return Bill.fromJson(billJson);
+  }
+
+  Future<List<BillPayment>> fetchBillPayments({
+    required String billId,
+    required Map<String, String> headers,
+  }) async {
+    final uri = Uri.parse('$_billBaseUrl/$billId/payments');
+
+    http.Response response;
+    try {
+      response = await _client.get(uri, headers: headers);
+    } catch (error) {
+      throw BillsException('Failed to reach server: $error');
+    }
+
+    if (response.statusCode != 200) {
+      throw BillsException(
+        'Request failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error) {
+      throw BillsException('Unable to parse response: $error');
+    }
+
+    final paymentsJson = _extractItems(decoded)
+        .whereType<Map<String, dynamic>>()
+        .map(BillPayment.fromJson)
+        .toList();
+
+    if (paymentsJson.isEmpty && decoded is Map<String, dynamic>) {
+      final data = decoded['data'];
+      if (data is Map<String, dynamic>) {
+        return _extractItems(data)
+            .whereType<Map<String, dynamic>>()
+            .map(BillPayment.fromJson)
+            .toList();
+      }
+    }
+
+    return paymentsJson;
   }
 
   Future<void> deleteBill({
@@ -654,6 +699,7 @@ class BillPayment {
   const BillPayment({
     required this.id,
     this.date,
+    this.paymentAccount,
     this.amount,
     this.attachment,
   });
@@ -672,6 +718,11 @@ class BillPayment {
             _stringValue(json['date']) ??
             _stringValue(json['created_at']),
       ),
+      paymentAccount: _stringValue(json['payment_account']) ??
+          _stringValue(json['paymentAccount']) ??
+          _stringValue(json['account_name']) ??
+          _stringValue(json['accountName']) ??
+          _stringValue(json['account']),
       amount: Bill._parseDouble(json['payment_amount'] ?? json['amount']),
       attachment:
           attachment == null ? null : BillAttachment.fromJson(attachment),
@@ -680,6 +731,7 @@ class BillPayment {
 
   final String id;
   final DateTime? date;
+  final String? paymentAccount;
   final double? amount;
   final BillAttachment? attachment;
 }

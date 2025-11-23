@@ -30,9 +30,12 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
   bool _initialized = false;
   bool _isLoadingAccounts = false;
   bool _isLoadingAccountNames = false;
+  bool _isLoadingPayments = false;
   String? _accountsError;
+  String? _paymentsError;
   List<Account> _accounts = const [];
   Map<String, String> _accountNamesById = {};
+  List<BillPayment> _payments = const [];
 
   @override
   void didChangeDependencies() {
@@ -60,8 +63,11 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     setState(() {
       _isLoadingAccounts = true;
       _isLoadingAccountNames = false;
+      _isLoadingPayments = true;
       _accountsError = null;
+      _paymentsError = null;
       _accountNamesById = {};
+      _payments = const [];
     });
 
     try {
@@ -77,6 +83,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
       await Future.wait([
         _loadAccounts(headers),
         _loadAccountNames(bill, headers),
+        _loadPayments(bill.id, headers),
       ]);
 
       return bill;
@@ -85,6 +92,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
         setState(() {
           _isLoadingAccounts = false;
           _isLoadingAccountNames = false;
+          _isLoadingPayments = false;
         });
       }
       rethrow;
@@ -117,7 +125,9 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
   List<BillPayment> _buildPaymentEntries(Bill bill) {
     final entries = <BillPayment>[];
 
-    if (bill.payments.isNotEmpty) {
+    if (_payments.isNotEmpty) {
+      entries.addAll(_payments);
+    } else if (bill.payments.isNotEmpty) {
       entries.addAll(bill.payments);
     } else if (bill.attachments.isNotEmpty) {
       entries.addAll(
@@ -125,6 +135,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
           (attachment) => BillPayment(
             id: attachment.paymentId ?? attachment.id ?? attachment.fileName,
             date: attachment.paymentDate ?? attachment.uploadedAt,
+            paymentAccount: attachment.description,
             amount: attachment.amount,
             attachment: attachment,
           ),
@@ -185,6 +196,32 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
         setState(() {
           _accountsError = error.toString();
           _isLoadingAccounts = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadPayments(
+    String billId,
+    Map<String, String> headers,
+  ) async {
+    try {
+      final payments = await _billsService.fetchBillPayments(
+        billId: billId,
+        headers: headers,
+      );
+
+      if (mounted) {
+        setState(() {
+          _payments = payments;
+          _isLoadingPayments = false;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _paymentsError = error.toString();
+          _isLoadingPayments = false;
         });
       }
     }
@@ -388,6 +425,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                     bill: bill,
                                     payments: payments,
                                     attachments: attachments,
+                                    isLoading: _isLoadingPayments,
+                                    error: _paymentsError,
                                     onAddPayment: () =>
                                         _openAddPaymentDialog(bill),
                                     onPreviewAttachment:
@@ -782,6 +821,8 @@ class _PaymentsTab extends StatelessWidget {
     required this.bill,
     required this.payments,
     required this.attachments,
+    required this.isLoading,
+    this.error,
     required this.onAddPayment,
     required this.onPreviewAttachment,
   });
@@ -789,6 +830,8 @@ class _PaymentsTab extends StatelessWidget {
   final Bill bill;
   final List<BillPayment> payments;
   final List<BillAttachment> attachments;
+  final bool isLoading;
+  final String? error;
   final VoidCallback onAddPayment;
   final void Function(BillAttachment attachment) onPreviewAttachment;
 
@@ -806,10 +849,19 @@ class _PaymentsTab extends StatelessWidget {
                 children: [
                   const Icon(Icons.payments_outlined, size: 40),
                   const SizedBox(height: 12),
-                  Text(
-                    'No payments recorded yet.',
-                    style: theme.textTheme.bodyMedium,
-                  ),
+                  if (error != null)
+                    Text(
+                      'Failed to load payments: $error',
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: theme.colorScheme.error),
+                    )
+                  else
+                    Text(
+                      isLoading
+                          ? 'Loading payments...'
+                          : 'No payments recorded yet.',
+                      style: theme.textTheme.bodyMedium,
+                    ),
                 ],
               ),
             ),
@@ -829,12 +881,26 @@ class _PaymentsTab extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Failed to load payments: $error',
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: theme.colorScheme.error),
+              ),
+            ),
+          ),
         Expanded(
           child: Scrollbar(
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (isLoading) const LinearProgressIndicator(),
+                  if (isLoading) const SizedBox(height: 8),
                   _PaymentsTable(
                     bill: bill,
                     payments: payments,
@@ -935,7 +1001,7 @@ class _PaymentsTable extends StatelessWidget {
       child: Table(
         columnWidths: const {
           0: FlexColumnWidth(2),
-          1: FlexColumnWidth(2),
+          1: FlexColumnWidth(3),
           2: FlexColumnWidth(2),
           3: IntrinsicColumnWidth(),
         },
@@ -945,11 +1011,11 @@ class _PaymentsTable extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text('Payment ID', style: headerStyle),
+                child: Text('Date', style: headerStyle),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text('Date', style: headerStyle),
+                child: Text('Payment Account', style: headerStyle),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
@@ -958,7 +1024,7 @@ class _PaymentsTable extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Text(
-                  'Actions',
+                  'Options',
                   style: headerStyle,
                   textAlign: TextAlign.end,
                 ),
@@ -974,11 +1040,15 @@ class _PaymentsTable extends StatelessWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(payment.id.isEmpty ? '—' : payment.id),
+                  child: Text(dateLabel),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(dateLabel),
+                  child: Text(
+                    payment.paymentAccount?.trim().isNotEmpty == true
+                        ? payment.paymentAccount!.trim()
+                        : '—',
+                  ),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
