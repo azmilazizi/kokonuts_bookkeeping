@@ -242,42 +242,40 @@ class _BillsTabState extends State<BillsTab> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final availableWidth = MediaQuery.of(context).size.width;
+    final tableWidth =
+        availableWidth < _minTableWidth ? _minTableWidth : availableWidth;
+
     return RefreshIndicator(
       onRefresh: () => _fetchPage(reset: true),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final maxWidth =
-              constraints.maxWidth.isFinite ? constraints.maxWidth : _minTableWidth;
-          final tableWidth = maxWidth < _minTableWidth ? _minTableWidth : maxWidth;
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Scrollbar(
-                  controller: _horizontalController,
-                  thumbVisibility: true,
-                  notificationPredicate: (notification) =>
-                      notification.metrics.axis == Axis.horizontal,
-                  child: SingleChildScrollView(
-                    controller: _horizontalController,
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: tableWidth,
-                      child: CustomScrollView(
-                        controller: _scrollController,
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        slivers: [
-                          SliverPersistentHeader(
-                            pinned: true,
-                            delegate: TabPageHeaderDelegate(
-                              title: 'Bills',
-                              horizontalController: _horizontalController,
-                            ),
-                          ),
-                          SliverToBoxAdapter(
-                            child: TableFilterBar(
-                              controller: _filterController,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: Scrollbar(
+              controller: _horizontalController,
+              thumbVisibility: true,
+              notificationPredicate: (notification) =>
+                  notification.metrics.axis == Axis.horizontal,
+              child: SingleChildScrollView(
+                controller: _horizontalController,
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: tableWidth,
+                  child: CustomScrollView(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverPersistentHeader(
+                        pinned: true,
+                        delegate: TabPageHeaderDelegate(
+                          title: 'Bills',
+                          horizontalController: _horizontalController,
+                        ),
+                      ),
+                      SliverToBoxAdapter(
+                        child: TableFilterBar(
+                          controller: _filterController,
                               onChanged: _handleFilterChanged,
                               hintText: 'Search by vendor, status, or amount',
                               isFiltering: _filterController.text.isNotEmpty,

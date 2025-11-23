@@ -26,13 +26,17 @@ class BillDetailsDialog extends StatefulWidget {
 class _BillDetailsDialogState extends State<BillDetailsDialog> {
   late Future<Bill> _future;
   final _billsService = BillsService();
+  final _accountsService = AccountsService();
   bool _initialized = false;
+  bool _isLoadingAccountNames = false;
+  Map<String, String> _accountNamesById = const {};
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_initialized) {
       _future = _loadDetails();
+      _loadAccountNames();
       _initialized = true;
     }
   }
@@ -52,6 +56,65 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     final headers = _buildAuthHeaders(appState, token);
 
     return _billsService.getBill(id: widget.bill.id, headers: headers);
+  }
+
+  Future<void> _loadAccountNames() async {
+    if (_isLoadingAccountNames) {
+      return;
+    }
+
+    setState(() => _isLoadingAccountNames = true);
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _isLoadingAccountNames = false;
+        _accountNamesById = const {};
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      const perPage = 200;
+      var page = 1;
+      var hasMore = true;
+      final namesById = <String, String>{};
+
+      while (hasMore && mounted) {
+        final result = await _accountsService.fetchAccounts(
+          page: page,
+          perPage: perPage,
+          headers: headers,
+        );
+
+        namesById.addAll(result.namesById);
+        hasMore = result.hasMore;
+        page += 1;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() => _accountNamesById = namesById);
+    } catch (_) {
+      // Account names are optional context for the details view; ignore failures.
+      if (mounted) {
+        setState(() => _accountNamesById = const {});
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingAccountNames = false);
+      }
+    }
   }
 
   Map<String, String> _buildAuthHeaders(AppState appState, String token) {
@@ -221,6 +284,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                   _DetailsTab(
                                     bill: bill,
                                     vendorName: widget.vendorName,
+                                    accountNamesById: _accountNamesById,
+                                    isLoadingAccountNames: _isLoadingAccountNames,
                                   ),
                                   _PaymentsTab(
                                     bill: bill,
@@ -275,16 +340,40 @@ class _DialogHeader extends StatelessWidget {
 }
 
 class _DetailsTab extends StatelessWidget {
-  const _DetailsTab({required this.bill, required this.vendorName});
+  const _DetailsTab({
+    required this.bill,
+    required this.vendorName,
+    required this.accountNamesById,
+    required this.isLoadingAccountNames,
+  });
 
   final Bill bill;
   final String vendorName;
+  final Map<String, String> accountNamesById;
+  final bool isLoadingAccountNames;
+
+  String _resolveAccountName(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return '—';
+    }
+
+    final mapped = accountNamesById[trimmed];
+    if (mapped != null && mapped.trim().isNotEmpty) {
+      return mapped;
+    }
+
+    return trimmed;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final creditAccount = bill.creditAccount ?? '—';
-    final debitAccount = bill.debitAccount ?? '—';
+    final creditAccount = _resolveAccountName(bill.creditAccount);
+    final debitAccount = _resolveAccountName(bill.debitAccount);
+    final isLoading = isLoadingAccountNames &&
+        (bill.creditAccount?.isNotEmpty == true ||
+            bill.debitAccount?.isNotEmpty == true);
 
     return Scrollbar(
       child: SingleChildScrollView(
@@ -301,11 +390,21 @@ class _DetailsTab extends StatelessWidget {
             _DateRow(bill: bill),
             const SizedBox(height: 16),
             _AccountRow(creditAccount: creditAccount, debitAccount: debitAccount),
-            const SizedBox(height: 20),
-            _SummaryRow(
-              totalAmount: bill.totalLabel,
-              totalPaid: bill.totalPaidLabel,
-              totalDue: bill.totalDueLabel,
+            if (isLoading) ...[
+              const SizedBox(height: 8),
+              const _AccountsLoadingIndicator(),
+            ],
+            const SizedBox(height: 24),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: _SummaryRow(
+                  totalAmount: bill.totalLabel,
+                  totalPaid: bill.totalPaidLabel,
+                  totalDue: bill.totalDueLabel,
+                ),
+              ),
             ),
           ],
         ),
@@ -419,13 +518,63 @@ class _SummaryRow extends StatelessWidget {
       );
     }
 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 520;
+        final cards = [
+          buildCard(
+            'Total Amount',
+            totalAmount,
+            valueColor: theme.colorScheme.error,
+          ),
+          const SizedBox(width: 12),
+          buildCard('Total Paid', totalPaid, valueColor: Colors.green.shade700),
+          const SizedBox(width: 12),
+          buildCard('Total Due', totalDue, valueColor: theme.colorScheme.error),
+        ];
+
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              cards[0],
+              const SizedBox(height: 12),
+              cards[2],
+              const SizedBox(height: 12),
+              cards[4],
+            ],
+          );
+        }
+
+        return Row(children: cards);
+      },
+    );
+  }
+}
+
+class _AccountsLoadingIndicator extends StatelessWidget {
+  const _AccountsLoadingIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Row(
       children: [
-        buildCard('Total Amount', totalAmount, valueColor: theme.colorScheme.error),
-        const SizedBox(width: 12),
-        buildCard('Total Paid', totalPaid, valueColor: Colors.green.shade700),
-        const SizedBox(width: 12),
-        buildCard('Total Due', totalDue, valueColor: theme.colorScheme.error),
+        SizedBox(
+          height: 16,
+          width: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'Loading account names…',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
       ],
     );
   }
