@@ -29,8 +29,10 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
   final _accountsService = AccountsService();
   bool _initialized = false;
   bool _isLoadingAccounts = false;
+  bool _isLoadingAccountNames = false;
   String? _accountsError;
   List<Account> _accounts = const [];
+  Map<String, String> _accountNamesById = {};
 
   @override
   void didChangeDependencies() {
@@ -57,7 +59,9 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
 
     setState(() {
       _isLoadingAccounts = true;
+      _isLoadingAccountNames = false;
       _accountsError = null;
+      _accountNamesById = {};
     });
 
     try {
@@ -70,32 +74,18 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
         return bill;
       }
 
-      try {
-        final accounts = await _accountsService.fetchAccounts(
-          page: 1,
-          perPage: 200,
-          headers: headers,
-        );
-
-        if (mounted) {
-          setState(() {
-            _accounts = accounts.accounts;
-            _isLoadingAccounts = false;
-          });
-        }
-      } catch (error) {
-        if (mounted) {
-          setState(() {
-            _accountsError = error.toString();
-            _isLoadingAccounts = false;
-          });
-        }
-      }
+      await Future.wait([
+        _loadAccounts(headers),
+        _loadAccountNames(bill, headers),
+      ]);
 
       return bill;
     } catch (error) {
       if (mounted) {
-        setState(() => _isLoadingAccounts = false);
+        setState(() {
+          _isLoadingAccounts = false;
+          _isLoadingAccountNames = false;
+        });
       }
       rethrow;
     }
@@ -175,6 +165,89 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     return attachments;
   }
 
+  Future<void> _loadAccounts(Map<String, String> headers) async {
+    try {
+      final accounts = await _accountsService.fetchAccounts(
+        page: 1,
+        perPage: 200,
+        headers: headers,
+      );
+
+      if (mounted) {
+        setState(() {
+          _accounts = accounts.accounts;
+          _accountNamesById = {..._accountNamesById, ...accounts.namesById};
+          _isLoadingAccounts = false;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _accountsError = error.toString();
+          _isLoadingAccounts = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadAccountNames(
+    Bill bill,
+    Map<String, String> headers,
+  ) async {
+    final creditId = bill.creditAccountId ?? bill.creditAccount;
+    final debitId = bill.debitAccountId ?? bill.debitAccount;
+
+    if ((creditId == null || creditId.trim().isEmpty) &&
+        (debitId == null || debitId.trim().isEmpty)) {
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoadingAccountNames = true;
+        _accountsError = null;
+      });
+    }
+
+    String? errorMessage;
+
+    Future<void> fetchName(String? id) async {
+      final trimmedId = id?.trim();
+      if (trimmedId == null || trimmedId.isEmpty) {
+        return;
+      }
+
+      try {
+        final account = await _accountsService.fetchAccountById(
+          id: trimmedId,
+          headers: headers,
+        );
+
+        if (mounted) {
+          setState(() {
+            _accountNamesById[trimmedId] = account.name;
+          });
+        }
+      } catch (error) {
+        errorMessage ??= error.toString();
+      }
+    }
+
+    await Future.wait([
+      fetchName(creditId),
+      fetchName(debitId),
+    ]);
+
+    if (mounted) {
+      setState(() {
+        _isLoadingAccountNames = false;
+        if (errorMessage != null) {
+          _accountsError = errorMessage;
+        }
+      });
+    }
+  }
+
   Future<void> _openAddPaymentDialog(Bill bill) async {
     final result = await showDialog<BillPayment>(
       context: context,
@@ -220,6 +293,11 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
       return '—';
     }
 
+    final mappedName = _accountNamesById[value];
+    if (mappedName != null && mappedName.isNotEmpty) {
+      return mappedName;
+    }
+
     for (final account in _accounts) {
       final matchesId = account.id == value;
       final matchesName = account.name.toLowerCase() == value.toLowerCase();
@@ -236,7 +314,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     return Dialog(
       insetPadding: const EdgeInsets.all(24),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 820),
+        constraints: const BoxConstraints(maxWidth: 720),
         child: DefaultTabController(
           length: 2,
           child: Padding(
@@ -253,6 +331,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                 final hasError = snapshot.hasError;
 
                 return Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _DialogHeader(onClose: () => Navigator.of(context).pop()),
@@ -274,28 +353,35 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                         ),
                       ),
                     if (isLoading && snapshot.data == null)
-                      const Expanded(
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
                         child: Center(child: CircularProgressIndicator()),
                       ),
                     if (!isLoading || snapshot.data != null)
-                      Expanded(
+                      Flexible(
+                        fit: FlexFit.loose,
                         child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             if (isLoading) const LinearProgressIndicator(),
-                            const SizedBox(height: 12),
-                            Expanded(
+                            if (isLoading) const SizedBox(height: 12),
+                            Flexible(
+                              fit: FlexFit.loose,
                               child: TabBarView(
                                 children: [
                                   _DetailsTab(
                                     bill: bill,
                                     vendorName: widget.vendorName,
                                     creditAccountLabel: _resolveAccountName(
-                                      bill.creditAccount,
+                                      bill.creditAccountId ??
+                                          bill.creditAccount,
                                     ),
                                     debitAccountLabel: _resolveAccountName(
-                                      bill.debitAccount,
+                                      bill.debitAccountId ?? bill.debitAccount,
                                     ),
-                                    isLoadingAccounts: _isLoadingAccounts,
+                                    isLoadingAccounts:
+                                        _isLoadingAccounts ||
+                                            _isLoadingAccountNames,
                                     accountsError: _accountsError,
                                   ),
                                   _PaymentsTab(
@@ -508,9 +594,9 @@ class _BillTotalsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: Alignment.centerRight,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           _BillTotalRow(
             label: 'Total Amount',
@@ -554,14 +640,14 @@ class _BillTotalRow extends StatelessWidget {
         : theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600);
 
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: Alignment.centerRight,
       child: Text.rich(
         TextSpan(
           text: '$label: ',
           style: labelStyle,
           children: [TextSpan(text: value, style: valueStyle)],
         ),
-        textAlign: TextAlign.left,
+        textAlign: TextAlign.right,
       ),
     );
   }
