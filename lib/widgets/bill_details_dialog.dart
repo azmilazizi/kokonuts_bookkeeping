@@ -148,6 +148,65 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     }
   }
 
+  Future<void> _loadAccountNames() async {
+    if (_isLoadingAccountNames) {
+      return;
+    }
+
+    setState(() => _isLoadingAccountNames = true);
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _isLoadingAccountNames = false;
+        _accountNamesById = const {};
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      const perPage = 200;
+      var page = 1;
+      var hasMore = true;
+      final namesById = <String, String>{};
+
+      while (hasMore && mounted) {
+        final result = await _accountsService.fetchAccounts(
+          page: page,
+          perPage: perPage,
+          headers: headers,
+        );
+
+        namesById.addAll(result.namesById);
+        hasMore = result.hasMore;
+        page += 1;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() => _accountNamesById = namesById);
+    } catch (_) {
+      // Account names are optional context for the details view; ignore failures.
+      if (mounted) {
+        setState(() => _accountNamesById = const {});
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingAccountNames = false);
+      }
+    }
+  }
+
   Map<String, String> _buildAuthHeaders(AppState appState, String token) {
     final rawToken = (appState.rawAuthToken ?? token).trim();
     final sanitizedToken = token
@@ -604,6 +663,34 @@ class _BillTotalsSection extends StatelessWidget {
     );
   }
 }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 520;
+        final cards = [
+          buildCard(
+            'Total Amount',
+            totalAmount,
+            valueColor: theme.colorScheme.error,
+          ),
+          const SizedBox(width: 12),
+          buildCard('Total Paid', totalPaid, valueColor: Colors.green.shade700),
+          const SizedBox(width: 12),
+          buildCard('Total Due', totalDue, valueColor: theme.colorScheme.error),
+        ];
+
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              cards[0],
+              const SizedBox(height: 12),
+              cards[2],
+              const SizedBox(height: 12),
+              cards[4],
+            ],
+          );
+        }
 
     return LayoutBuilder(
       builder: (context, constraints) {
