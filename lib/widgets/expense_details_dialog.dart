@@ -92,7 +92,17 @@ class _ExpenseDetailsDialogState extends State<ExpenseDetailsDialog> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (isLoading) const LinearProgressIndicator(),
+                          if (isLoading)
+                            const Padding(
+                              padding: EdgeInsets.only(bottom: 12),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(),
+                                ),
+                              ),
+                            ),
                           _DetailField(
                             label: 'Expense category',
                             value: expense.categoryName,
