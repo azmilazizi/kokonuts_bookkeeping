@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:kokonuts_bookkeeping/app/app_state.dart';
 
 import '../app/app_state_scope.dart';
+import '../services/accounts_service.dart';
 import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
@@ -19,6 +20,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
   final _nameController = TextEditingController();
   final _debitAmountController = TextEditingController();
   final _creditAmountController = TextEditingController();
+  final _accountsService = AccountsService();
   final _vendorsService = VendorsService();
 
   DateTime _billDate = DateTime.now();
@@ -28,11 +30,16 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
   String? _selectedCreditAccount;
   List<PlatformFile> _attachments = [];
 
-  final _accounts = const ['None selected', 'Account 1', 'Account 2'];
-  List<VendorSummary> _vendors = const [];
+  List<Account> _accounts = const <Account>[];
+  List<VendorSummary> _vendors = const <VendorSummary>[];
   bool _hasInitializedVendors = false;
+  bool _hasInitializedAccounts = false;
   bool _isLoadingVendors = false;
+  bool _isLoadingAccounts = false;
   String? _vendorsError;
+  String? _accountsError;
+
+  static const _accountsPerPage = 50;
 
   @override
   void dispose() {
@@ -93,9 +100,11 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_hasInitializedVendors) {
+    if (!_hasInitializedVendors || !_hasInitializedAccounts) {
       _hasInitializedVendors = true;
+      _hasInitializedAccounts = true;
       _loadVendors();
+      _loadAccounts();
     }
   }
 
@@ -303,6 +312,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
   }
 
   Widget _buildExpensesTab() {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(top: 12, right: 8),
       child: Column(
@@ -321,6 +331,15 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
             onChanged: (value) => setState(() => _selectedCreditAccount = value),
             amountController: _creditAmountController,
           ),
+          if (_accountsError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _accountsError!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -332,19 +351,37 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
     required ValueChanged<String?> onChanged,
     required TextEditingController amountController,
   }) {
+    final items = _accounts
+        .map(
+          (account) => DropdownMenuItem<String>(
+            value: account.id,
+            child: Text(account.name),
+          ),
+        )
+        .toList();
+
     return Row(
       children: [
         Expanded(
           child: DropdownButtonFormField<String>(
-            decoration: InputDecoration(labelText: label),
+            decoration: InputDecoration(
+              labelText: label,
+              suffixIcon: _isLoadingAccounts
+                  ? const Padding(
+                      padding: EdgeInsets.all(12.0),
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : null,
+            ),
             value: selected,
-            items: _accounts
-                .map((account) => DropdownMenuItem<String>(
-                      value: account,
-                      child: Text(account),
-                    ))
-                .toList(),
-            onChanged: onChanged,
+            isExpanded: true,
+            items: items,
+            onChanged:
+                _isLoadingAccounts || _accounts.isEmpty ? null : onChanged,
           ),
         ),
         const SizedBox(width: 16),
@@ -395,6 +432,77 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
     final autoTokenValue = authtokenHeader.isNotEmpty ? authtokenHeader : sanitizedToken;
     return {'authtoken': autoTokenValue, 'Authorization': normalizedAuth};
   }
+
+  Future<void> _loadAccounts() async {
+    setState(() {
+      _accountsError = null;
+      _isLoadingAccounts = true;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _accountsError = 'You are not logged in.';
+        _isLoadingAccounts = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+    final loadedAccounts = <Account>[];
+    var page = 1;
+    var hasMore = true;
+
+    try {
+      while (hasMore && mounted) {
+        final result = await _accountsService.fetchAccounts(
+          page: page,
+          perPage: _accountsPerPage,
+          headers: headers,
+        );
+
+        loadedAccounts.addAll(result.accounts);
+        hasMore = result.hasMore;
+        page++;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _accounts = loadedAccounts;
+
+        if (_selectedDebitAccount != null &&
+            !_accounts.any((account) => account.id == _selectedDebitAccount)) {
+          _selectedDebitAccount = null;
+        }
+
+        if (_selectedCreditAccount != null &&
+            !_accounts.any((account) => account.id == _selectedCreditAccount)) {
+          _selectedCreditAccount = null;
+        }
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _accountsError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingAccounts = false);
+      }
+    }
+  }
+
 
   Future<void> _loadVendors() async {
     setState(() {
