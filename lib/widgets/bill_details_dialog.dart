@@ -194,8 +194,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     Bill bill,
     Map<String, String> headers,
   ) async {
-    final creditId = bill.creditAccountId ?? bill.creditAccount;
-    final debitId = bill.debitAccountId ?? bill.debitAccount;
+    final creditId = bill.creditAccountId;
+    final debitId = bill.debitAccountId;
 
     if ((creditId == null || creditId.trim().isEmpty) &&
         (debitId == null || debitId.trim().isEmpty)) {
