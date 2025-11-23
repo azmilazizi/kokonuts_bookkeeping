@@ -211,6 +211,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
         headers: headers,
       );
 
+      await _populatePaymentAccountNames(payments, headers);
+
       if (mounted) {
         setState(() {
           _payments = payments;
@@ -222,6 +224,50 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
         setState(() {
           _paymentsError = error.toString();
           _isLoadingPayments = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _populatePaymentAccountNames(
+    List<BillPayment> payments,
+    Map<String, String> headers,
+  ) async {
+    final creditIds = payments
+        .map((payment) => payment.paymentAccountId?.trim())
+        .where((id) => id != null && id!.isNotEmpty)
+        .where((id) => !_accountNamesById.containsKey(id))
+        .toSet();
+
+    if (creditIds.isEmpty) {
+      return;
+    }
+
+    try {
+      final results = await Future.wait(
+        creditIds.map(
+          (id) async {
+            final account = await _accountsService.fetchAccountById(
+              id: id!,
+              headers: headers,
+            );
+            return MapEntry(id, account.name);
+          },
+        ),
+      );
+
+      if (mounted) {
+        setState(() {
+          for (final entry in results) {
+            _accountNamesById[entry.key] = entry.value;
+          }
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _paymentsError ??=
+              'Unable to resolve payment accounts: ${error.toString()}';
         });
       }
     }
@@ -296,6 +342,55 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     if (result != null) {
       setState(() => _pendingPayments.add(result));
     }
+  }
+
+  Future<void> _openEditPaymentDialog(
+    BillPayment payment,
+    Bill bill,
+  ) async {
+    final result = await showDialog<BillPayment>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _EditPaymentDialog(
+        payment: payment,
+        currencySymbol: bill.currencySymbol,
+      ),
+    );
+
+    if (result == null) {
+      return;
+    }
+
+    setState(() {
+      var replaced = false;
+      for (var i = 0; i < _payments.length; i++) {
+        if (_payments[i].id == result.id) {
+          _payments[i] = result;
+          replaced = true;
+        }
+      }
+
+      if (!replaced) {
+        for (var i = 0; i < _pendingPayments.length; i++) {
+          if (_pendingPayments[i].id == result.id) {
+            _pendingPayments[i] = result;
+            replaced = true;
+          }
+        }
+      }
+
+      if (!replaced) {
+        _pendingPayments.add(result);
+      }
+
+      final accountId = result.paymentAccountId?.trim();
+      if (accountId != null && accountId.isNotEmpty) {
+        final accountName = result.paymentAccount?.trim();
+        if (accountName != null && accountName.isNotEmpty) {
+          _accountNamesById[accountId] = accountName;
+        }
+      }
+    });
   }
 
   void _handlePreviewAttachment(BillAttachment attachment) {
@@ -429,8 +524,11 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                     error: _paymentsError,
                                     onAddPayment: () =>
                                         _openAddPaymentDialog(bill),
+                                    onEditPayment: (payment) =>
+                                        _openEditPaymentDialog(payment, bill),
                                     onPreviewAttachment:
                                         _handlePreviewAttachment,
+                                    resolveAccountName: _resolveAccountName,
                                   ),
                                 ],
                               ),
@@ -824,7 +922,9 @@ class _PaymentsTab extends StatelessWidget {
     required this.isLoading,
     this.error,
     required this.onAddPayment,
+    required this.onEditPayment,
     required this.onPreviewAttachment,
+    required this.resolveAccountName,
   });
 
   final Bill bill;
@@ -833,7 +933,9 @@ class _PaymentsTab extends StatelessWidget {
   final bool isLoading;
   final String? error;
   final VoidCallback onAddPayment;
+  final void Function(BillPayment payment) onEditPayment;
   final void Function(BillAttachment attachment) onPreviewAttachment;
+  final String Function(String? value) resolveAccountName;
 
   @override
   Widget build(BuildContext context) {
@@ -905,6 +1007,8 @@ class _PaymentsTab extends StatelessWidget {
                     bill: bill,
                     payments: payments,
                     attachments: attachments,
+                    resolveAccountName: resolveAccountName,
+                    onEditPayment: onEditPayment,
                     onPreviewAttachment: onPreviewAttachment,
                   ),
                   const SizedBox(height: 16),
@@ -952,12 +1056,16 @@ class _PaymentsTable extends StatelessWidget {
     required this.bill,
     required this.payments,
     required this.attachments,
+    required this.resolveAccountName,
+    required this.onEditPayment,
     required this.onPreviewAttachment,
   });
 
   final Bill bill;
   final List<BillPayment> payments;
   final List<BillAttachment> attachments;
+  final String Function(String? value) resolveAccountName;
+  final void Function(BillPayment payment) onEditPayment;
   final void Function(BillAttachment attachment) onPreviewAttachment;
 
   BillAttachment? _findAttachment(BillPayment payment) {
@@ -998,112 +1106,116 @@ class _PaymentsTable extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.dividerColor),
       ),
-      child: Table(
-        columnWidths: const {
-          0: FlexColumnWidth(2),
-          1: FlexColumnWidth(3),
-          2: FlexColumnWidth(2),
-          3: IntrinsicColumnWidth(),
-        },
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        children: [
-          TableRow(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 720),
+          child: Table(
+            columnWidths: const {
+              0: FlexColumnWidth(2),
+              1: FlexColumnWidth(3),
+              2: FlexColumnWidth(2),
+              3: IntrinsicColumnWidth(),
+            },
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text('Date', style: headerStyle),
+              TableRow(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text('Date', style: headerStyle),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text('Payment Account', style: headerStyle),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text('Amount', style: headerStyle),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'Options',
+                      style: headerStyle,
+                      textAlign: TextAlign.end,
+                    ),
+                  ),
+                ],
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text('Payment Account', style: headerStyle),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text('Amount', style: headerStyle),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(
-                  'Options',
-                  style: headerStyle,
-                  textAlign: TextAlign.end,
-                ),
-              ),
+              ...payments.map((payment) {
+                final attachment = _findAttachment(payment);
+                final dateLabel = payment.date != null
+                    ? DateFormat.yMMMd().format(payment.date!)
+                    : '—';
+                final paymentAccountLabel = resolveAccountName(
+                  payment.paymentAccountId ?? payment.paymentAccount,
+                );
+                return TableRow(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(dateLabel),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        paymentAccountLabel.trim().isNotEmpty
+                            ? paymentAccountLabel
+                            : '—',
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        _formatAmount(payment.amount),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Wrap(
+                          spacing: 8,
+                          children: [
+                            IconButton(
+                              tooltip: 'View attachment',
+                              icon: const Icon(Icons.visibility_outlined),
+                              onPressed: attachment == null
+                                  ? null
+                                  : () => onPreviewAttachment(attachment),
+                            ),
+                            IconButton(
+                              tooltip: 'Edit payment',
+                              icon: const Icon(Icons.edit_outlined),
+                              onPressed: () => onEditPayment(payment),
+                            ),
+                            IconButton(
+                              tooltip: 'Delete payment',
+                              icon: const Icon(Icons.delete_outline),
+                              color: theme.colorScheme.error,
+                              onPressed: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content:
+                                        Text('Delete payment coming soon.'),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }),
             ],
           ),
-          ...payments.map((payment) {
-            final attachment = _findAttachment(payment);
-            final dateLabel = payment.date != null
-                ? DateFormat.yMMMd().format(payment.date!)
-                : '—';
-            return TableRow(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(dateLabel),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(
-                    payment.paymentAccount?.trim().isNotEmpty == true
-                        ? payment.paymentAccount!.trim()
-                        : '—',
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(
-                    _formatAmount(payment.amount),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Wrap(
-                      spacing: 8,
-                      children: [
-                        IconButton(
-                          tooltip: 'View attachment',
-                          icon: const Icon(Icons.visibility_outlined),
-                          onPressed: attachment == null
-                              ? null
-                              : () => onPreviewAttachment(attachment),
-                        ),
-                        IconButton(
-                          tooltip: 'Edit payment',
-                          icon: const Icon(Icons.edit_outlined),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Edit payment coming soon.'),
-                              ),
-                            );
-                          },
-                        ),
-                        IconButton(
-                          tooltip: 'Delete payment',
-                          icon: const Icon(Icons.delete_outline),
-                          color: theme.colorScheme.error,
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Delete payment coming soon.'),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          }),
-        ],
+        ),
       ),
     );
   }
@@ -1294,6 +1406,445 @@ class _BillAttachmentCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: children,
+      ),
+    );
+  }
+}
+
+class _EditPaymentDialog extends StatefulWidget {
+  const _EditPaymentDialog({
+    required this.payment,
+    required this.currencySymbol,
+  });
+
+  final BillPayment payment;
+  final String currencySymbol;
+
+  @override
+  State<_EditPaymentDialog> createState() => _EditPaymentDialogState();
+}
+
+class _EditPaymentDialogState extends State<_EditPaymentDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _amountController = TextEditingController();
+  final _accountsService = AccountsService();
+
+  DateTime _selectedDate = DateTime.now();
+  PlatformFile? _selectedFile;
+  bool _removeExistingAttachment = false;
+  bool _isLoadingAccounts = false;
+  String? _loadError;
+  List<Account> _accounts = const [];
+  Account? _selectedPaymentAccount;
+  Account? _selectedDepositAccount;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = widget.payment.date ?? DateTime.now();
+    _amountController.text = widget.payment.amount != null
+        ? widget.payment.amount!.toStringAsFixed(2)
+        : '';
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadAccounts());
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAccounts() async {
+    setState(() {
+      _isLoadingAccounts = true;
+      _loadError = null;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.isEmpty) {
+      setState(() {
+        _isLoadingAccounts = false;
+        _loadError = 'You are not logged in.';
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      final accounts = await _accountsService.fetchAccounts(
+        page: 1,
+        perPage: 200,
+        headers: headers,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _accounts = accounts.accounts;
+        _loadError = null;
+      });
+
+      _syncSelectedAccounts(accounts.accounts);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingAccounts = false);
+      }
+    }
+  }
+
+  void _syncSelectedAccounts(List<Account> accounts) {
+    Account? match(String? idOrName) {
+      if (idOrName == null || idOrName.trim().isEmpty) {
+        return null;
+      }
+      final trimmed = idOrName.trim();
+      try {
+        return accounts.firstWhere(
+          (account) =>
+              account.id == trimmed || account.name.toLowerCase() == trimmed.toLowerCase(),
+        );
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final paymentAccount =
+        match(widget.payment.paymentAccountId ?? widget.payment.paymentAccount);
+    final depositAccount = match(widget.payment.depositAccountId);
+
+    setState(() {
+      _selectedPaymentAccount =
+          paymentAccount != null && paymentAccount.id.isNotEmpty ? paymentAccount : null;
+      _selectedDepositAccount =
+          depositAccount != null && depositAccount.id.isNotEmpty ? depositAccount : null;
+    });
+  }
+
+  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
+    final rawToken = (appState.rawAuthToken ?? token).trim();
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
+    final autoTokenValue = rawToken
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final authtokenHeader = autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    return {
+      'Accept': 'application/json',
+      'authtoken': authtokenHeader,
+      'Authorization': normalizedAuth,
+    };
+  }
+
+  Future<void> _pickAttachment() async {
+    final result = await FilePicker.platform.pickFiles(withReadStream: false);
+    if (result != null && result.files.isNotEmpty) {
+      setState(() {
+        _selectedFile = result.files.first;
+        _removeExistingAttachment = false;
+      });
+    }
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 5),
+    );
+
+    if (selected != null) {
+      setState(() => _selectedDate = selected);
+    }
+  }
+
+  void _handleRemoveAttachment() {
+    setState(() {
+      _selectedFile = null;
+      _removeExistingAttachment = true;
+    });
+  }
+
+  String _formatFileSize(int sizeInBytes) {
+    const kilo = 1024;
+    const mega = kilo * 1024;
+    if (sizeInBytes >= mega) {
+      return '${(sizeInBytes / mega).toStringAsFixed(2)} MB';
+    }
+    if (sizeInBytes >= kilo) {
+      return '${(sizeInBytes / kilo).toStringAsFixed(2)} KB';
+    }
+    return '$sizeInBytes B';
+  }
+
+  BillAttachment? _buildAttachment() {
+    if (_selectedFile != null) {
+      return BillAttachment(
+        fileName: _selectedFile!.name,
+        description: _selectedFile!.name,
+        downloadUrl: _selectedFile!.path,
+        uploadedAt: _selectedDate,
+        sizeLabel: _formatFileSize(_selectedFile!.size),
+        id: null,
+        paymentId: widget.payment.id,
+        paymentDate: _selectedDate,
+        amount: double.tryParse(_amountController.text.trim()) ?? widget.payment.amount,
+      );
+    }
+
+    if (_removeExistingAttachment) {
+      return null;
+    }
+
+    return widget.payment.attachment;
+  }
+
+  void _handleSubmit() {
+    if (_formKey.currentState?.validate() != true) {
+      return;
+    }
+
+    final amountText = _amountController.text.trim();
+    final parsedAmount = amountText.isEmpty
+        ? widget.payment.amount
+        : double.tryParse(amountText);
+
+    final updatedPayment = widget.payment.copyWith(
+      date: _selectedDate,
+      amount: parsedAmount,
+      paymentAccount: _selectedPaymentAccount?.name ?? widget.payment.paymentAccount,
+      paymentAccountId: _selectedPaymentAccount?.id ?? widget.payment.paymentAccountId,
+      depositAccountId: _selectedDepositAccount?.id ?? widget.payment.depositAccountId,
+      attachment: _buildAttachment(),
+    );
+
+    Navigator.of(context).pop(updatedPayment);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Edit Payment',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (_loadError != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    _loadError!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
+              if (_isLoadingAccounts) const LinearProgressIndicator(),
+              const SizedBox(height: 12),
+              Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _pickAttachment,
+                            icon: const Icon(Icons.attach_file),
+                            label: Text(
+                              _selectedFile?.name ??
+                                  widget.payment.attachment?.fileName ??
+                                  'Upload attachment',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton(
+                          onPressed: (_selectedFile != null ||
+                                  (!_removeExistingAttachment &&
+                                      widget.payment.attachment != null))
+                              ? _handleRemoveAttachment
+                              : null,
+                          child: const Text('Remove'),
+                        ),
+                      ],
+                    ),
+                    if (_selectedFile == null &&
+                        !_removeExistingAttachment &&
+                        widget.payment.attachment != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Current: ${widget.payment.attachment!.fileName}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: InputDecorator(
+                            decoration: const InputDecoration(
+                              labelText: 'Date Paid',
+                              border: OutlineInputBorder(),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    DateFormat.yMMMd().format(_selectedDate),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.calendar_today_outlined),
+                                  onPressed: _pickDate,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedPaymentAccount?.id,
+                            decoration: const InputDecoration(
+                              labelText: 'Payment Account',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: _accounts
+                                .map(
+                                  (account) => DropdownMenuItem(
+                                    value: account.id,
+                                    child: Text(account.name),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedPaymentAccount = value == null
+                                    ? null
+                                    : _accounts.firstWhere(
+                                        (account) => account.id == value,
+                                      );
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedDepositAccount?.id,
+                            decoration: const InputDecoration(
+                              labelText: 'Deposit Account',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: _accounts
+                                .map(
+                                  (account) => DropdownMenuItem(
+                                    value: account.id,
+                                    child: Text(account.name),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedDepositAccount = value == null
+                                    ? null
+                                    : _accounts.firstWhere(
+                                        (account) => account.id == value,
+                                      );
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _amountController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText:
+                            'Amount (${widget.currencySymbol.isEmpty ? 'value' : widget.currencySymbol})',
+                        border: const OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return null;
+                        }
+                        if (double.tryParse(value.trim()) == null) {
+                          return 'Enter a valid number';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: _handleSubmit,
+                    child: const Text('Save Changes'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

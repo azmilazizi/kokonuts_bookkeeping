@@ -700,6 +700,9 @@ class BillPayment {
     required this.id,
     this.date,
     this.paymentAccount,
+    this.paymentAccountId,
+    this.depositAccountId,
+    this.referenceNo,
     this.amount,
     this.attachment,
   });
@@ -718,6 +721,13 @@ class BillPayment {
             _stringValue(json['date']) ??
             _stringValue(json['created_at']),
       ),
+      paymentAccountId:
+          _stringValue(json['account_credit']) ?? _stringValue(json['accountCredit']),
+      depositAccountId:
+          _stringValue(json['account_debit']) ?? _stringValue(json['accountDebit']),
+      referenceNo: _stringValue(json['reference_no']) ??
+          _stringValue(json['referenceNo']) ??
+          _stringValue(json['reference']),
       paymentAccount: _stringValue(json['payment_account']) ??
           _stringValue(json['paymentAccount']) ??
           _stringValue(json['account_name']) ??
@@ -732,8 +742,33 @@ class BillPayment {
   final String id;
   final DateTime? date;
   final String? paymentAccount;
+  final String? paymentAccountId;
+  final String? depositAccountId;
+  final String? referenceNo;
   final double? amount;
   final BillAttachment? attachment;
+
+  BillPayment copyWith({
+    String? id,
+    DateTime? date,
+    String? paymentAccount,
+    String? paymentAccountId,
+    String? depositAccountId,
+    String? referenceNo,
+    double? amount,
+    BillAttachment? attachment,
+  }) {
+    return BillPayment(
+      id: id ?? this.id,
+      date: date ?? this.date,
+      paymentAccount: paymentAccount ?? this.paymentAccount,
+      paymentAccountId: paymentAccountId ?? this.paymentAccountId,
+      depositAccountId: depositAccountId ?? this.depositAccountId,
+      referenceNo: referenceNo ?? this.referenceNo,
+      amount: amount ?? this.amount,
+      attachment: attachment ?? this.attachment,
+    );
+  }
 }
 
 String? _stringValue(dynamic value) {
