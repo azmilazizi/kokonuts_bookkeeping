@@ -156,7 +156,9 @@ class _BillsTabState extends State<BillsTab> {
   }
 
   Future<void> _loadVendorName(
-      String vendorId, Map<String, String> headers) async {
+    String vendorId,
+    Map<String, String> headers,
+  ) async {
     try {
       final name = await _service.resolveVendorName(
         vendorId: vendorId,
@@ -201,9 +203,9 @@ class _BillsTabState extends State<BillsTab> {
     }
 
     if (token == null || token.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You are not logged in.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('You are not logged in.')));
       return;
     }
 
@@ -232,9 +234,9 @@ class _BillsTabState extends State<BillsTab> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete bill: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to delete bill: $error')));
     }
   }
 
@@ -242,40 +244,45 @@ class _BillsTabState extends State<BillsTab> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final availableWidth = MediaQuery.of(context).size.width;
-    final tableWidth =
-        availableWidth < _minTableWidth ? _minTableWidth : availableWidth;
-
     return RefreshIndicator(
       onRefresh: () => _fetchPage(reset: true),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: Scrollbar(
-              controller: _horizontalController,
-              thumbVisibility: true,
-              notificationPredicate: (notification) =>
-                  notification.metrics.axis == Axis.horizontal,
-              child: SingleChildScrollView(
-                controller: _horizontalController,
-                scrollDirection: Axis.horizontal,
-                child: SizedBox(
-                  width: tableWidth,
-                  child: CustomScrollView(
-                    controller: _scrollController,
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    slivers: [
-                      SliverPersistentHeader(
-                        pinned: true,
-                        delegate: TabPageHeaderDelegate(
-                          title: 'Bills',
-                          horizontalController: _horizontalController,
-                        ),
-                      ),
-                      SliverToBoxAdapter(
-                        child: TableFilterBar(
-                          controller: _filterController,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxWidth = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : _minTableWidth;
+          final tableWidth = maxWidth < _minTableWidth
+              ? _minTableWidth
+              : maxWidth;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Scrollbar(
+                  controller: _horizontalController,
+                  thumbVisibility: true,
+                  notificationPredicate: (notification) =>
+                      notification.metrics.axis == Axis.horizontal,
+                  child: SingleChildScrollView(
+                    controller: _horizontalController,
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: tableWidth,
+                      child: CustomScrollView(
+                        controller: _scrollController,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: TabPageHeaderDelegate(
+                              title: 'Bills',
+                              horizontalController: _horizontalController,
+                            ),
+                          ),
+                          SliverToBoxAdapter(
+                            child: TableFilterBar(
+                              controller: _filterController,
                               onChanged: _handleFilterChanged,
                               hintText: 'Search by vendor, status, or amount',
                               isFiltering: _filterController.text.isNotEmpty,
@@ -299,23 +306,21 @@ class _BillsTabState extends State<BillsTab> {
                             ),
                           ),
                           SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final bill = _bills[index];
-                                return _BillRow(
-                                  bill: bill,
-                                  vendorName: _vendorLabel(bill),
-                                  theme: theme,
-                                  showTopBorder: index == 0,
-                                  onDelete: () => _deleteBill(bill),
-                                );
-                              },
-                              childCount: _bills.length,
-                            ),
+                            delegate: SliverChildBuilderDelegate((
+                              context,
+                              index,
+                            ) {
+                              final bill = _bills[index];
+                              return _BillRow(
+                                bill: bill,
+                                vendorName: _vendorLabel(bill),
+                                theme: theme,
+                                showTopBorder: index == 0,
+                                onDelete: () => _deleteBill(bill),
+                              );
+                            }, childCount: _bills.length),
                           ),
-                          SliverToBoxAdapter(
-                            child: _buildFooter(theme),
-                          ),
+                          SliverToBoxAdapter(child: _buildFooter(theme)),
                         ],
                       ),
                     ),
@@ -367,15 +372,19 @@ class _BillsTabState extends State<BillsTab> {
 
   Map<String, String> _buildAuthHeaders(AppState appState, String token) {
     final rawToken = (appState.rawAuthToken ?? token).trim();
-    final sanitizedToken =
-        token.replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '').trim();
-    final normalizedAuth =
-        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
     final autoTokenValue = rawToken
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
 
-    final authtokenHeader = autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
 
     return {
       'Accept': 'application/json',
@@ -389,9 +398,7 @@ class _BillsTabState extends State<BillsTab> {
       _allBills.clear();
     }
 
-    final seenKeys = <String>{
-      for (final bill in _allBills) _billKey(bill),
-    };
+    final seenKeys = <String>{for (final bill in _allBills) _billKey(bill)};
 
     for (final bill in newBills) {
       final key = _billKey(bill);
@@ -444,9 +451,7 @@ class _BillsTabState extends State<BillsTab> {
 
     _bills
       ..clear()
-      ..addAll(
-        _allBills.where(_matchesAllFilters),
-      );
+      ..addAll(_allBills.where(_matchesAllFilters));
   }
 
   bool get _hasDateRangeFilter =>
@@ -488,7 +493,8 @@ class _BillsTabState extends State<BillsTab> {
     if (!_hasDateRangeFilter) {
       return true;
     }
-    return _isWithinDateRange(bill.billDate) || _isWithinDateRange(bill.dueDate);
+    return _isWithinDateRange(bill.billDate) ||
+        _isWithinDateRange(bill.dueDate);
   }
 
   bool _isWithinDateRange(DateTime? value) {
@@ -523,9 +529,9 @@ class _BillsTabState extends State<BillsTab> {
   int _rawCompareBills(Bill a, Bill b) {
     switch (_sortColumn) {
       case BillsSortColumn.vendor:
-        return _vendorLabel(a)
-            .toLowerCase()
-            .compareTo(_vendorLabel(b).toLowerCase());
+        return _vendorLabel(
+          a,
+        ).toLowerCase().compareTo(_vendorLabel(b).toLowerCase());
       case BillsSortColumn.billDate:
         final leftDate = a.billDate;
         final rightDate = b.billDate;
@@ -586,8 +592,9 @@ class _BillsTabState extends State<BillsTab> {
           children: [
             Text(
               _error!,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.error),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.error,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
@@ -605,13 +612,13 @@ class _BillsTabState extends State<BillsTab> {
         padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
         child: Column(
           children: [
-            Icon(Icons.receipt_long_outlined,
-                size: 48, color: theme.colorScheme.primary),
-            const SizedBox(height: 16),
-            Text(
-              'No bills available.',
-              style: theme.textTheme.titleMedium,
+            Icon(
+              Icons.receipt_long_outlined,
+              size: 48,
+              color: theme.colorScheme.primary,
             ),
+            const SizedBox(height: 16),
+            Text('No bills available.', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
               'Pull to refresh to check for updates.',
@@ -803,8 +810,12 @@ class _BillRowState extends State<_BillRow> {
   @override
   Widget build(BuildContext context) {
     final borderColor = widget.theme.dividerColor.withOpacity(0.6);
-    final baseBackground = widget.theme.colorScheme.surfaceVariant.withOpacity(0.25);
-    final hoverBackground = widget.theme.colorScheme.surfaceVariant.withOpacity(0.45);
+    final baseBackground = widget.theme.colorScheme.surfaceVariant.withOpacity(
+      0.25,
+    );
+    final hoverBackground = widget.theme.colorScheme.surfaceVariant.withOpacity(
+      0.45,
+    );
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -818,7 +829,9 @@ class _BillRowState extends State<_BillRow> {
           decoration: BoxDecoration(
             color: _hovering ? hoverBackground : baseBackground,
             border: Border(
-              top: widget.showTopBorder ? BorderSide(color: borderColor) : BorderSide.none,
+              top: widget.showTopBorder
+                  ? BorderSide(color: borderColor)
+                  : BorderSide.none,
               bottom: BorderSide(color: borderColor),
             ),
           ),
@@ -840,7 +853,10 @@ class _BillRowState extends State<_BillRow> {
                 flex: _columnFlex[3],
                 child: Align(
                   alignment: Alignment.center,
-                  child: _StatusPill(status: widget.bill.status, theme: widget.theme),
+                  child: _StatusPill(
+                    status: widget.bill.status,
+                    theme: widget.theme,
+                  ),
                 ),
               ),
               _DataCell(
@@ -865,7 +881,10 @@ class _BillRowState extends State<_BillRow> {
                         tooltip: 'Edit bill',
                         iconSize: 22,
                         visualDensity: VisualDensity.compact,
-                        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                        constraints: const BoxConstraints.tightFor(
+                          width: 40,
+                          height: 40,
+                        ),
                         onPressed: _handleEdit,
                       ),
                       const SizedBox(width: 8),
@@ -874,7 +893,10 @@ class _BillRowState extends State<_BillRow> {
                         tooltip: 'Delete bill',
                         iconSize: 22,
                         visualDensity: VisualDensity.compact,
-                        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                        constraints: const BoxConstraints.tightFor(
+                          width: 40,
+                          height: 40,
+                        ),
                         color: widget.theme.colorScheme.error,
                         onPressed: _isDeleting ? null : _handleDelete,
                       ),
@@ -892,10 +914,8 @@ class _BillRowState extends State<_BillRow> {
   void _handleView() {
     showDialog(
       context: context,
-      builder: (context) => BillDetailsDialog(
-        bill: widget.bill,
-        vendorName: widget.vendorName,
-      ),
+      builder: (context) =>
+          BillDetailsDialog(bill: widget.bill, vendorName: widget.vendorName),
     );
   }
 
@@ -962,12 +982,7 @@ class _StatusPill extends StatelessWidget {
 }
 
 class _DataCell extends StatelessWidget {
-  const _DataCell(
-    this.value, {
-    required this.flex,
-    this.textAlign,
-    this.style,
-  });
+  const _DataCell(this.value, {required this.flex, this.textAlign, this.style});
 
   final String value;
   final int flex;
