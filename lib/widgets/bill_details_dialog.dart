@@ -1100,12 +1100,7 @@ class _PaymentsTable extends StatelessWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.dividerColor),
-      ),
+    return Scrollbar(
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: ConstrainedBox(
@@ -1117,24 +1112,28 @@ class _PaymentsTable extends StatelessWidget {
               2: FlexColumnWidth(2),
               3: IntrinsicColumnWidth(),
             },
+            border: TableBorder.all(color: theme.dividerColor),
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
               TableRow(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+                ),
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                     child: Text('Date', style: headerStyle),
                   ),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                     child: Text('Payment Account', style: headerStyle),
                   ),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                     child: Text('Amount', style: headerStyle),
                   ),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                     child: Text(
                       'Options',
                       style: headerStyle,
@@ -1154,11 +1153,11 @@ class _PaymentsTable extends StatelessWidget {
                 return TableRow(
                   children: [
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                       child: Text(dateLabel),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                       child: Text(
                         paymentAccountLabel.trim().isNotEmpty
                             ? paymentAccountLabel
@@ -1166,7 +1165,7 @@ class _PaymentsTable extends StatelessWidget {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                       child: Text(
                         _formatAmount(payment.amount),
                         style: theme.textTheme.bodyMedium?.copyWith(
@@ -1175,11 +1174,11 @@ class _PaymentsTable extends StatelessWidget {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                       child: Align(
                         alignment: Alignment.centerRight,
-                        child: Wrap(
-                          spacing: 8,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
                               tooltip: 'View attachment',
@@ -1188,11 +1187,13 @@ class _PaymentsTable extends StatelessWidget {
                                   ? null
                                   : () => onPreviewAttachment(attachment),
                             ),
+                            const SizedBox(width: 4),
                             IconButton(
                               tooltip: 'Edit payment',
                               icon: const Icon(Icons.edit_outlined),
                               onPressed: () => onEditPayment(payment),
                             ),
+                            const SizedBox(width: 4),
                             IconButton(
                               tooltip: 'Delete payment',
                               icon: const Icon(Icons.delete_outline),
