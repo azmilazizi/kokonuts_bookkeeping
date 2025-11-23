@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:kokonuts_bookkeeping/app/app_state.dart';
 import 'package:kokonuts_bookkeeping/app/app_state_scope.dart';
 import 'attachment_pdf_preview.dart';
+import 'attachment_picker.dart';
 
 import '../services/accounts_service.dart';
 import '../services/bills_service.dart';
@@ -495,8 +496,17 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (isLoading) const LinearProgressIndicator(),
-                            if (isLoading) const SizedBox(height: 12),
+                            if (isLoading)
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 12),
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                ),
+                              ),
                             Flexible(
                               fit: FlexFit.loose,
                               child: TabBarView(
@@ -751,9 +761,12 @@ class _AccountRow extends StatelessWidget {
         ),
         if (isLoading) ...[
           const SizedBox(height: 8),
-          LinearProgressIndicator(
-            minHeight: 4,
-            color: Theme.of(context).colorScheme.primary,
+          const Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(),
+            ),
           ),
         ],
       ],
@@ -1001,8 +1014,17 @@ class _PaymentsTab extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (isLoading) const LinearProgressIndicator(),
-                  if (isLoading) const SizedBox(height: 8),
+                  if (isLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                    ),
                   _PaymentsTable(
                     bill: bill,
                     payments: payments,
@@ -1555,13 +1577,37 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
     };
   }
 
+  void _setSelectedFile(PlatformFile? file) {
+    setState(() {
+      _selectedFile = file;
+      _removeExistingAttachment = false;
+    });
+  }
+
+  void _onFilesSelected(List<PlatformFile> files) {
+    if (files.isEmpty) {
+      return;
+    }
+
+    final validFile = files.lastWhere(
+      (file) => isAllowedAttachmentExtension(attachmentExtension(file.name)),
+      orElse: () => files.last,
+    );
+
+    _setSelectedFile(validFile);
+  }
+
   Future<void> _pickAttachment() async {
-    final result = await FilePicker.platform.pickFiles(withReadStream: false);
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: false,
+      withData: true,
+      withReadStream: true,
+      type: FileType.custom,
+      allowedExtensions: allowedAttachmentExtensions.toList(),
+    );
+
     if (result != null && result.files.isNotEmpty) {
-      setState(() {
-        _selectedFile = result.files.first;
-        _removeExistingAttachment = false;
-      });
+      _onFilesSelected(result.files);
     }
   }
 
@@ -1577,6 +1623,13 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
     if (selected != null) {
       setState(() => _selectedDate = selected);
     }
+  }
+
+  void _clearSelectedFile() {
+    setState(() {
+      _selectedFile = null;
+      _removeExistingAttachment = false;
+    });
   }
 
   void _handleRemoveAttachment() {
@@ -1682,73 +1735,77 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
                     style: const TextStyle(color: Colors.red),
                   ),
                 ),
-              if (_isLoadingAccounts) const LinearProgressIndicator(),
-              const SizedBox(height: 12),
+              if (_isLoadingAccounts)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                )
+              else
+                const SizedBox(height: 12),
               Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _pickAttachment,
-                            icon: const Icon(Icons.attach_file),
-                            label: Text(
-                              _selectedFile?.name ??
-                                  widget.payment.attachment?.fileName ??
-                                  'Upload attachment',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        TextButton(
-                          onPressed: (_selectedFile != null ||
-                                  (!_removeExistingAttachment &&
-                                      widget.payment.attachment != null))
-                              ? _handleRemoveAttachment
-                              : null,
-                          child: const Text('Remove'),
-                        ),
-                      ],
+                    AttachmentPicker(
+                      label: 'Attachment',
+                      description:
+                          'Drag and drop files or tap to browse for payment attachments.',
+                      files:
+                          _selectedFile != null ? [_selectedFile!] : const [],
+                      onPick: _pickAttachment,
+                      onFilesSelected: _onFilesSelected,
+                      onFileRemoved: (_) => _clearSelectedFile(),
                     ),
                     if (_selectedFile == null &&
                         !_removeExistingAttachment &&
                         widget.payment.attachment != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          'Current: ${widget.payment.attachment!.fileName}',
-                          style: theme.textTheme.bodySmall,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Current: ${widget.payment.attachment!.fileName}',
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: _handleRemoveAttachment,
+                              child: const Text('Remove current attachment'),
+                            ),
+                          ],
                         ),
                       ),
                     const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: InputDecorator(
-                            decoration: const InputDecoration(
-                              labelText: 'Date Paid',
-                              border: OutlineInputBorder(),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    DateFormat.yMMMd().format(_selectedDate),
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.calendar_today_outlined),
-                                  onPressed: _pickDate,
-                                ),
-                              ],
+                    InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Date Paid',
+                        border: OutlineInputBorder(),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              DateFormat.yMMMd().format(_selectedDate),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
+                          IconButton(
+                            icon: const Icon(Icons.calendar_today_outlined),
+                            onPressed: _pickDate,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
                             value: _selectedPaymentAccount?.id,
@@ -2086,8 +2143,19 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                     style: const TextStyle(color: Colors.red),
                   ),
                 ),
-              if (_isLoadingOptions) const LinearProgressIndicator(),
-              const SizedBox(height: 12),
+              if (_isLoadingOptions)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                )
+              else
+                const SizedBox(height: 12),
               Form(
                 key: _formKey,
                 child: Column(
