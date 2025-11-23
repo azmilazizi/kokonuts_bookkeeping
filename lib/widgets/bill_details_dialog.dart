@@ -8,6 +8,7 @@ import 'attachment_pdf_preview.dart';
 import '../services/accounts_service.dart';
 import '../services/bills_service.dart';
 import '../services/payment_modes_service.dart';
+import 'currency_input_formatter.dart';
 
 class BillDetailsDialog extends StatefulWidget {
   const BillDetailsDialog({
@@ -55,7 +56,96 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
 
     final headers = _buildAuthHeaders(appState, token);
 
-    return _billsService.getBill(id: widget.bill.id, headers: headers);
+    setState(() {
+      _isLoadingAccounts = true;
+      _accountsError = null;
+    });
+
+    try {
+      final bill = await _billsService.getBill(id: widget.bill.id, headers: headers);
+
+      if (!mounted) {
+        return bill;
+      }
+
+      try {
+        final accounts = await _accountsService.fetchAccounts(
+          page: 1,
+          perPage: 200,
+          headers: headers,
+        );
+
+        if (mounted) {
+          setState(() {
+            _accounts = accounts.accounts;
+            _isLoadingAccounts = false;
+          });
+        }
+      } catch (error) {
+        if (mounted) {
+          setState(() {
+            _accountsError = error.toString();
+            _isLoadingAccounts = false;
+          });
+        }
+      }
+
+      return bill;
+    } catch (error) {
+      if (mounted) {
+        setState(() => _isLoadingAccounts = false);
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _loadAccountNames() async {
+    setState(() => _isLoadingAccountNames = true);
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() => _isLoadingAccountNames = false);
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      const perPage = 200;
+      var page = 1;
+      var hasMore = true;
+      final namesById = <String, String>{};
+
+      while (hasMore && mounted) {
+        final result = await _accountsService.fetchAccounts(
+          page: page,
+          perPage: perPage,
+          headers: headers,
+        );
+
+        namesById.addAll(result.namesById);
+        hasMore = result.hasMore;
+        page += 1;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() => _accountNamesById = namesById);
+    } catch (_) {
+      // Account names are optional context for the details view; ignore failures.
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingAccountNames = false);
+      }
+    }
   }
 
   Future<void> _loadAccountNames() async {
@@ -224,6 +314,23 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
       downloadUrl: normalizedDownloadUrl,
       previewType: previewType,
     );
+  }
+
+  String _resolveAccountName(String? accountIdOrName) {
+    final value = accountIdOrName?.trim();
+    if (value == null || value.isEmpty) {
+      return '—';
+    }
+
+    for (final account in _accounts) {
+      final matchesId = account.id == value;
+      final matchesName = account.name.toLowerCase() == value.toLowerCase();
+      if (matchesId || matchesName) {
+        return account.name;
+      }
+    }
+
+    return value;
   }
 
   @override
@@ -450,73 +557,140 @@ class _DateRow extends StatelessWidget {
 }
 
 class _AccountRow extends StatelessWidget {
-  const _AccountRow({required this.creditAccount, required this.debitAccount});
+  const _AccountRow({
+    required this.creditAccount,
+    required this.debitAccount,
+    this.isLoading = false,
+  });
 
   final String creditAccount;
   final String debitAccount;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: _DetailField(label: 'Credit Account', value: creditAccount),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth > 520;
+            final children = [
+              Expanded(
+                child: _DetailField(
+                  label: 'Credit Account',
+                  value: creditAccount,
+                  ellipsize: true,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _DetailField(
+                  label: 'Debit Account',
+                  value: debitAccount,
+                  ellipsize: true,
+                ),
+              ),
+            ];
+
+            if (isWide) {
+              return Row(children: children);
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                children[0],
+                const SizedBox(height: 12),
+                children[2],
+              ],
+            );
+          },
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _DetailField(label: 'Debit Account', value: debitAccount),
-        ),
+        if (isLoading) ...[
+          const SizedBox(height: 8),
+          LinearProgressIndicator(
+            minHeight: 4,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ],
       ],
     );
   }
 }
 
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({
+class _BillTotalsSection extends StatelessWidget {
+  const _BillTotalsSection({
     required this.totalAmount,
     required this.totalPaid,
     required this.totalDue,
+    required this.theme,
   });
 
   final String totalAmount;
   final String totalPaid;
   final String totalDue;
+  final ThemeData theme;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _BillTotalRow(
+            label: 'Total Amount',
+            value: totalAmount,
+            theme: theme,
+            emphasize: true,
+          ),
+          const SizedBox(height: 8),
+          _BillTotalRow(
+            label: 'Total Paid',
+            value: totalPaid,
+            theme: theme,
+          ),
+          const SizedBox(height: 8),
+          _BillTotalRow(
+            label: 'Total Due',
+            value: totalDue,
+            theme: theme,
+            emphasize: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-    Widget buildCard(String label, String value, {Color? valueColor}) {
-      return Expanded(
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            border: Border.all(color: theme.dividerColor),
-            borderRadius: BorderRadius.circular(12),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 520;
+        final cards = [
+          buildCard(
+            'Total Amount',
+            totalAmount,
+            valueColor: theme.colorScheme.error,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(width: 12),
+          buildCard('Total Paid', totalPaid, valueColor: Colors.green.shade700),
+          const SizedBox(width: 12),
+          buildCard('Total Due', totalDue, valueColor: theme.colorScheme.error),
+        ];
+
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                label,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: valueColor ?? theme.colorScheme.onSurface,
-                ),
-              ),
+              cards[0],
+              const SizedBox(height: 12),
+              cards[2],
+              const SizedBox(height: 12),
+              cards[4],
             ],
-          ),
-        ),
-      );
-    }
+          );
+        }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -630,11 +804,13 @@ class _DetailField extends StatelessWidget {
     required this.label,
     required this.value,
     this.valueStyle,
+    this.ellipsize = false,
   });
 
   final String label;
   final String value;
   final TextStyle? valueStyle;
+  final bool ellipsize;
 
   @override
   Widget build(BuildContext context) {
@@ -652,7 +828,12 @@ class _DetailField extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Text(resolvedValue, style: valueStyle ?? theme.textTheme.bodyMedium),
+        Text(
+          resolvedValue,
+          style: valueStyle ?? theme.textTheme.bodyMedium,
+          maxLines: ellipsize ? 1 : null,
+          overflow: ellipsize ? TextOverflow.ellipsis : null,
+        ),
       ],
     );
   }
@@ -1132,6 +1313,8 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
   @override
   void initState() {
     super.initState();
+    _amountController.text =
+        CurrencyInputFormatter.normalizeExistingValue(_amountController.text);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadOptions());
   }
 
@@ -1355,6 +1538,7 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                       controller: _amountController,
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: const [CurrencyInputFormatter()],
                       decoration: InputDecoration(
                         labelText:
                             'Amount (${widget.currencySymbol.isEmpty ? 'value' : widget.currencySymbol})',
