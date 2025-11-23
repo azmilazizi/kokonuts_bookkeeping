@@ -1,7 +1,10 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:kokonuts_bookkeeping/app/app_state.dart';
 
+import '../app/app_state_scope.dart';
+import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
 
@@ -16,16 +19,20 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
   final _nameController = TextEditingController();
   final _debitAmountController = TextEditingController();
   final _creditAmountController = TextEditingController();
+  final _vendorsService = VendorsService();
 
   DateTime _billDate = DateTime.now();
   DateTime _dueDate = DateTime.now();
-  String? _selectedVendor;
+  String? _selectedVendorId;
   String? _selectedDebitAccount;
   String? _selectedCreditAccount;
   List<PlatformFile> _attachments = [];
 
-  final _vendors = const ['Vendor A', 'Vendor B', 'Vendor C'];
   final _accounts = const ['None selected', 'Account 1', 'Account 2'];
+  List<VendorSummary> _vendors = const [];
+  bool _hasInitializedVendors = false;
+  bool _isLoadingVendors = false;
+  String? _vendorsError;
 
   @override
   void dispose() {
@@ -84,6 +91,15 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasInitializedVendors) {
+      _hasInitializedVendors = true;
+      _loadVendors();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final dialogWidth = (MediaQuery.of(context).size.width * 0.95).clamp(420.0, 1040.0);
@@ -113,23 +129,83 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Wrap(
-                spacing: 16,
-                runSpacing: 12,
-                children: [
-                  _buildVendorDropdown(theme),
-                  _buildDateField(
-                    label: 'Bill date',
-                    value: _billDate,
-                    onTap: () => _pickDate(isBillDate: true),
-                  ),
-                  _buildNameField(),
-                  _buildDateField(
-                    label: 'Due date',
-                    value: _dueDate,
-                    onTap: () => _pickDate(isBillDate: false),
-                  ),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 680;
+                  final fieldSpacing = isNarrow ? 12.0 : 16.0;
+
+                  final vendorAndName = isNarrow
+                      ? Column(
+                          children: [
+                            _buildVendorDropdown(theme),
+                            SizedBox(height: fieldSpacing),
+                            _buildNameField(),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Expanded(child: _buildVendorDropdown(theme)),
+                            SizedBox(width: fieldSpacing),
+                            Expanded(child: _buildNameField()),
+                          ],
+                        );
+
+                  final dateFields = isNarrow
+                      ? Column(
+                          children: [
+                            _buildDateField(
+                              label: 'Bill date',
+                              value: _billDate,
+                              onTap: () => _pickDate(isBillDate: true),
+                            ),
+                            SizedBox(height: fieldSpacing),
+                            _buildDateField(
+                              label: 'Due date',
+                              value: _dueDate,
+                              onTap: () => _pickDate(isBillDate: false),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Expanded(
+                              child: _buildDateField(
+                                label: 'Bill date',
+                                value: _billDate,
+                                onTap: () => _pickDate(isBillDate: true),
+                              ),
+                            ),
+                            SizedBox(width: fieldSpacing),
+                            Expanded(
+                              child: _buildDateField(
+                                label: 'Due date',
+                                value: _dueDate,
+                                onTap: () => _pickDate(isBillDate: false),
+                              ),
+                            ),
+                          ],
+                        );
+
+                  return Column(
+                    children: [
+                      vendorAndName,
+                      SizedBox(height: fieldSpacing),
+                      dateFields,
+                      if (_vendorsError != null) ...[
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            _vendorsError!,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.error,
+                            ),
+                          ),
+                        ),
+                      ]
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 20),
               Text('Attachment', style: theme.textTheme.titleMedium),
@@ -166,29 +242,45 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
   }
 
   Widget _buildVendorDropdown(ThemeData theme) {
-    return SizedBox(
-      width: 300,
-      child: DropdownButtonFormField<String>(
-        decoration: const InputDecoration(labelText: 'Vendor'),
-        value: _selectedVendor,
-        items: _vendors
-            .map((vendor) => DropdownMenuItem<String>(
-                  value: vendor,
-                  child: Text(vendor),
-                ))
-            .toList(),
-        onChanged: (value) => setState(() => _selectedVendor = value),
+    final items = _vendors
+        .map(
+          (vendor) => DropdownMenuItem<String>(
+            value: vendor.id,
+            child: Text(vendor.name),
+          ),
+        )
+        .toList();
+
+    return DropdownButtonFormField<String>(
+      decoration: InputDecoration(
+        labelText: 'Vendor',
+        suffixIcon: _isLoadingVendors
+            ? Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              )
+            : null,
       ),
+      isExpanded: true,
+      value: _selectedVendorId,
+      items: items,
+      onChanged: _isLoadingVendors || _vendors.isEmpty
+          ? null
+          : (value) => setState(() => _selectedVendorId = value),
     );
   }
 
   Widget _buildNameField() {
-    return SizedBox(
-      width: 300,
-      child: TextFormField(
-        controller: _nameController,
-        decoration: const InputDecoration(labelText: 'Name'),
-      ),
+    return TextFormField(
+      controller: _nameController,
+      decoration: const InputDecoration(labelText: 'Name'),
     );
   }
 
@@ -198,17 +290,14 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
     required VoidCallback onTap,
   }) {
     final formatted = DateFormat('dd-MM-yyyy').format(value);
-    return SizedBox(
-      width: 300,
-      child: InkWell(
-        onTap: onTap,
-        child: InputDecorator(
-          decoration: InputDecoration(
-            labelText: label,
-            suffixIcon: const Icon(Icons.calendar_today_outlined),
-          ),
-          child: Text(formatted),
+    return InkWell(
+      onTap: onTap,
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          suffixIcon: const Icon(Icons.calendar_today_outlined),
         ),
+        child: Text(formatted),
       ),
     );
   }
@@ -260,7 +349,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         ),
         const SizedBox(width: 16),
         SizedBox(
-          width: 160,
+          width: 120,
           child: TextFormField(
             controller: amountController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -290,6 +379,72 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
           _dueDate = picked;
         }
       });
+    }
+  }
+
+  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
+    final rawToken = (appState.rawAuthToken ?? token).trim();
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth =
+        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final authtokenHeader = rawToken
+        .replaceFirst(RegExp('^Bearer\s+', caseSensitive: false), '')
+        .trim();
+    final autoTokenValue = authtokenHeader.isNotEmpty ? authtokenHeader : sanitizedToken;
+    return {'authtoken': autoTokenValue, 'Authorization': normalizedAuth};
+  }
+
+  Future<void> _loadVendors() async {
+    setState(() {
+      _vendorsError = null;
+      _isLoadingVendors = true;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _vendorsError = 'You are not logged in.';
+        _isLoadingVendors = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      final vendors = await _vendorsService.fetchVendors(headers: headers);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _vendors = vendors;
+
+        if (_selectedVendorId != null &&
+            !_vendors.any((vendor) => vendor.id == _selectedVendorId)) {
+          _selectedVendorId = null;
+        }
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _vendorsError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingVendors = false);
+      }
     }
   }
 }
