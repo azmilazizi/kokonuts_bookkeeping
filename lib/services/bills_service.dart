@@ -370,6 +370,10 @@ class Bill {
     final debitAccountId = _accountIdFromValue(debitAccountRaw) ??
         _stringValue(json['debit_account_id']) ??
         _stringValue(json['debitAccountId']);
+    final hasStructuredCreditAccount =
+        creditAccountRaw is Iterable || creditAccountRaw is Map<String, dynamic>;
+    final hasStructuredDebitAccount =
+        debitAccountRaw is Iterable || debitAccountRaw is Map<String, dynamic>;
 
     return Bill(
       id: _stringValue(json['id']) ?? '',
@@ -389,13 +393,17 @@ class Bill {
       creditAccount: _accountNameFromValue(creditAccountRaw) ??
           _stringValue(json['credit_account_name']) ??
           _stringValue(json['creditAccountName']) ??
-          _stringValue(json['credit_account']) ??
-          _stringValue(json['creditAccount']),
+          (hasStructuredCreditAccount
+              ? null
+              : _stringValue(json['credit_account']) ??
+                  _stringValue(json['creditAccount'])),
       debitAccount: _accountNameFromValue(debitAccountRaw) ??
           _stringValue(json['debit_account_name']) ??
           _stringValue(json['debitAccountName']) ??
-          _stringValue(json['debit_account']) ??
-          _stringValue(json['debitAccount']),
+          (hasStructuredDebitAccount
+              ? null
+              : _stringValue(json['debit_account']) ??
+                  _stringValue(json['debitAccount'])),
       totalPaid: _parseDouble(json['total_paid'] ?? json['paid']),
       totalDue: _parseDouble(json['total_due'] ?? json['due']),
       payments: payments,
@@ -505,6 +513,15 @@ class Bill {
     if (value == null) {
       return null;
     }
+    if (value is Iterable) {
+      for (final entry in value) {
+        final id = _accountIdFromValue(entry);
+        if (id != null) {
+          return id;
+        }
+      }
+      return null;
+    }
     if (value is Map<String, dynamic>) {
       return _stringValue(value['account']) ??
           _stringValue(value['id']) ??
@@ -517,6 +534,15 @@ class Bill {
   }
 
   static String? _accountNameFromValue(dynamic value) {
+    if (value is Iterable) {
+      for (final entry in value) {
+        final name = _accountNameFromValue(entry);
+        if (name != null) {
+          return name;
+        }
+      }
+      return null;
+    }
     if (value is Map<String, dynamic>) {
       return _stringValue(value['name']) ??
           _stringValue(value['account_name']) ??
