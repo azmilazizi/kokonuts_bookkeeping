@@ -327,6 +327,8 @@ class Bill {
     required this.totalAmount,
     required this.currencySymbol,
     this.attachments = const [],
+    this.creditAccountId,
+    this.debitAccountId,
     this.creditAccount,
     this.debitAccount,
     this.totalPaid,
@@ -359,6 +361,16 @@ class Bill {
         .map(BillPayment.fromJson)
         .toList(growable: false);
 
+    final creditAccountRaw = json['credit_account'] ?? json['creditAccount'];
+    final debitAccountRaw = json['debit_account'] ?? json['debitAccount'];
+
+    final creditAccountId = _accountIdFromValue(creditAccountRaw) ??
+        _stringValue(json['credit_account_id']) ??
+        _stringValue(json['creditAccountId']);
+    final debitAccountId = _accountIdFromValue(debitAccountRaw) ??
+        _stringValue(json['debit_account_id']) ??
+        _stringValue(json['debitAccountId']);
+
     return Bill(
       id: _stringValue(json['id']) ?? '',
       vendorId: _stringValue(json['vendor_id']) ?? '',
@@ -372,10 +384,16 @@ class Bill {
           _stringValue(json['currency']) ??
           '',
       attachments: attachments,
-      creditAccount: _stringValue(json['credit_account_name']) ??
+      creditAccountId: creditAccountId,
+      debitAccountId: debitAccountId,
+      creditAccount: _accountNameFromValue(creditAccountRaw) ??
+          _stringValue(json['credit_account_name']) ??
+          _stringValue(json['creditAccountName']) ??
           _stringValue(json['credit_account']) ??
           _stringValue(json['creditAccount']),
-      debitAccount: _stringValue(json['debit_account_name']) ??
+      debitAccount: _accountNameFromValue(debitAccountRaw) ??
+          _stringValue(json['debit_account_name']) ??
+          _stringValue(json['debitAccountName']) ??
           _stringValue(json['debit_account']) ??
           _stringValue(json['debitAccount']),
       totalPaid: _parseDouble(json['total_paid'] ?? json['paid']),
@@ -393,6 +411,8 @@ class Bill {
   final double? totalAmount;
   final String currencySymbol;
   final List<BillAttachment> attachments;
+  final String? creditAccountId;
+  final String? debitAccountId;
   final String? creditAccount;
   final String? debitAccount;
   final double? totalPaid;
@@ -479,6 +499,30 @@ class Bill {
     } catch (_) {
       return null;
     }
+  }
+
+  static String? _accountIdFromValue(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is Map<String, dynamic>) {
+      return _stringValue(value['account']) ??
+          _stringValue(value['id']) ??
+          _stringValue(value['account_id']);
+    }
+    if (value is num || value is String) {
+      return _stringValue(value);
+    }
+    return null;
+  }
+
+  static String? _accountNameFromValue(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return _stringValue(value['name']) ??
+          _stringValue(value['account_name']) ??
+          _stringValue(value['label']);
+    }
+    return _stringValue(value);
   }
 }
 

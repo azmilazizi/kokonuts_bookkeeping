@@ -8,6 +8,44 @@ class AccountsService {
   final http.Client _client;
 
   static const _baseUrl = 'https://crm.kokonuts.my/accounting/api/v1/accounts';
+  static const _singleAccountBaseUrl =
+      'https://crm.kokonuts.my/accounting/api/v1/account/';
+
+  Future<Account> fetchAccountById({
+    required String id,
+    required Map<String, String> headers,
+  }) async {
+    final uri = Uri.parse('$_singleAccountBaseUrl$id');
+
+    http.Response response;
+    try {
+      response = await _client.get(uri, headers: headers);
+    } catch (error) {
+      throw AccountsException('Failed to reach server: $error');
+    }
+
+    if (response.statusCode != 200) {
+      throw AccountsException(
+        'Request failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error) {
+      throw AccountsException('Unable to parse response: $error');
+    }
+
+    final data = _findMap(decoded, const ['data', 'account']) ??
+        (decoded is Map<String, dynamic> ? decoded : null);
+
+    if (data == null) {
+      throw const AccountsException('Response did not include account data.');
+    }
+
+    return Account.fromJson(data);
+  }
 
   Future<AccountsPage> fetchAccounts({
     required int page,
