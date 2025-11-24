@@ -539,6 +539,22 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         data: requestData,
       );
 
+      if (_attachments.isNotEmpty) {
+        try {
+          await _billsService.uploadAttachments(
+            id: created.id,
+            headers: headers,
+            attachments: _attachments,
+          );
+        } catch (error) {
+          if (mounted) {
+            _showSubmitSnackBar(
+              'Bill created but failed to upload attachments: $error',
+            );
+          }
+        }
+      }
+
       if (!mounted) {
         return;
       }
