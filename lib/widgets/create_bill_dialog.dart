@@ -512,7 +512,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
 
     final requestData = <String, dynamic>{
       'vendor': _selectedVendorId,
-      'name': _nameController.text.trim(),
+      'expense_name': _nameController.text.trim(),
       'date': DateFormat('yyyy-MM-dd').format(_billDate),
       'due_date': DateFormat('yyyy-MM-dd').format(_dueDate),
       'debit_account_id': _selectedDebitAccount,
@@ -520,6 +520,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
       'debit_amount': debitAmount,
       'credit_amount': creditAmount,
       'amount': debitAmount,
+      'approved': 1,
       if (_attachments.isNotEmpty)
         'attachments': _attachments.map((file) => file.name).toList(),
     };
