@@ -93,6 +93,15 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
     });
   }
 
+  void _showSubmitSnackBar(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -482,6 +491,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         _submitError = 'You are not logged in.';
         _isSubmitting = false;
       });
+      _showSubmitSnackBar('Failed to create bill: $_submitError');
       return;
     }
 
@@ -496,6 +506,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         _submitError = 'Debit and credit amounts must be balanced before saving.';
         _isSubmitting = false;
       });
+      _showSubmitSnackBar(_submitError!);
       return;
     }
 
@@ -533,6 +544,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         _submitError = error.toString();
         _isSubmitting = false;
       });
+      _showSubmitSnackBar('Failed to create bill: $_submitError');
     }
   }
 
