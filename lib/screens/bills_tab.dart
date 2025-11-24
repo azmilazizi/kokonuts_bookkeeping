@@ -946,6 +946,31 @@ class _BillRowState extends State<_BillRow> {
   }
 
   Future<void> _handleDelete() async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Delete bill?'),
+            content: Text(
+              'Are you sure you want to delete the bill for ${widget.vendorName}? This action cannot be undone.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed) {
+      return;
+    }
+
     setState(() => _isDeleting = true);
     try {
       await widget.onDelete();
