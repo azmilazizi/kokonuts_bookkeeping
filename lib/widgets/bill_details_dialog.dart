@@ -613,8 +613,9 @@ class _DetailsTab extends StatelessWidget {
           children: [
             Text(
               'Payment Status',
-              style: theme.textTheme.titleMedium?.copyWith(
+              style: theme.textTheme.labelMedium?.copyWith(
                 fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 8),
