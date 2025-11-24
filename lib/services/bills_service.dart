@@ -736,9 +736,24 @@ class Bill {
     return _formatCurrency(amount);
   }
 
-  String get totalPaidLabel => _formatCurrency(totalPaid);
+  double get _resolvedTotalPaid => totalPaid ?? 0.0;
 
-  String get totalDueLabel => _formatCurrency(totalDue);
+  double? get _resolvedTotalDue {
+    if (totalDue != null) {
+      return totalDue;
+    }
+
+    final amount = totalAmount;
+    if (amount == null) {
+      return null;
+    }
+
+    return amount - _resolvedTotalPaid;
+  }
+
+  String get totalPaidLabel => _formatCurrency(_resolvedTotalPaid);
+
+  String get totalDueLabel => _formatCurrency(_resolvedTotalDue);
 
   String _formatCurrency(double? amount) {
     if (amount == null) {

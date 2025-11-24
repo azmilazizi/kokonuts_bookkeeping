@@ -406,6 +406,20 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     });
   }
 
+  Future<void> _openAddAttachmentDialog(Bill bill) async {
+    final uploaded = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _AddAttachmentDialog(billId: bill.id),
+    );
+
+    if (uploaded == true) {
+      setState(() {
+        _future = _loadDetails();
+      });
+    }
+  }
+
   void _handlePreviewAttachment(BillAttachment attachment) {
     final normalizedDownloadUrl = attachment.downloadUrl != null
         ? _normalizeAttachmentDownloadUrl(attachment.downloadUrl!)
@@ -640,7 +654,10 @@ class _DetailsTab extends StatelessWidget {
             const SizedBox(height: 16),
             _DateRow(bill: bill),
             const SizedBox(height: 16),
-            _AttachmentSection(bill: bill),
+            _AttachmentSection(
+              bill: bill,
+              onAddAttachment: () => _openAddAttachmentDialog(bill),
+            ),
             const SizedBox(height: 16),
             _AccountRow(
               creditAccount: creditAccountLabel,
@@ -1265,9 +1282,13 @@ class _PaymentsTable extends StatelessWidget {
 }
 
 class _AttachmentSection extends StatelessWidget {
-  const _AttachmentSection({required this.bill});
+  const _AttachmentSection({
+    required this.bill,
+    required this.onAddAttachment,
+  });
 
   final Bill bill;
+  final VoidCallback onAddAttachment;
 
   @override
   Widget build(BuildContext context) {
@@ -1286,7 +1307,7 @@ class _AttachmentSection extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
-            onPressed: () {},
+            onPressed: onAddAttachment,
             icon: const Icon(Icons.attach_file),
             label: const Text('Add Attachment'),
           ),
@@ -1297,12 +1318,23 @@ class _AttachmentSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Attachment',
-          style: theme.textTheme.labelMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Attachment',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: onAddAttachment,
+              icon: const Icon(Icons.add),
+              label: const Text('Add Attachment'),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         Column(
@@ -1453,6 +1485,216 @@ class _BillAttachmentCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: children,
+      ),
+    );
+  }
+}
+
+class _AddAttachmentDialog extends StatefulWidget {
+  const _AddAttachmentDialog({required this.billId});
+
+  final String billId;
+
+  @override
+  State<_AddAttachmentDialog> createState() => _AddAttachmentDialogState();
+}
+
+class _AddAttachmentDialogState extends State<_AddAttachmentDialog> {
+  final _billsService = BillsService();
+  PlatformFile? _selectedFile;
+  bool _isSubmitting = false;
+  String? _submitError;
+
+  Future<void> _pickAttachment() async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: false,
+      withData: true,
+      withReadStream: true,
+      type: FileType.custom,
+      allowedExtensions: allowedAttachmentExtensions.toList(),
+    );
+
+    if (result != null && result.files.isNotEmpty) {
+      _handleFilesSelected(result.files);
+    }
+  }
+
+  void _handleFilesSelected(List<PlatformFile> files) {
+    if (files.isEmpty) {
+      setState(() {
+        _selectedFile = null;
+      });
+      return;
+    }
+
+    final latest = files.last;
+    if (!isAllowedAttachmentExtension(attachmentExtension(latest.name))) {
+      setState(() {
+        _submitError = 'Unsupported file type. Please select a PDF or image.';
+        _selectedFile = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _submitError = null;
+      _selectedFile = latest;
+    });
+  }
+
+  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
+    final rawToken = (appState.rawAuthToken ?? token).trim();
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
+    final autoTokenValue = rawToken
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
+    return {
+      'Accept': 'application/json',
+      'authtoken': authtokenHeader,
+      'Authorization': normalizedAuth,
+    };
+  }
+
+  Future<void> _handleSubmit() async {
+    if (_selectedFile == null) {
+      setState(() {
+        _submitError = 'Please select a file to upload.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+      _submitError = null;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.isEmpty) {
+      setState(() {
+        _submitError = 'You are not logged in.';
+        _isSubmitting = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      await _billsService.uploadAttachments(
+        id: widget.billId,
+        headers: headers,
+        attachments: [_selectedFile!],
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _submitError = error.toString();
+        _isSubmitting = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Add Attachment',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => Navigator.of(context).pop(false),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (_submitError != null) ...[
+                Text(
+                  _submitError!,
+                  style: const TextStyle(color: Colors.red),
+                ),
+                const SizedBox(height: 12),
+              ],
+              AttachmentPicker(
+                label: 'Attachment',
+                description: 'Choose a file to attach to this bill.',
+                files:
+                    _selectedFile == null ? const [] : <PlatformFile>[_selectedFile!],
+                onPick: _isSubmitting ? () {} : _pickAttachment,
+                onFilesSelected:
+                    _isSubmitting ? (_) {} : (files) => _handleFilesSelected(files),
+                onFileRemoved: _isSubmitting
+                    ? (_) {}
+                    : (_) => _handleFilesSelected(const <PlatformFile>[]),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed:
+                        _isSubmitting ? null : () => Navigator.of(context).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: _isSubmitting ? null : _handleSubmit,
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Upload'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -2247,37 +2489,38 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                           _handleFilesSelected(<PlatformFile>[]),
                     ),
                     const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _amountController,
-                      enabled: !_isSubmitting,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'Amount',
-                        prefixText: widget.currencySymbol.isEmpty
-                            ? null
-                            : '${widget.currencySymbol} ',
-                        hintText: '0.00',
-                        border: const OutlineInputBorder(),
-                      ),
-                      inputFormatters: const [CurrencyInputFormatter()],
-                      validator: (value) {
-                        final sanitized = value
-                            ?.replaceAll(RegExp(r'[^0-9.,-]'), '')
-                            .replaceAll(',', '')
-                            .trim();
-                        final parsed = double.tryParse(sanitized ?? '');
-                        if (parsed == null || parsed <= 0) {
-                          return 'Enter a valid amount';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isWide = constraints.maxWidth > 520;
+
+                        final amountField = Expanded(
+                          child: TextFormField(
+                            controller: _amountController,
+                            enabled: !_isSubmitting,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Amount',
+                              hintText: '0.00',
+                              border: OutlineInputBorder(),
+                            ),
+                            inputFormatters: const [CurrencyInputFormatter()],
+                            validator: (value) {
+                              final sanitized = value
+                                  ?.replaceAll(RegExp(r'[^0-9.,-]'), '')
+                                  .replaceAll(',', '')
+                                  .trim();
+                              final parsed = double.tryParse(sanitized ?? '');
+                              if (parsed == null || parsed <= 0) {
+                                return 'Enter a valid amount';
+                              }
+                              return null;
+                            },
+                          ),
+                        );
+
+                        final dateField = Expanded(
                           child: InputDecorator(
                             decoration: const InputDecoration(
                               labelText: 'Payment Date',
@@ -2300,8 +2543,28 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                               ],
                             ),
                           ),
-                        ),
-                      ],
+                        );
+
+                        if (isWide) {
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              amountField,
+                              const SizedBox(width: 12),
+                              dateField,
+                            ],
+                          );
+                        }
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            amountField,
+                            const SizedBox(height: 12),
+                            dateField,
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -2327,11 +2590,11 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                                     setState(() {
                                       _selectedPaymentAccount = value == null
                                           ? null
-                                    : _accounts.firstWhere(
-                                        (account) => account.id == value,
-                                      );
-                              });
-                            },
+                                          : _accounts.firstWhere(
+                                              (account) => account.id == value,
+                                            );
+                                    });
+                                },
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -2356,25 +2619,14 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                                     setState(() {
                                       _selectedDepositAccount = value == null
                                           ? null
-                                    : _accounts.firstWhere(
-                                        (account) => account.id == value,
-                                      );
-                              });
-                            },
+                                          : _accounts.firstWhere(
+                                              (account) => account.id == value,
+                                            );
+                                    });
+                                },
                           ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: _pickAttachment,
-                      icon: const Icon(Icons.attach_file),
-                      label: Text(
-                        _selectedFile == null
-                            ? 'Upload attachment'
-                            : 'Selected: ${_selectedFile!.name}',
-                        overflow: TextOverflow.ellipsis,
-                      ),
                     ),
                   ],
                 ),
