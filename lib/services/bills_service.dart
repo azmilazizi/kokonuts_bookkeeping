@@ -93,6 +93,46 @@ class BillsService {
     return Bill.fromJson(billJson);
   }
 
+  Future<Bill> createBill({
+    required Map<String, String> headers,
+    required Map<String, dynamic> data,
+  }) async {
+    http.Response response;
+    try {
+      response = await _client.post(
+        Uri.parse(_baseUrl),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: jsonEncode(data),
+      );
+    } catch (error) {
+      throw BillsException('Failed to create bill: $error');
+    }
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw BillsException(
+        'Create failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error) {
+      throw BillsException('Unable to parse create response: $error');
+    }
+
+    final billJson = _extractBill(decoded);
+    if (billJson == null) {
+      throw BillsException('Create response did not include a bill payload.');
+    }
+
+    return Bill.fromJson(billJson);
+  }
+
   Future<List<BillPayment>> fetchBillPayments({
     required String billId,
     required Map<String, String> headers,

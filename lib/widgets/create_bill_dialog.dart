@@ -5,6 +5,7 @@ import 'package:kokonuts_bookkeeping/app/app_state.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/accounts_service.dart';
+import '../services/bills_service.dart';
 import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
@@ -17,10 +18,12 @@ class CreateBillDialog extends StatefulWidget {
 }
 
 class _CreateBillDialogState extends State<CreateBillDialog> {
+  final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _debitAmountController = TextEditingController();
   final _creditAmountController = TextEditingController();
   final _accountsService = AccountsService();
+  final _billsService = BillsService();
   final _vendorsService = VendorsService();
 
   DateTime _billDate = DateTime.now();
@@ -38,6 +41,8 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
   bool _isLoadingAccounts = false;
   String? _vendorsError;
   String? _accountsError;
+  bool _isSubmitting = false;
+  String? _submitError;
 
   static const _accountsPerPage = 50;
 
@@ -135,102 +140,114 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         width: dialogWidth,
         child: SingleChildScrollView(
           padding: const EdgeInsets.only(right: 12, bottom: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final isNarrow = constraints.maxWidth < 680;
-                  final fieldSpacing = isNarrow ? 12.0 : 16.0;
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = constraints.maxWidth < 680;
+                    final fieldSpacing = isNarrow ? 12.0 : 16.0;
 
-                  final vendorAndName = isNarrow
-                      ? Column(
-                          children: [
-                            _buildVendorDropdown(theme),
-                            SizedBox(height: fieldSpacing),
-                            _buildNameField(),
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            Expanded(child: _buildVendorDropdown(theme)),
-                            SizedBox(width: fieldSpacing),
-                            Expanded(child: _buildNameField()),
-                          ],
-                        );
+                    final vendorAndName = isNarrow
+                        ? Column(
+                            children: [
+                              _buildVendorDropdown(theme),
+                              SizedBox(height: fieldSpacing),
+                              _buildNameField(),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Expanded(child: _buildVendorDropdown(theme)),
+                              SizedBox(width: fieldSpacing),
+                              Expanded(child: _buildNameField()),
+                            ],
+                          );
 
-                  final dateFields = isNarrow
-                      ? Column(
-                          children: [
-                            _buildDateField(
-                              label: 'Bill date',
-                              value: _billDate,
-                              onTap: () => _pickDate(isBillDate: true),
-                            ),
-                            SizedBox(height: fieldSpacing),
-                            _buildDateField(
-                              label: 'Due date',
-                              value: _dueDate,
-                              onTap: () => _pickDate(isBillDate: false),
-                            ),
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            Expanded(
-                              child: _buildDateField(
+                    final dateFields = isNarrow
+                        ? Column(
+                            children: [
+                              _buildDateField(
                                 label: 'Bill date',
                                 value: _billDate,
                                 onTap: () => _pickDate(isBillDate: true),
                               ),
-                            ),
-                            SizedBox(width: fieldSpacing),
-                            Expanded(
-                              child: _buildDateField(
+                              SizedBox(height: fieldSpacing),
+                              _buildDateField(
                                 label: 'Due date',
                                 value: _dueDate,
                                 onTap: () => _pickDate(isBillDate: false),
                               ),
-                            ),
-                          ],
-                        );
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Expanded(
+                                child: _buildDateField(
+                                  label: 'Bill date',
+                                  value: _billDate,
+                                  onTap: () => _pickDate(isBillDate: true),
+                                ),
+                              ),
+                              SizedBox(width: fieldSpacing),
+                              Expanded(
+                                child: _buildDateField(
+                                  label: 'Due date',
+                                  value: _dueDate,
+                                  onTap: () => _pickDate(isBillDate: false),
+                                ),
+                              ),
+                            ],
+                          );
 
-                  return Column(
-                    children: [
-                      vendorAndName,
-                      SizedBox(height: fieldSpacing),
-                      dateFields,
-                      if (_vendorsError != null) ...[
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            _vendorsError!,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.error,
+                    return Column(
+                      children: [
+                        vendorAndName,
+                        SizedBox(height: fieldSpacing),
+                        dateFields,
+                        if (_vendorsError != null) ...[
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              _vendorsError!,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.error,
+                              ),
                             ),
                           ),
-                        ),
-                      ]
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 20),
-              Text('Attachment', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 8),
-              AttachmentPicker(
-                description:
-                    'Drag and drop supporting files here, or click to browse for uploads.',
-                files: _attachments,
-                onPick: _pickAttachments,
-                onFilesSelected: _onFilesSelected,
-                onFileRemoved: _removeAttachment,
-              ),
-              const SizedBox(height: 20),
-              Text('Expenses', style: theme.textTheme.titleMedium),
-              _buildExpensesTab(),
-            ],
+                        ]
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+                Text('Attachment', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 8),
+                AttachmentPicker(
+                  description:
+                      'Drag and drop supporting files here, or click to browse for uploads.',
+                  files: _attachments,
+                  onPick: _pickAttachments,
+                  onFilesSelected: _onFilesSelected,
+                  onFileRemoved: _removeAttachment,
+                ),
+                const SizedBox(height: 20),
+                Text('Expenses', style: theme.textTheme.titleMedium),
+                _buildExpensesTab(),
+                if (_submitError != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _submitError!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ]
+              ],
+            ),
           ),
         ),
       ),
@@ -241,10 +258,14 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
           child: const Text('Close'),
         ),
         FilledButton(
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
-          child: const Text('Save'),
+          onPressed: _isSubmitting ? null : _submit,
+          child: _isSubmitting
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Save'),
         ),
       ],
     );
@@ -283,6 +304,12 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
       onChanged: _isLoadingVendors || _vendors.isEmpty
           ? null
           : (value) => setState(() => _selectedVendorId = value),
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Please select a vendor';
+        }
+        return null;
+      },
     );
   }
 
@@ -290,6 +317,12 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
     return TextFormField(
       controller: _nameController,
       decoration: const InputDecoration(labelText: 'Name'),
+      validator: (value) {
+        if (value == null || value.trim().isEmpty) {
+          return 'Name is required';
+        }
+        return null;
+      },
     );
   }
 
@@ -415,6 +448,77 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         } else {
           _dueDate = picked;
         }
+      });
+    }
+  }
+
+  double? _parseAmount(TextEditingController controller) {
+    return double.tryParse(
+      controller.text
+          .replaceAll(RegExp(r'[^0-9.,-]'), '')
+          .replaceAll(',', ''),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _submitError = null;
+      _isSubmitting = true;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _submitError = 'You are not logged in.';
+        _isSubmitting = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    final requestData = <String, dynamic>{
+      'vendor_id': _selectedVendorId,
+      'name': _nameController.text.trim(),
+      'date': DateFormat('yyyy-MM-dd').format(_billDate),
+      'due_date': DateFormat('yyyy-MM-dd').format(_dueDate),
+      'debit_account_id': _selectedDebitAccount,
+      'credit_account_id': _selectedCreditAccount,
+      'debit_amount': _parseAmount(_debitAmountController) ?? 0,
+      'credit_amount': _parseAmount(_creditAmountController) ?? 0,
+      if (_attachments.isNotEmpty)
+        'attachments': _attachments.map((file) => file.name).toList(),
+    };
+
+    try {
+      final created = await _billsService.createBill(
+        headers: headers,
+        data: requestData,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() => _isSubmitting = false);
+      Navigator.of(context).pop(created);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _submitError = error.toString();
+        _isSubmitting = false;
       });
     }
   }
