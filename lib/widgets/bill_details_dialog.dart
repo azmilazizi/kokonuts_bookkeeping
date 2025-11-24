@@ -5,10 +5,10 @@ import 'package:kokonuts_bookkeeping/app/app_state.dart';
 import 'package:kokonuts_bookkeeping/app/app_state_scope.dart';
 import 'attachment_pdf_preview.dart';
 import 'attachment_picker.dart';
+import 'currency_input_formatter.dart';
 
 import '../services/accounts_service.dart';
 import '../services/bills_service.dart';
-import '../services/payment_modes_service.dart';
 
 class BillDetailsDialog extends StatefulWidget {
   const BillDetailsDialog({
@@ -336,12 +336,24 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     final result = await showDialog<BillPayment>(
       context: context,
       barrierDismissible: false,
-      builder: (context) =>
-          _AddPaymentDialog(currencySymbol: bill.currencySymbol),
+      builder: (context) => _AddPaymentDialog(
+        currencySymbol: bill.currencySymbol,
+        billId: bill.id,
+      ),
     );
 
     if (result != null) {
-      setState(() => _pendingPayments.add(result));
+      setState(() {
+        _payments = List.of(_payments)..add(result);
+
+        final accountId = result.paymentAccountId?.trim();
+        if (accountId != null && accountId.isNotEmpty) {
+          final accountName = result.paymentAccount?.trim();
+          if (accountName != null && accountName.isNotEmpty) {
+            _accountNamesById[accountId] = accountName;
+          }
+        }
+      });
     }
   }
 
@@ -1921,9 +1933,13 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
 }
 
 class _AddPaymentDialog extends StatefulWidget {
-  const _AddPaymentDialog({required this.currencySymbol});
+  const _AddPaymentDialog({
+    required this.currencySymbol,
+    required this.billId,
+  });
 
   final String currencySymbol;
+  final String billId;
 
   @override
   State<_AddPaymentDialog> createState() => _AddPaymentDialogState();
@@ -1931,21 +1947,21 @@ class _AddPaymentDialog extends StatefulWidget {
 
 class _AddPaymentDialogState extends State<_AddPaymentDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _paymentIdController = TextEditingController();
-  final _amountController = TextEditingController();
-  final _paymentModesService = PaymentModesService();
+  final _amountController = TextEditingController(
+    text: CurrencyInputFormatter.normalizeExistingValue(null),
+  );
   final _accountsService = AccountsService();
+  final _billsService = BillsService();
 
   DateTime _selectedDate = DateTime.now();
-  PaymentMode? _selectedPaymentMode;
   Account? _selectedPaymentAccount;
   Account? _selectedDepositAccount;
   PlatformFile? _selectedFile;
   bool _isSubmitting = false;
   bool _isLoadingOptions = false;
   String? _loadError;
-  List<PaymentMode> _paymentModes = const [];
   List<Account> _accounts = const [];
+  String? _submitError;
 
   @override
   void initState() {
@@ -1955,7 +1971,6 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
 
   @override
   void dispose() {
-    _paymentIdController.dispose();
     _amountController.dispose();
     super.dispose();
   }
@@ -1983,9 +1998,6 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
     final headers = _buildAuthHeaders(appState, token);
 
     try {
-      final paymentModes = await _paymentModesService.fetchPaymentModes(
-        headers: headers,
-      );
       final accounts = await _accountsService.fetchAccounts(
         page: 1,
         perPage: 200,
@@ -1997,7 +2009,6 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
       }
 
       setState(() {
-        _paymentModes = paymentModes;
         _accounts = accounts.accounts;
         _loadError = null;
       });
@@ -2037,10 +2048,30 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
   }
 
   Future<void> _pickAttachment() async {
-    final result = await FilePicker.platform.pickFiles(withReadStream: false);
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: false,
+      withData: true,
+      withReadStream: true,
+      type: FileType.custom,
+      allowedExtensions: allowedAttachmentExtensions.toList(),
+    );
     if (result != null && result.files.isNotEmpty) {
-      setState(() => _selectedFile = result.files.first);
+      _handleFilesSelected(result.files);
     }
+  }
+
+  void _handleFilesSelected(List<PlatformFile> files) {
+    if (files.isEmpty) {
+      setState(() => _selectedFile = null);
+      return;
+    }
+
+    final validFile = files.lastWhere(
+      (file) => isAllowedAttachmentExtension(attachmentExtension(file.name)),
+      orElse: () => files.last,
+    );
+
+    setState(() => _selectedFile = validFile);
   }
 
   Future<void> _pickDate() async {
@@ -2057,62 +2088,87 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
     }
   }
 
-  String _formatFileSize(int sizeInBytes) {
-    if (sizeInBytes <= 0) {
-      return '0 B';
-    }
-    const units = ['B', 'KB', 'MB', 'GB'];
-    var size = sizeInBytes.toDouble();
-    var unitIndex = 0;
-    while (size >= 1024 && unitIndex < units.length - 1) {
-      size /= 1024;
-      unitIndex++;
-    }
-    return '${size.toStringAsFixed(1)} ${units[unitIndex]}';
-  }
-
   String _attachmentDescription() {
-    final paymentMode = _selectedPaymentMode?.name ?? '-';
     final paymentAccount = _selectedPaymentAccount?.name ?? '-';
     final depositTo = _selectedDepositAccount?.name ?? '-';
-    return 'Payment mode: $paymentMode\nPayment account: $paymentAccount\nDeposit to: $depositTo';
+    return 'Payment account: $paymentAccount\nDeposit to: $depositTo';
   }
 
-  void _handleSubmit() {
+  double? _parseAmountInput() {
+    final sanitized = _amountController.text
+        .replaceAll(RegExp(r'[^0-9.,-]'), '')
+        .replaceAll(',', '')
+        .trim();
+
+    return double.tryParse(sanitized);
+  }
+
+  Future<void> _handleSubmit() async {
     final form = _formKey.currentState;
     if (form == null || !form.validate()) {
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    final parsedAmount = _parseAmountInput();
+    if (parsedAmount == null || parsedAmount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid amount.')),
+      );
+      return;
+    }
 
-    final parsedAmount = double.tryParse(_amountController.text.trim());
-    final paymentId = _paymentIdController.text.trim().isEmpty
-        ? 'PAY-${DateTime.now().millisecondsSinceEpoch}'
-        : _paymentIdController.text.trim();
+    setState(() {
+      _isSubmitting = true;
+      _submitError = null;
+    });
 
-    final attachment = _selectedFile == null
-        ? null
-        : BillAttachment(
-            fileName: _selectedFile!.name,
-            description: _attachmentDescription(),
-            downloadUrl: _selectedFile!.path,
-            uploadedAt: _selectedDate,
-            sizeLabel: _formatFileSize(_selectedFile!.size),
-            id: null,
-            paymentId: paymentId,
-            paymentDate: _selectedDate,
-            amount: parsedAmount,
-          );
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+    if (!mounted) {
+      return;
+    }
 
-    final payment = BillPayment(
-      id: paymentId,
-      date: _selectedDate,
-      amount: parsedAmount,
-      attachment: attachment,
-    );
+    if (token == null || token.isEmpty) {
+      setState(() {
+        _submitError = 'You are not logged in.';
+        _isSubmitting = false;
+      });
+      return;
+    }
 
-    Navigator.of(context).pop(payment);
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      final payment = await _billsService.createBillPayment(
+        billId: widget.billId,
+        headers: headers,
+        paymentDate: _selectedDate,
+        amount: parsedAmount,
+        paymentAccountId: _selectedPaymentAccount?.id,
+        depositAccountId: _selectedDepositAccount?.id,
+        attachment: _selectedFile,
+        attachmentDescription: _attachmentDescription(),
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).pop(payment);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _submitError = error.toString();
+        _isSubmitting = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save payment: $error')),
+      );
+    }
   }
 
   @override
@@ -2173,57 +2229,49 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TextFormField(
-                      controller: _paymentIdController,
-                      decoration: const InputDecoration(
-                        labelText: 'Payment ID',
-                        border: OutlineInputBorder(),
+                    if (_submitError != null) ...[
+                      Text(
+                        _submitError!,
+                        style: const TextStyle(color: Colors.red),
                       ),
+                      const SizedBox(height: 12),
+                    ],
+                    AttachmentPicker(
+                      label: 'Attachment',
+                      description:
+                          'Drag and drop payment receipts or tap to browse.',
+                      files: _selectedFile == null ? const [] : [_selectedFile!],
+                      onPick: _pickAttachment,
+                      onFilesSelected: _handleFilesSelected,
+                      onFileRemoved: (_) =>
+                          _handleFilesSelected(<PlatformFile>[]),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     TextFormField(
                       controller: _amountController,
+                      enabled: !_isSubmitting,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
                       decoration: InputDecoration(
-                        labelText:
-                            'Amount (${widget.currencySymbol.isEmpty ? 'value' : widget.currencySymbol})',
+                        labelText: 'Amount',
+                        prefixText: widget.currencySymbol.isEmpty
+                            ? null
+                            : '${widget.currencySymbol} ',
+                        hintText: '0.00',
                         border: const OutlineInputBorder(),
                       ),
+                      inputFormatters: const [CurrencyInputFormatter()],
                       validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Enter an amount';
-                        }
-                        if (double.tryParse(value.trim()) == null) {
-                          return 'Enter a valid number';
+                        final sanitized = value
+                            ?.replaceAll(RegExp(r'[^0-9.,-]'), '')
+                            .replaceAll(',', '')
+                            .trim();
+                        final parsed = double.tryParse(sanitized ?? '');
+                        if (parsed == null || parsed <= 0) {
+                          return 'Enter a valid amount';
                         }
                         return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: _selectedPaymentMode?.id,
-                      decoration: const InputDecoration(
-                        labelText: 'Payment Mode',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: _paymentModes
-                          .map(
-                            (mode) => DropdownMenuItem(
-                              value: mode.id,
-                              child: Text(mode.name),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedPaymentMode = value == null
-                              ? null
-                              : _paymentModes.firstWhere(
-                                  (mode) => mode.id == value,
-                                );
-                        });
                       },
                     ),
                     const SizedBox(height: 12),
@@ -2246,7 +2294,8 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                                   icon: const Icon(
                                     Icons.calendar_today_outlined,
                                   ),
-                                  onPressed: _pickDate,
+                                  onPressed:
+                                      _isSubmitting ? null : () => _pickDate(),
                                 ),
                               ],
                             ),
@@ -2272,10 +2321,12 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                                   ),
                                 )
                                 .toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedPaymentAccount = value == null
-                                    ? null
+                            onChanged: _isSubmitting
+                                ? null
+                                : (value) {
+                                    setState(() {
+                                      _selectedPaymentAccount = value == null
+                                          ? null
                                     : _accounts.firstWhere(
                                         (account) => account.id == value,
                                       );
@@ -2299,10 +2350,12 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                                   ),
                                 )
                                 .toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedDepositAccount = value == null
-                                    ? null
+                            onChanged: _isSubmitting
+                                ? null
+                                : (value) {
+                                    setState(() {
+                                      _selectedDepositAccount = value == null
+                                          ? null
                                     : _accounts.firstWhere(
                                         (account) => account.id == value,
                                       );
