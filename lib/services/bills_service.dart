@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 
 class BillsService {
   BillsService({http.Client? client}) : _client = client ?? http.Client();
@@ -223,6 +224,82 @@ class BillsService {
     return paymentsJson;
   }
 
+  Future<BillPayment> createBillPayment({
+    required String billId,
+    required Map<String, String> headers,
+    required double amount,
+    required DateTime paymentDate,
+    String? paymentAccountId,
+    String? depositAccountId,
+    String? referenceNo,
+    PlatformFile? attachment,
+    String? attachmentDescription,
+  }) async {
+    final uri = Uri.parse('$_billBaseUrl/$billId/payment');
+
+    final request = http.MultipartRequest('POST', uri)
+      ..headers.addAll({'Accept': 'application/json', ...headers})
+      ..fields.addAll({
+        'amount': amount.toStringAsFixed(2),
+        'payment_date': DateFormat('yyyy-MM-dd').format(paymentDate),
+      });
+
+    final sanitizedReference = referenceNo?.trim();
+    if (sanitizedReference != null && sanitizedReference.isNotEmpty) {
+      request.fields['reference_no'] = sanitizedReference;
+    }
+
+    final sanitizedPaymentAccount = paymentAccountId?.trim();
+    if (sanitizedPaymentAccount != null && sanitizedPaymentAccount.isNotEmpty) {
+      request.fields['account_credit'] = sanitizedPaymentAccount;
+    }
+
+    final sanitizedDepositAccount = depositAccountId?.trim();
+    if (sanitizedDepositAccount != null && sanitizedDepositAccount.isNotEmpty) {
+      request.fields['account_debit'] = sanitizedDepositAccount;
+    }
+
+    final sanitizedDescription = attachmentDescription?.trim();
+    if (sanitizedDescription != null && sanitizedDescription.isNotEmpty) {
+      request.fields['description'] = sanitizedDescription;
+    }
+
+    if (attachment != null) {
+      final file = await _buildMultipartFile(attachment);
+      if (file != null) {
+        request.files.add(file);
+      }
+    }
+
+    http.StreamedResponse response;
+    try {
+      response = await _client.send(request);
+    } catch (error) {
+      throw BillsException('Failed to reach server: $error');
+    }
+
+    final resolved = await http.Response.fromStream(response);
+    if (resolved.statusCode != 200 && resolved.statusCode != 201) {
+      throw BillsException(
+        'Payment request failed with status ${resolved.statusCode}: ${resolved.body}',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(resolved.body);
+    } catch (error) {
+      throw BillsException('Unable to parse payment response: $error');
+    }
+
+    final paymentJson = _extractPayment(decoded);
+    if (paymentJson == null) {
+      throw BillsException('Payment response did not include a payment payload.');
+    }
+
+    return BillPayment.fromJson(paymentJson);
+  }
+
   Future<void> deleteBill({
     required String id,
     required Map<String, String> headers,
@@ -371,6 +448,38 @@ class BillsService {
     return const [];
   }
 
+  Map<String, dynamic>? _extractPayment(dynamic decoded) {
+    if (decoded is Map<String, dynamic>) {
+      if (_looksLikePayment(decoded)) {
+        return decoded;
+      }
+
+      const preferredKeys = ['data', 'payment', 'result', 'item'];
+      for (final key in preferredKeys) {
+        final candidate = _extractPayment(decoded[key]);
+        if (candidate != null) {
+          return candidate;
+        }
+      }
+
+      for (final value in decoded.values) {
+        final nested = _extractPayment(value);
+        if (nested != null) {
+          return nested;
+        }
+      }
+    } else if (decoded is List) {
+      for (final item in decoded) {
+        final candidate = _extractPayment(item);
+        if (candidate != null) {
+          return candidate;
+        }
+      }
+    }
+
+    return null;
+  }
+
   Map<String, dynamic>? _extractBill(dynamic decoded) {
     if (decoded is Map<String, dynamic>) {
       if (_looksLikeBill(decoded)) {
@@ -391,6 +500,13 @@ class BillsService {
   bool _looksLikeBill(Map<String, dynamic> map) {
     return map.containsKey('id') &&
         (map.containsKey('bill_date') || map.containsKey('date') || map.containsKey('amount'));
+  }
+
+  bool _looksLikePayment(Map<String, dynamic> map) {
+    return map.containsKey('payment_id') ||
+        map.containsKey('paymentId') ||
+        map.containsKey('payment_no') ||
+        (map.containsKey('id') && map.containsKey('payment_amount'));
   }
 
   PaginationInfo _resolvePagination(
