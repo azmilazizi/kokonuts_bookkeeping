@@ -487,15 +487,28 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
 
     final headers = _buildAuthHeaders(appState, token);
 
+    final debitAmount = _parseAmount(_debitAmountController) ?? 0;
+    final creditAmount = _parseAmount(_creditAmountController) ?? 0;
+    const tolerance = 0.01;
+
+    if ((debitAmount - creditAmount).abs() > tolerance) {
+      setState(() {
+        _submitError = 'Debit and credit amounts must be balanced before saving.';
+        _isSubmitting = false;
+      });
+      return;
+    }
+
     final requestData = <String, dynamic>{
-      'vendor_id': _selectedVendorId,
+      'vendor': _selectedVendorId,
       'name': _nameController.text.trim(),
       'date': DateFormat('yyyy-MM-dd').format(_billDate),
       'due_date': DateFormat('yyyy-MM-dd').format(_dueDate),
       'debit_account_id': _selectedDebitAccount,
       'credit_account_id': _selectedCreditAccount,
-      'debit_amount': _parseAmount(_debitAmountController) ?? 0,
-      'credit_amount': _parseAmount(_creditAmountController) ?? 0,
+      'debit_amount': debitAmount,
+      'credit_amount': creditAmount,
+      'amount': debitAmount,
       if (_attachments.isNotEmpty)
         'attachments': _attachments.map((file) => file.name).toList(),
     };
