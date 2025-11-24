@@ -743,6 +743,7 @@ class _DataCell extends StatelessWidget {
           value,
           textAlign: textAlign ?? TextAlign.start,
           overflow: TextOverflow.ellipsis,
+          maxLines: 1,
         ),
       ),
     );
