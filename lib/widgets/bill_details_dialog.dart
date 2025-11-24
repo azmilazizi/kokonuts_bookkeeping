@@ -611,8 +611,6 @@ class _DetailsTab extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _AttachmentSection(bill: bill),
-            const SizedBox(height: 20),
             Text(
               'Payment Status',
               style: theme.textTheme.labelMedium?.copyWith(
@@ -629,6 +627,8 @@ class _DetailsTab extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             _DateRow(bill: bill),
+            const SizedBox(height: 16),
+            _AttachmentSection(bill: bill),
             const SizedBox(height: 16),
             _AccountRow(
               creditAccount: creditAccountLabel,
@@ -987,16 +987,14 @@ class _PaymentsTab extends StatelessWidget {
                           : 'No payments recorded yet.',
                       style: theme.textTheme.bodyMedium,
                     ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: onAddPayment,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Payment'),
+                  ),
                 ],
               ),
-            ),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
-              onPressed: onAddPayment,
-              icon: const Icon(Icons.add),
-              label: const Text('Add Payment'),
             ),
           ),
         ],
@@ -1275,7 +1273,11 @@ class _AttachmentSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text('No attachment available', style: theme.textTheme.bodyMedium),
+          OutlinedButton.icon(
+            onPressed: () {},
+            icon: const Icon(Icons.attach_file),
+            label: const Text('Add Attachment'),
+          ),
         ],
       );
     }
