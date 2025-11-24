@@ -603,8 +603,6 @@ class _ItemsSection extends StatelessWidget {
         children: [
           Text('Items', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
-          Text('Items', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
           Text(
             'No items were returned for this purchase order.',
             style: theme.textTheme.bodyMedium,
@@ -613,11 +611,16 @@ class _ItemsSection extends StatelessWidget {
       );
     }
 
-    const tablePadding = EdgeInsets.symmetric(horizontal: 16, vertical: 12);
-    final headerTextStyle =
-        theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600) ??
-        theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600) ??
-        const TextStyle(fontWeight: FontWeight.w600);
+    const tablePadding = EdgeInsets.symmetric(horizontal: 12, vertical: 10);
+    final headerTextStyle = theme.textTheme.labelMedium?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: theme.colorScheme.onSurfaceVariant,
+        ) ??
+        theme.textTheme.bodyMedium?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: theme.colorScheme.onSurfaceVariant,
+        ) ??
+        const TextStyle(fontWeight: FontWeight.w700);
     final cellStyle = theme.textTheme.bodyMedium;
     final dividerColor = theme.dividerColor;
 
@@ -634,6 +637,10 @@ class _ItemsSection extends StatelessWidget {
       ];
 
       return TableRow(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+        ),
         children: headers
             .map(
               (label) => Padding(
@@ -686,7 +693,11 @@ class _ItemsSection extends StatelessWidget {
       return Table(
         defaultVerticalAlignment: TableCellVerticalAlignment.middle,
         columnWidths: columnWidths,
-        border: TableBorder.all(color: dividerColor),
+        border: TableBorder.all(
+          color: dividerColor,
+          width: 1,
+          borderRadius: BorderRadius.circular(8),
+        ),
         children: [buildHeaderRow(), ...detail.items.map(buildDataRow)],
       );
     }
