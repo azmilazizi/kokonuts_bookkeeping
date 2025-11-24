@@ -17,10 +17,10 @@ class BillsTab extends StatefulWidget {
   const BillsTab({super.key});
 
   @override
-  State<BillsTab> createState() => _BillsTabState();
+  BillsTabState createState() => BillsTabState();
 }
 
-class _BillsTabState extends State<BillsTab> {
+class BillsTabState extends State<BillsTab> {
   final _service = BillsService();
   final _scrollController = ScrollController();
   final _horizontalController = ScrollController();
@@ -366,6 +366,24 @@ class _BillsTabState extends State<BillsTab> {
     setState(() {
       _filterStartDate = null;
       _filterEndDate = null;
+      _applyFilters();
+    });
+  }
+
+  void insertCreatedBill(Bill bill) {
+    setState(() {
+      _vendorNames.putIfAbsent(bill.vendorId, () => bill.vendorName);
+
+      final existingIndex =
+          _allBills.indexWhere((item) => _billKey(item) == _billKey(bill));
+
+      if (existingIndex != -1) {
+        _allBills[existingIndex] = bill;
+      } else {
+        _allBills.add(bill);
+      }
+
+      _applySorting();
       _applyFilters();
     });
   }

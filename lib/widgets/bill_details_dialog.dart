@@ -611,6 +611,13 @@ class _DetailsTab extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(
+              'Payment Status',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
             _StatusPill(status: bill.status, theme: theme),
             const SizedBox(height: 16),
             _DetailField(

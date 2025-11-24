@@ -8,6 +8,7 @@ import 'bills_tab.dart';
 import 'expenses_tab.dart';
 import 'purchase_orders_tab.dart';
 
+import '../services/bills_service.dart';
 import '../services/expenses_service.dart';
 import '../services/purchase_orders_service.dart';
 import '../widgets/add_expense_dialog.dart';
@@ -29,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       GlobalKey<PurchaseOrdersTabState>();
   final GlobalKey<ExpensesTabState> _expensesTabKey =
       GlobalKey<ExpensesTabState>();
+  final GlobalKey<BillsTabState> _billsTabKey = GlobalKey<BillsTabState>();
 
   @override
   void initState() {
@@ -47,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       _HomeTab(
         title: 'Bills',
         icon: Icons.receipt_long_outlined,
-        builder: (_, __) => const BillsTab(),
+        builder: (_, __) => BillsTab(key: _billsTabKey),
       ),
       _HomeTab(
         title: 'Accounts',
@@ -120,10 +122,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         }
         break;
       case 2:
-        await showDialog<void>(
+        final createdBill = await showDialog<Bill>(
           context: context,
           builder: (context) => const CreateBillDialog(),
         );
+
+        if (createdBill != null && mounted) {
+          _billsTabKey.currentState?.insertCreatedBill(createdBill);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Bill created successfully.')),
+          );
+        }
         break;
       default:
         await showDialog<void>(
