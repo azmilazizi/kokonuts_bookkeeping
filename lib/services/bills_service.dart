@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 
 class BillsService {
@@ -10,6 +11,7 @@ class BillsService {
   static const _baseUrl = 'https://crm.kokonuts.my/accounting/api/v1/bills';
   static const _vendorBaseUrl = 'https://crm.kokonuts.my/purchase/api/v1/vendors';
   static const _billBaseUrl = 'https://crm.kokonuts.my/accounting/api/v1/bill';
+  static const _attachmentFieldName = 'file';
 
   final Map<String, String?> _vendorCache = {};
 
@@ -131,6 +133,50 @@ class BillsService {
     }
 
     return Bill.fromJson(billJson);
+  }
+
+  Future<void> uploadAttachments({
+    required String id,
+    required Map<String, String> headers,
+    required List<PlatformFile> attachments,
+  }) async {
+    if (attachments.isEmpty) {
+      return;
+    }
+
+    final files = await Future.wait(
+      attachments.map(_buildMultipartFile),
+      eagerError: false,
+    );
+
+    final uploadFiles = files.whereType<http.MultipartFile>().toList(
+          growable: false,
+        );
+    if (uploadFiles.isEmpty) {
+      return;
+    }
+
+    final uri = Uri.parse('$_billBaseUrl/$id/attachment');
+
+    final request = http.MultipartRequest('POST', uri)
+      ..headers.addAll({'Accept': 'application/json', ...headers})
+      ..files.addAll(uploadFiles);
+
+    http.StreamedResponse response;
+    try {
+      response = await _client.send(request);
+    } catch (error) {
+      throw BillsException('Failed to upload attachments: $error');
+    }
+
+    final resolved = await http.Response.fromStream(response);
+    if (resolved.statusCode != 200 &&
+        resolved.statusCode != 201 &&
+        resolved.statusCode != 204) {
+      throw BillsException(
+        'Attachment upload failed with status ${resolved.statusCode}: ${resolved.body}',
+      );
+    }
   }
 
   Future<List<BillPayment>> fetchBillPayments({
@@ -262,6 +308,41 @@ class BillsService {
 
     _vendorCache[vendorId] = vendorName;
     return vendorName;
+  }
+
+  Future<http.MultipartFile?> _buildMultipartFile(PlatformFile file) async {
+    final sanitizedName = file.name.trim();
+    if (sanitizedName.isEmpty) {
+      return null;
+    }
+
+    if (file.readStream != null) {
+      return http.MultipartFile(
+        _attachmentFieldName,
+        file.readStream!,
+        file.size,
+        filename: sanitizedName,
+      );
+    }
+
+    if (file.bytes != null) {
+      return http.MultipartFile.fromBytes(
+        _attachmentFieldName,
+        file.bytes!,
+        filename: sanitizedName,
+      );
+    }
+
+    final path = file.path?.trim();
+    if (path != null && path.isNotEmpty) {
+      return http.MultipartFile.fromPath(
+        _attachmentFieldName,
+        path,
+        filename: sanitizedName,
+      );
+    }
+
+    return null;
   }
 
   List<dynamic> _extractBillsList(dynamic decoded) {
