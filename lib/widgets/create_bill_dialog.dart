@@ -325,10 +325,10 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
   Widget _buildNameField() {
     return TextFormField(
       controller: _nameController,
-      decoration: const InputDecoration(labelText: 'Name'),
+      decoration: const InputDecoration(labelText: 'Expense Name'),
       validator: (value) {
         if (value == null || value.trim().isEmpty) {
-          return 'Name is required';
+          return 'Expense name is required';
         }
         return null;
       },
@@ -511,15 +511,23 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
     }
 
     final requestData = <String, dynamic>{
-      'vendor': _selectedVendorId,
-      'expense_name': _nameController.text.trim(),
       'date': DateFormat('yyyy-MM-dd').format(_billDate),
       'due_date': DateFormat('yyyy-MM-dd').format(_dueDate),
-      'debit_account_id': _selectedDebitAccount,
-      'credit_account_id': _selectedCreditAccount,
-      'debit_amount': debitAmount,
-      'credit_amount': creditAmount,
+      'vendor': _selectedVendorId,
+      'expense_name': _nameController.text.trim(),
       'amount': debitAmount,
+      'debit_lines': [
+        {
+          'account': _selectedDebitAccount,
+          'amount': debitAmount,
+        },
+      ],
+      'credit_lines': [
+        {
+          'account': _selectedCreditAccount,
+          'amount': debitAmount,
+        },
+      ],
       'approved': 1,
       if (_attachments.isNotEmpty)
         'attachments': _attachments.map((file) => file.name).toList(),
