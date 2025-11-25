@@ -317,6 +317,7 @@ class BillsTabState extends State<BillsTab> {
                                 theme: theme,
                                 showTopBorder: index == 0,
                                 onDelete: () => _deleteBill(bill),
+                                onBillUpdated: _handleBillUpdated,
                               );
                             }, childCount: _bills.length),
                           ),
@@ -376,6 +377,29 @@ class BillsTabState extends State<BillsTab> {
 
       final existingIndex =
           _allBills.indexWhere((item) => _billKey(item) == _billKey(bill));
+
+      if (existingIndex != -1) {
+        _allBills[existingIndex] = bill;
+      } else {
+        _allBills.add(bill);
+      }
+
+      _applySorting();
+      _applyFilters();
+    });
+  }
+
+  void _handleBillUpdated(Bill bill) {
+    setState(() {
+      final vendorId = bill.vendorId;
+      final vendorName = bill.vendorName?.trim();
+      if (vendorName != null && vendorName.isNotEmpty) {
+        _vendorNames[vendorId] = vendorName;
+      }
+
+      final key = _billKey(bill);
+      final existingIndex =
+          _allBills.indexWhere((item) => _billKey(item) == key);
 
       if (existingIndex != -1) {
         _allBills[existingIndex] = bill;
@@ -807,6 +831,7 @@ class _BillRow extends StatefulWidget {
     required this.theme,
     required this.showTopBorder,
     required this.onDelete,
+    this.onBillUpdated,
   });
 
   final Bill bill;
@@ -814,6 +839,7 @@ class _BillRow extends StatefulWidget {
   final ThemeData theme;
   final bool showTopBorder;
   final Future<void> Function() onDelete;
+  final void Function(Bill bill)? onBillUpdated;
 
   @override
   State<_BillRow> createState() => _BillRowState();
@@ -933,7 +959,11 @@ class _BillRowState extends State<_BillRow> {
     showDialog(
       context: context,
       builder: (context) =>
-          BillDetailsDialog(bill: widget.bill, vendorName: widget.vendorName),
+          BillDetailsDialog(
+            bill: widget.bill,
+            vendorName: widget.vendorName,
+            onBillUpdated: widget.onBillUpdated,
+          ),
     );
   }
 
