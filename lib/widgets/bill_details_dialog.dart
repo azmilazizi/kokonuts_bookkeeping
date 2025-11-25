@@ -1465,8 +1465,9 @@ class _PaymentsTable extends StatelessWidget {
                   accountId: payment.paymentAccountId,
                   fallbackLabel: payment.paymentAccount,
                 );
-                final canPreviewAttachment =
-                    !payment.hasEmptyAttachment && attachment != null;
+                final canPreviewAttachment = payment.hasEmptyAttachment
+                    ? false
+                    : payment.hasAttachmentString || attachment != null;
                 return TableRow(
                   children: [
                     Padding(

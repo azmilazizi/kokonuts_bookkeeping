@@ -1224,11 +1224,14 @@ class BillPayment {
     this.amount,
     this.attachment,
     this.hasEmptyAttachment = false,
+    this.hasAttachmentString = false,
   });
 
   factory BillPayment.fromJson(Map<String, dynamic> json) {
     final rawAttachment = json['attachment'];
     final attachment = _findMap(json, const ['attachment', 'file', 'document']);
+    final hasAttachmentString =
+        rawAttachment is String && rawAttachment.trim().isNotEmpty;
     final hasEmptyAttachment =
         rawAttachment is String && rawAttachment.trim().isEmpty;
 
@@ -1261,6 +1264,7 @@ class BillPayment {
       attachment:
           attachment == null ? null : BillAttachment.fromJson(attachment),
       hasEmptyAttachment: hasEmptyAttachment,
+      hasAttachmentString: hasAttachmentString,
     );
   }
 
@@ -1274,6 +1278,7 @@ class BillPayment {
   final double? amount;
   final BillAttachment? attachment;
   final bool hasEmptyAttachment;
+  final bool hasAttachmentString;
 
   BillPayment copyWith({
     String? id,
@@ -1286,6 +1291,7 @@ class BillPayment {
     double? amount,
     BillAttachment? attachment,
     bool? hasEmptyAttachment,
+    bool? hasAttachmentString,
   }) {
     return BillPayment(
       id: id ?? this.id,
@@ -1298,6 +1304,7 @@ class BillPayment {
       amount: amount ?? this.amount,
       attachment: attachment ?? this.attachment,
       hasEmptyAttachment: hasEmptyAttachment ?? this.hasEmptyAttachment,
+      hasAttachmentString: hasAttachmentString ?? this.hasAttachmentString,
     );
   }
 }
