@@ -629,7 +629,17 @@ class Bill {
         ])
         .whereType<Map<String, dynamic>>()
         .map(BillAttachment.fromJson)
-        .toList(growable: false);
+        .toList();
+
+    final attachmentUrl = _stringValue(json['attachment']);
+    if (attachmentUrl != null && attachmentUrl.trim().isNotEmpty) {
+      attachments.add(
+        BillAttachment(
+          fileName: _fileNameFromPath(attachmentUrl),
+          downloadUrl: attachmentUrl,
+        ),
+      );
+    }
 
     final payments = _extractRelatedCollection(json, const [
           'payments',
@@ -1031,6 +1041,30 @@ String? _stringValue(dynamic value) {
     return value;
   }
   return value.toString();
+}
+
+String _fileNameFromPath(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) {
+    return 'Attachment';
+  }
+
+  final parsed = Uri.tryParse(trimmed);
+  final segments =
+      parsed?.pathSegments.where((segment) => segment.isNotEmpty).toList();
+  if (segments != null && segments.isNotEmpty) {
+    return segments.last;
+  }
+
+  final parts = trimmed.split(RegExp(r'[\\/]'));
+  if (parts.isNotEmpty) {
+    final candidate = parts.last.trim();
+    if (candidate.isNotEmpty) {
+      return candidate;
+    }
+  }
+
+  return 'Attachment';
 }
 
 Map<String, dynamic>? _findMap(dynamic source, List<String> keys) {
