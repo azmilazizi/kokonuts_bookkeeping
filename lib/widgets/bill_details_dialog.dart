@@ -1076,27 +1076,6 @@ class _PaymentsTab extends StatelessWidget {
                     onEditPayment: onEditPayment,
                     onPreviewAttachment: onPreviewAttachment,
                   ),
-                  const SizedBox(height: 16),
-                  if (attachments.isNotEmpty) ...[
-                    Text(
-                      'Payment attachments',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    ...attachments
-                        .map(
-                          (attachment) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _BillAttachmentCard(
-                              attachment: attachment,
-                              billId: bill.id,
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ],
                 ],
               ),
             ),
@@ -1334,11 +1313,6 @@ class _AttachmentSection extends StatelessWidget {
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-            ),
-            TextButton.icon(
-              onPressed: onAddAttachment,
-              icon: const Icon(Icons.add),
-              label: const Text('Add Attachment'),
             ),
           ],
         ),
