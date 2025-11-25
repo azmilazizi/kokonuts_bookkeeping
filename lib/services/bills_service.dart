@@ -225,6 +225,62 @@ class BillsService {
     return paymentsJson;
   }
 
+  Future<BillAttachment> fetchPaymentAttachment({
+    required String billId,
+    required String paymentId,
+    required Map<String, String> headers,
+  }) async {
+    final uri =
+        Uri.parse('$_billBaseUrl/$billId/payment/${paymentId.trim()}/attachment');
+
+    http.Response response;
+    try {
+      response = await _client.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          ...headers,
+        },
+      );
+    } catch (error) {
+      throw BillsException('Failed to reach server: $error');
+    }
+
+    if (response.statusCode != 200) {
+      throw BillsException(
+        'Request failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error) {
+      throw BillsException('Unable to parse response: $error');
+    }
+
+    Map<String, dynamic>? attachmentJson;
+    if (decoded is Map<String, dynamic>) {
+      attachmentJson = _findMap(decoded, const ['data', 'attachment', 'file']);
+      attachmentJson ??=
+          decoded['data'] is Map<String, dynamic> ? decoded['data'] : decoded;
+    }
+
+    if (attachmentJson == null) {
+      final extracted =
+          _extractItems(decoded).whereType<Map<String, dynamic>>().toList();
+      if (extracted.isNotEmpty) {
+        attachmentJson = extracted.first;
+      }
+    }
+
+    if (attachmentJson == null) {
+      throw BillsException('Response did not include an attachment payload.');
+    }
+
+    return BillAttachment.fromJson(attachmentJson);
+  }
+
   Future<BillPayment> createBillPayment({
     required String billId,
     required Map<String, String> headers,

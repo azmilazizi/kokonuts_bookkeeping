@@ -517,10 +517,16 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     }
   }
 
-  Future<void> _handlePreviewAttachment(BillAttachment attachment) async {
-    final normalizedDownloadUrl = attachment.downloadUrl != null
-        ? _normalizeAttachmentDownloadUrl(attachment.downloadUrl!)
-        : null;
+  Future<void> _handlePreviewAttachment(
+    BillAttachment attachment, {
+    String? previewUrlOverride,
+    Map<String, String>? headersOverride,
+  }) async {
+    final normalizedDownloadUrl = previewUrlOverride != null
+        ? _normalizeAttachmentDownloadUrl(previewUrlOverride)
+        : attachment.downloadUrl != null
+            ? _normalizeAttachmentDownloadUrl(attachment.downloadUrl!)
+            : null;
     final previewType = _resolvePreviewType(
       attachment.fileName,
       normalizedDownloadUrl,
@@ -535,7 +541,32 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
       return;
     }
 
-    Map<String, String>? headers;
+    Map<String, String>? headers = headersOverride;
+
+    if (headers == null) {
+      final appState = AppStateScope.of(context);
+      final token = await appState.getValidAuthToken();
+
+      if (!mounted) {
+        return;
+      }
+
+      if (token != null && token.isNotEmpty) {
+        headers = _buildAuthHeaders(appState, token);
+      }
+    }
+
+    _showAttachmentPreview(
+      context: context,
+      fileName: attachment.fileName,
+      downloadUrl: normalizedDownloadUrl ??
+          _buildBillAttachmentPreviewUrl(widget.bill.id, attachment),
+      previewType: previewType,
+      apiHeaders: headers,
+    );
+  }
+
+  Future<void> _handlePreviewPaymentAttachment(BillPayment payment) async {
     final appState = AppStateScope.of(context);
     final token = await appState.getValidAuthToken();
 
@@ -543,17 +574,41 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
       return;
     }
 
-    if (token != null && token.isNotEmpty) {
-      headers = _buildAuthHeaders(appState, token);
+    if (token == null || token.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You are not logged in.')),
+      );
+      return;
     }
 
-    _showAttachmentPreview(
-      context: context,
-      fileName: attachment.fileName,
-      downloadUrl: _buildBillAttachmentPreviewUrl(widget.bill.id, attachment),
-      previewType: previewType,
-      apiHeaders: headers,
-    );
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      final attachment = await _billsService.fetchPaymentAttachment(
+        billId: widget.bill.id,
+        paymentId: payment.id,
+        headers: headers,
+      );
+
+      final previewUrl = attachment.downloadUrl != null &&
+              attachment.downloadUrl!.trim().isNotEmpty
+          ? attachment.downloadUrl!
+          : _buildPaymentAttachmentPreviewUrl(widget.bill.id, payment.id);
+
+      await _handlePreviewAttachment(
+        attachment,
+        previewUrlOverride: previewUrl,
+        headersOverride: headers,
+      );
+    } catch (error) {
+      final theme = Theme.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load attachment: $error'),
+          backgroundColor: theme.colorScheme.error,
+        ),
+      );
+    }
   }
 
   String _resolveAccountName({
@@ -718,15 +773,13 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                     error: _paymentsError,
                                     onAddPayment: () =>
                                         _openAddPaymentDialog(bill),
-                                    onEditPayment: (payment) =>
-                                        _openEditPaymentDialog(payment, bill),
                                     onDeletePayment: (payment) =>
                                         _confirmAndDeletePayment(
                                       payment,
                                       bill,
                                     ),
-                                    onPreviewAttachment:
-                                        _handlePreviewAttachment,
+                                    onPreviewPaymentAttachment:
+                                        _handlePreviewPaymentAttachment,
                                     resolveAccountName: _resolveAccountName,
                                   ),
                                 ],
@@ -871,25 +924,31 @@ class _DateRow extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth > 520;
-        final children = [
-          Expanded(
-            child: _DetailField(label: 'Bill date', value: bill.formattedDate),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _DetailField(
-              label: 'Due date',
-              value: bill.formattedDueDate,
-            ),
-          ),
-        ];
+        final billDateField = _DetailField(
+          label: 'Bill date',
+          value: bill.formattedDate,
+        );
+        final dueDateField = _DetailField(
+          label: 'Due date',
+          value: bill.formattedDueDate,
+        );
 
         if (isWide) {
-          return Row(children: children);
+          return Row(
+            children: [
+              Expanded(child: billDateField),
+              const SizedBox(width: 12),
+              Expanded(child: dueDateField),
+            ],
+          );
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [children[0], const SizedBox(height: 12), children[2]],
+          children: [
+            billDateField,
+            const SizedBox(height: 12),
+            dueDateField,
+          ],
         );
       },
     );
@@ -1148,9 +1207,8 @@ class _PaymentsTab extends StatelessWidget {
     required this.isLoading,
     this.error,
     required this.onAddPayment,
-    required this.onEditPayment,
     required this.onDeletePayment,
-    required this.onPreviewAttachment,
+    required this.onPreviewPaymentAttachment,
     required this.resolveAccountName,
   });
 
@@ -1160,9 +1218,8 @@ class _PaymentsTab extends StatelessWidget {
   final bool isLoading;
   final String? error;
   final VoidCallback onAddPayment;
-  final void Function(BillPayment payment) onEditPayment;
   final void Function(BillPayment payment) onDeletePayment;
-  final void Function(BillAttachment attachment) onPreviewAttachment;
+  final void Function(BillPayment payment) onPreviewPaymentAttachment;
   final String Function({String? accountId, String? fallbackLabel})
       resolveAccountName;
 
@@ -1244,9 +1301,8 @@ class _PaymentsTab extends StatelessWidget {
                     payments: payments,
                     attachments: attachments,
                     resolveAccountName: resolveAccountName,
-                    onEditPayment: onEditPayment,
                     onDeletePayment: onDeletePayment,
-                    onPreviewAttachment: onPreviewAttachment,
+                    onPreviewPaymentAttachment: onPreviewPaymentAttachment,
                   ),
                 ],
               ),
@@ -1273,9 +1329,8 @@ class _PaymentsTable extends StatelessWidget {
     required this.payments,
     required this.attachments,
     required this.resolveAccountName,
-    required this.onEditPayment,
     required this.onDeletePayment,
-    required this.onPreviewAttachment,
+    required this.onPreviewPaymentAttachment,
   });
 
   final Bill bill;
@@ -1283,9 +1338,8 @@ class _PaymentsTable extends StatelessWidget {
   final List<BillAttachment> attachments;
   final String Function({String? accountId, String? fallbackLabel})
       resolveAccountName;
-  final void Function(BillPayment payment) onEditPayment;
   final void Function(BillPayment payment) onDeletePayment;
-  final void Function(BillAttachment attachment) onPreviewAttachment;
+  final void Function(BillPayment payment) onPreviewPaymentAttachment;
 
   BillAttachment? _findAttachment(BillPayment payment) {
     if (payment.attachment != null) {
@@ -1331,28 +1385,39 @@ class _PaymentsTable extends StatelessWidget {
               2: FlexColumnWidth(2),
               3: IntrinsicColumnWidth(),
             },
-            border: TableBorder.all(color: theme.dividerColor),
+            border: TableBorder.all(
+              color: theme.dividerColor,
+              width: 1,
+              borderRadius: BorderRadius.circular(8),
+            ),
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
               TableRow(
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(8),
+                  ),
                 ),
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                     child: Text('Date', style: headerStyle),
                   ),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                     child: Text('Payment Account', style: headerStyle),
                   ),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                     child: Text('Amount', style: headerStyle),
                   ),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                     child: Text(
                       'Options',
                       style: headerStyle,
@@ -1373,11 +1438,17 @@ class _PaymentsTable extends StatelessWidget {
                 return TableRow(
                   children: [
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 12,
+                      ),
                       child: Text(dateLabel),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 12,
+                      ),
                       child: Text(
                         paymentAccountLabel.trim().isNotEmpty
                             ? paymentAccountLabel
@@ -1385,7 +1456,10 @@ class _PaymentsTable extends StatelessWidget {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 12,
+                      ),
                       child: Text(
                         _formatAmount(payment.amount),
                         style: theme.textTheme.bodyMedium?.copyWith(
@@ -1394,7 +1468,10 @@ class _PaymentsTable extends StatelessWidget {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 12,
+                      ),
                       child: Align(
                         alignment: Alignment.centerRight,
                         child: Row(
@@ -1405,13 +1482,7 @@ class _PaymentsTable extends StatelessWidget {
                               icon: const Icon(Icons.visibility_outlined),
                               onPressed: attachment == null
                                   ? null
-                                  : () => onPreviewAttachment(attachment),
-                            ),
-                            const SizedBox(width: 4),
-                            IconButton(
-                              tooltip: 'Edit payment',
-                              icon: const Icon(Icons.edit_outlined),
-                              onPressed: () => onEditPayment(payment),
+                                  : () => onPreviewPaymentAttachment(payment),
                             ),
                             const SizedBox(width: 4),
                             IconButton(
@@ -1648,6 +1719,10 @@ String _buildBillAttachmentPreviewUrl(String billId, BillAttachment attachment) 
     return '$baseUrl/$billId/attachment/${attachment.id}';
   }
   return '$baseUrl/$billId/attachment';
+}
+
+String _buildPaymentAttachmentPreviewUrl(String billId, String paymentId) {
+  return 'https://crm.kokonuts.my/accounting/api/v1/bill/$billId/payment/$paymentId/attachment';
 }
 
 class _AddAttachmentDialog extends StatefulWidget {
