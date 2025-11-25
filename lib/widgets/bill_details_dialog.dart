@@ -340,6 +340,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
       builder: (context) => _AddPaymentDialog(
         currencySymbol: bill.currencySymbol,
         billId: bill.id,
+        vendorId: bill.vendorId,
       ),
     );
 
@@ -2188,10 +2189,12 @@ class _AddPaymentDialog extends StatefulWidget {
   const _AddPaymentDialog({
     required this.currencySymbol,
     required this.billId,
+    required this.vendorId,
   });
 
   final String currencySymbol;
   final String billId;
+  final String vendorId;
 
   @override
   State<_AddPaymentDialog> createState() => _AddPaymentDialogState();
@@ -2394,8 +2397,9 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
       final payment = await _billsService.createBillPayment(
         billId: widget.billId,
         headers: headers,
+        vendorId: widget.vendorId,
+        amountPaid: parsedAmount,
         paymentDate: _selectedDate,
-        amount: parsedAmount,
         paymentAccountId: _selectedPaymentAccount?.id,
         depositAccountId: _selectedDepositAccount?.id,
         attachment: _selectedFile,
