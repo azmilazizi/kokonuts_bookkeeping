@@ -470,10 +470,15 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final maxDialogHeight = MediaQuery.sizeOf(context).height - 48;
+
     return Dialog(
       insetPadding: const EdgeInsets.all(24),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720),
+        constraints: BoxConstraints(
+          maxWidth: 720,
+          maxHeight: maxDialogHeight,
+        ),
         child: DefaultTabController(
           length: 2,
           child: Padding(
@@ -490,7 +495,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                 final hasError = snapshot.hasError;
 
                 return Column(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize: MainAxisSize.max,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _DialogHeader(onClose: () => Navigator.of(context).pop()),
@@ -517,10 +522,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                         child: Center(child: CircularProgressIndicator()),
                       ),
                     if (!isLoading || snapshot.data != null)
-                      Flexible(
-                        fit: FlexFit.loose,
+                      Expanded(
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
                             if (isLoading)
                               const Padding(
@@ -533,8 +536,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                   ),
                                 ),
                               ),
-                            Flexible(
-                              fit: FlexFit.loose,
+                            Expanded(
                               child: TabBarView(
                                 children: [
                                   _DetailsTab(
@@ -550,6 +552,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                     isLoadingAccounts:
                                         _isLoadingAccounts ||
                                             _isLoadingAccountNames,
+                                    onAddAttachment: () =>
+                                        _openAddAttachmentDialog(bill),
                                     accountsError: _accountsError,
                                   ),
                                   _PaymentsTab(
@@ -618,6 +622,7 @@ class _DetailsTab extends StatelessWidget {
     required this.creditAccountLabel,
     required this.debitAccountLabel,
     required this.isLoadingAccounts,
+    required this.onAddAttachment,
     this.accountsError,
   });
 
@@ -626,6 +631,7 @@ class _DetailsTab extends StatelessWidget {
   final String creditAccountLabel;
   final String debitAccountLabel;
   final bool isLoadingAccounts;
+  final VoidCallback onAddAttachment;
   final String? accountsError;
 
   @override
@@ -656,7 +662,7 @@ class _DetailsTab extends StatelessWidget {
             const SizedBox(height: 16),
             _AttachmentSection(
               bill: bill,
-              onAddAttachment: () => _openAddAttachmentDialog(bill),
+              onAddAttachment: onAddAttachment,
             ),
             const SizedBox(height: 16),
             _AccountRow(
