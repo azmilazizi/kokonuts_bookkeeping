@@ -552,6 +552,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                     isLoadingAccounts:
                                         _isLoadingAccounts ||
                                             _isLoadingAccountNames,
+                                    onAddAttachment: () =>
+                                        _openAddAttachmentDialog(bill),
                                     accountsError: _accountsError,
                                   ),
                                   _PaymentsTab(
@@ -620,6 +622,7 @@ class _DetailsTab extends StatelessWidget {
     required this.creditAccountLabel,
     required this.debitAccountLabel,
     required this.isLoadingAccounts,
+    required this.onAddAttachment,
     this.accountsError,
   });
 
@@ -628,6 +631,7 @@ class _DetailsTab extends StatelessWidget {
   final String creditAccountLabel;
   final String debitAccountLabel;
   final bool isLoadingAccounts;
+  final VoidCallback onAddAttachment;
   final String? accountsError;
 
   @override
@@ -658,7 +662,7 @@ class _DetailsTab extends StatelessWidget {
             const SizedBox(height: 16),
             _AttachmentSection(
               bill: bill,
-              onAddAttachment: () => _openAddAttachmentDialog(bill),
+              onAddAttachment: onAddAttachment,
             ),
             const SizedBox(height: 16),
             _AccountRow(
