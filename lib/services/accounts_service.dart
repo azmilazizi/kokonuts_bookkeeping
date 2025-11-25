@@ -240,7 +240,7 @@ class Account {
     final activeValue = _stringValue(json['active']);
     return Account(
       id: (_stringValue(json['id']) ?? '').trim(),
-      name: _stringValue(json['name']) ?? (json['id'] ?? 'Account').toString(),
+      name: _stringValue(json['name']) ?? _stringValue(json['id']) ?? '',
       parentAccountId: _stringValue(json['parent_account']),
       typeName: _stringValue(json['account_type_name']) ?? _stringValue(json['account_type']),
       detailTypeName:

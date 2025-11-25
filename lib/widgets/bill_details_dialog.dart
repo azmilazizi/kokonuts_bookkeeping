@@ -556,30 +556,44 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     );
   }
 
-  String _resolveAccountName(String? accountIdOrName) {
-    final value = accountIdOrName?.trim();
-    if (value == null || value.isEmpty) {
+  String _resolveAccountName({
+    String? accountId,
+    String? fallbackLabel,
+  }) {
+    final trimmedId = accountId?.trim();
+    final trimmedFallback = fallbackLabel?.trim();
+
+    if ((trimmedId == null || trimmedId.isEmpty) &&
+        (trimmedFallback == null || trimmedFallback.isEmpty)) {
       return '—';
     }
 
-    final mappedName = _accountNamesById[value];
-    if (mappedName != null && mappedName.isNotEmpty) {
-      return mappedName;
+    if (trimmedId != null && trimmedId.isNotEmpty) {
+      final mappedName = _accountNamesById[trimmedId];
+      if (mappedName != null && mappedName.isNotEmpty) {
+        return mappedName;
+      }
     }
 
     if (_isLoadingAccounts || _isLoadingAccountNames) {
       return 'Loading accounts...';
     }
 
-    for (final account in _accounts) {
-      final matchesId = account.id == value;
-      final matchesName = account.name.toLowerCase() == value.toLowerCase();
-      if (matchesId || matchesName) {
-        return account.name;
+    if (trimmedId != null && trimmedId.isNotEmpty) {
+      for (final account in _accounts) {
+        if (account.id == trimmedId) {
+          return account.name.isNotEmpty ? account.name : trimmedId;
+        }
       }
     }
 
-    return value;
+    if (trimmedFallback != null &&
+        trimmedFallback.isNotEmpty &&
+        trimmedFallback.toLowerCase() != 'account') {
+      return trimmedFallback;
+    }
+
+    return trimmedId ?? '—';
   }
 
   @override
@@ -677,11 +691,12 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                     bill: bill,
                                     vendorName: widget.vendorName,
                                     creditAccountLabel: _resolveAccountName(
-                                      bill.creditAccountId ??
-                                          bill.creditAccount,
+                                      accountId: bill.creditAccountId,
+                                      fallbackLabel: bill.creditAccount,
                                     ),
                                     debitAccountLabel: _resolveAccountName(
-                                      bill.debitAccountId ?? bill.debitAccount,
+                                      accountId: bill.debitAccountId,
+                                      fallbackLabel: bill.debitAccount,
                                     ),
                                     isLoadingAccounts:
                                         _isLoadingAccounts ||
@@ -1148,7 +1163,8 @@ class _PaymentsTab extends StatelessWidget {
   final void Function(BillPayment payment) onEditPayment;
   final void Function(BillPayment payment) onDeletePayment;
   final void Function(BillAttachment attachment) onPreviewAttachment;
-  final String Function(String? value) resolveAccountName;
+  final String Function({String? accountId, String? fallbackLabel})
+      resolveAccountName;
 
   @override
   Widget build(BuildContext context) {
@@ -1265,7 +1281,8 @@ class _PaymentsTable extends StatelessWidget {
   final Bill bill;
   final List<BillPayment> payments;
   final List<BillAttachment> attachments;
-  final String Function(String? value) resolveAccountName;
+  final String Function({String? accountId, String? fallbackLabel})
+      resolveAccountName;
   final void Function(BillPayment payment) onEditPayment;
   final void Function(BillPayment payment) onDeletePayment;
   final void Function(BillAttachment attachment) onPreviewAttachment;
@@ -1350,7 +1367,8 @@ class _PaymentsTable extends StatelessWidget {
                     ? DateFormat.yMMMd().format(payment.date!)
                     : '—';
                 final paymentAccountLabel = resolveAccountName(
-                  payment.paymentAccountId ?? payment.paymentAccount,
+                  accountId: payment.paymentAccountId,
+                  fallbackLabel: payment.paymentAccount,
                 );
                 return TableRow(
                   children: [
