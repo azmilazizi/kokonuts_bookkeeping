@@ -227,7 +227,8 @@ class BillsService {
   Future<BillPayment> createBillPayment({
     required String billId,
     required Map<String, String> headers,
-    required double amount,
+    required String vendorId,
+    required double amountPaid,
     required DateTime paymentDate,
     String? paymentAccountId,
     String? depositAccountId,
@@ -240,9 +241,14 @@ class BillsService {
     final request = http.MultipartRequest('POST', uri)
       ..headers.addAll({'Accept': 'application/json', ...headers})
       ..fields.addAll({
-        'amount': amount.toStringAsFixed(2),
-        'payment_date': DateFormat('yyyy-MM-dd').format(paymentDate),
+        'amount_paid': amountPaid.toStringAsFixed(2),
+        'date': DateFormat('yyyy-MM-dd').format(paymentDate),
       });
+
+    final sanitizedVendorId = vendorId.trim();
+    if (sanitizedVendorId.isNotEmpty) {
+      request.fields['vendor'] = sanitizedVendorId;
+    }
 
     final sanitizedReference = referenceNo?.trim();
     if (sanitizedReference != null && sanitizedReference.isNotEmpty) {
