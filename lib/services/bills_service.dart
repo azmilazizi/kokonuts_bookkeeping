@@ -227,9 +227,9 @@ class BillsService {
   Future<BillPayment> createBillPayment({
     required String billId,
     required Map<String, String> headers,
-    required String vendorId,
-    required double amountPaid,
+    required String vendor,
     required DateTime paymentDate,
+    List<Map<String, dynamic>> paymentLines = const [],
     String? paymentAccountId,
     String? depositAccountId,
     String? referenceNo,
@@ -241,13 +241,16 @@ class BillsService {
     final request = http.MultipartRequest('POST', uri)
       ..headers.addAll({'Accept': 'application/json', ...headers})
       ..fields.addAll({
-        'amount_paid': amountPaid.toStringAsFixed(2),
         'date': DateFormat('yyyy-MM-dd').format(paymentDate),
       });
 
-    final sanitizedVendorId = vendorId.trim();
+    final sanitizedVendorId = vendor.trim();
     if (sanitizedVendorId.isNotEmpty) {
       request.fields['vendor'] = sanitizedVendorId;
+    }
+
+    if (paymentLines.isNotEmpty) {
+      request.fields['payment_lines'] = jsonEncode(paymentLines);
     }
 
     final sanitizedReference = referenceNo?.trim();
@@ -622,6 +625,7 @@ class Bill {
     this.totalPaid,
     this.totalDue,
     this.payments = const [],
+    this.debitAccounts = const [],
   });
 
   factory Bill.fromJson(Map<String, dynamic> json) {
@@ -673,9 +677,20 @@ class Bill {
     final hasStructuredDebitAccount =
         debitAccountRaw is Iterable || debitAccountRaw is Map<String, dynamic>;
 
+    final debitAccounts = <BillAccountLine>[];
+    if (debitAccountRaw is Iterable) {
+      for (final entry in debitAccountRaw) {
+        if (entry is Map<String, dynamic>) {
+          debitAccounts.add(BillAccountLine.fromJson(entry));
+        }
+      }
+    }
+
     return Bill(
       id: _stringValue(json['id']) ?? '',
-      vendorId: _stringValue(json['vendor_id']) ?? '',
+      vendorId: _stringValue(json['vendor_id']) ??
+          _stringValue(json['vendor']) ??
+          '',
       vendorName: _stringValue(json['vendor_name']),
       billDate: _parseDate(_stringValue(json['date'])),
       dueDate: _parseDate(_stringValue(json['due_date'])) ??
@@ -705,6 +720,7 @@ class Bill {
       totalPaid: _parseDouble(json['total_paid'] ?? json['paid']),
       totalDue: _parseDouble(json['total_due'] ?? json['due']),
       payments: payments,
+      debitAccounts: debitAccounts,
     );
   }
 
@@ -724,6 +740,7 @@ class Bill {
   final double? totalPaid;
   final double? totalDue;
   final List<BillPayment> payments;
+  final List<BillAccountLine> debitAccounts;
 
   String get formattedDate {
     final date = billDate;
@@ -863,6 +880,44 @@ class Bill {
     }
     return _stringValue(value);
   }
+}
+
+class BillAccountLine {
+  const BillAccountLine({
+    required this.id,
+    this.billId,
+    this.type,
+    this.account,
+    this.amount,
+    this.itemId,
+    this.qty,
+    this.cost,
+    this.description,
+  });
+
+  factory BillAccountLine.fromJson(Map<String, dynamic> json) {
+    return BillAccountLine(
+      id: _stringValue(json['id']) ?? '',
+      billId: _stringValue(json['bill_id']) ?? _stringValue(json['billId']),
+      type: _stringValue(json['type']),
+      account: _stringValue(json['account']),
+      amount: Bill._parseDouble(json['amount']),
+      itemId: _stringValue(json['item_id']) ?? _stringValue(json['itemId']),
+      qty: _stringValue(json['qty']),
+      cost: _stringValue(json['cost']),
+      description: _stringValue(json['description']),
+    );
+  }
+
+  final String id;
+  final String? billId;
+  final String? type;
+  final String? account;
+  final double? amount;
+  final String? itemId;
+  final String? qty;
+  final String? cost;
+  final String? description;
 }
 
 class BillAttachment {
