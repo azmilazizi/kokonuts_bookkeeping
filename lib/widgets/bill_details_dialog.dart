@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:kokonuts_bookkeeping/app/app_state.dart';
 import 'package:kokonuts_bookkeeping/app/app_state_scope.dart';
+import 'package:kokonuts_bookkeeping/widgets/authenticated_image.dart';
 import 'attachment_pdf_preview.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
@@ -420,7 +421,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     }
   }
 
-  void _handlePreviewAttachment(BillAttachment attachment) {
+  Future<void> _handlePreviewAttachment(BillAttachment attachment) async {
     final normalizedDownloadUrl = attachment.downloadUrl != null
         ? _normalizeAttachmentDownloadUrl(attachment.downloadUrl!)
         : null;
@@ -429,7 +430,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
       normalizedDownloadUrl,
     );
 
-    if (normalizedDownloadUrl == null || previewType == null) {
+    if (previewType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('No preview available for this attachment.'),
@@ -438,11 +439,24 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
       return;
     }
 
+    Map<String, String>? headers;
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token != null && token.isNotEmpty) {
+      headers = _buildAuthHeaders(appState, token);
+    }
+
     _showAttachmentPreview(
       context: context,
       fileName: attachment.fileName,
-      downloadUrl: normalizedDownloadUrl,
+      downloadUrl: _buildBillAttachmentPreviewUrl(widget.bill.id, attachment),
       previewType: previewType,
+      apiHeaders: headers,
     );
   }
 
@@ -554,6 +568,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                             _isLoadingAccountNames,
                                     onAddAttachment: () =>
                                         _openAddAttachmentDialog(bill),
+                                    onPreviewAttachment:
+                                        _handlePreviewAttachment,
                                     accountsError: _accountsError,
                                   ),
                                   _PaymentsTab(
@@ -623,6 +639,7 @@ class _DetailsTab extends StatelessWidget {
     required this.debitAccountLabel,
     required this.isLoadingAccounts,
     required this.onAddAttachment,
+    required this.onPreviewAttachment,
     this.accountsError,
   });
 
@@ -632,6 +649,7 @@ class _DetailsTab extends StatelessWidget {
   final String debitAccountLabel;
   final bool isLoadingAccounts;
   final VoidCallback onAddAttachment;
+  final void Function(BillAttachment attachment) onPreviewAttachment;
   final String? accountsError;
 
   @override
@@ -663,6 +681,7 @@ class _DetailsTab extends StatelessWidget {
             _AttachmentSection(
               bill: bill,
               onAddAttachment: onAddAttachment,
+              onPreviewAttachment: onPreviewAttachment,
             ),
             const SizedBox(height: 16),
             _AccountRow(
@@ -1270,10 +1289,12 @@ class _AttachmentSection extends StatelessWidget {
   const _AttachmentSection({
     required this.bill,
     required this.onAddAttachment,
+    required this.onPreviewAttachment,
   });
 
   final Bill bill;
   final VoidCallback onAddAttachment;
+  final void Function(BillAttachment attachment) onPreviewAttachment;
 
   @override
   Widget build(BuildContext context) {
@@ -1325,6 +1346,7 @@ class _AttachmentSection extends StatelessWidget {
                   child: _BillAttachmentCard(
                     attachment: attachment,
                     billId: bill.id,
+                    onPreviewAttachment: onPreviewAttachment,
                   ),
                 ),
               )
@@ -1336,10 +1358,15 @@ class _AttachmentSection extends StatelessWidget {
 }
 
 class _BillAttachmentCard extends StatelessWidget {
-  const _BillAttachmentCard({required this.attachment, required this.billId});
+  const _BillAttachmentCard({
+    required this.attachment,
+    required this.billId,
+    required this.onPreviewAttachment,
+  });
 
   final BillAttachment attachment;
   final String billId;
+  final void Function(BillAttachment attachment) onPreviewAttachment;
 
   @override
   Widget build(BuildContext context) {
@@ -1349,14 +1376,6 @@ class _BillAttachmentCard extends StatelessWidget {
     final normalizedDownloadUrl = attachment.downloadUrl != null
         ? _normalizeAttachmentDownloadUrl(attachment.downloadUrl!)
         : null;
-
-    // Align preview URL with expense attachment preview structure
-    // Example: https://crm.kokonuts.my/accounting/api/v1/bill/{billId}/attachment/{attachmentId}
-    const baseUrl = 'https://crm.kokonuts.my/accounting/api/v1/bill';
-    final previewDownloadUrl = attachment.id != null &&
-            attachment.id!.trim().isNotEmpty
-        ? '$baseUrl/$billId/attachment/${attachment.id}'
-        : '$baseUrl/$billId/attachment';
 
     final previewType = _resolvePreviewType(
       attachment.fileName,
@@ -1443,7 +1462,7 @@ class _BillAttachmentCard extends StatelessWidget {
       ]);
     }
 
-    if (previewType != null && normalizedDownloadUrl != null) {
+    if (previewType != null) {
       children.addAll([
         const SizedBox(height: 16),
         Align(
@@ -1451,14 +1470,7 @@ class _BillAttachmentCard extends StatelessWidget {
           child: FilledButton.icon(
             icon: const Icon(Icons.visibility),
             label: const Text('Preview'),
-            onPressed: () {
-              _showAttachmentPreview(
-                context: context,
-                fileName: attachment.fileName,
-                downloadUrl: previewDownloadUrl,
-                previewType: previewType,
-              );
-            },
+            onPressed: () => onPreviewAttachment(attachment),
           ),
         ),
       ]);
@@ -1476,6 +1488,16 @@ class _BillAttachmentCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _buildBillAttachmentPreviewUrl(String billId, BillAttachment attachment) {
+  // Align preview URL with expense attachment preview structure
+  // Example: https://crm.kokonuts.my/accounting/api/v1/bill/{billId}/attachment/{attachmentId}
+  const baseUrl = 'https://crm.kokonuts.my/accounting/api/v1/bill';
+  if (attachment.id != null && attachment.id!.trim().isNotEmpty) {
+    return '$baseUrl/$billId/attachment/${attachment.id}';
+  }
+  return '$baseUrl/$billId/attachment';
 }
 
 class _AddAttachmentDialog extends StatefulWidget {
@@ -2775,6 +2797,7 @@ void _showAttachmentPreview({
   required String fileName,
   required String downloadUrl,
   required _AttachmentPreviewType previewType,
+  Map<String, String>? apiHeaders,
 }) {
   showDialog<void>(
     context: context,
@@ -2782,6 +2805,7 @@ void _showAttachmentPreview({
       fileName: fileName,
       downloadUrl: downloadUrl,
       previewType: previewType,
+      apiHeaders: apiHeaders,
     ),
   );
 }
@@ -2791,11 +2815,13 @@ class _AttachmentPreviewDialog extends StatelessWidget {
     required this.fileName,
     required this.downloadUrl,
     required this.previewType,
+    this.apiHeaders,
   });
 
   final String fileName;
   final String downloadUrl;
   final _AttachmentPreviewType previewType;
+  final Map<String, String>? apiHeaders;
 
   @override
   Widget build(BuildContext context) {
@@ -2805,10 +2831,16 @@ class _AttachmentPreviewDialog extends StatelessWidget {
 
     switch (previewType) {
       case _AttachmentPreviewType.image:
-        content = _ImagePreview(downloadUrl: downloadUrl);
+        content = _ImagePreview(
+          downloadUrl: downloadUrl,
+          apiHeaders: apiHeaders,
+        );
         break;
       case _AttachmentPreviewType.pdf:
-        content = _PdfPreview(downloadUrl: downloadUrl);
+        content = _PdfPreview(
+          downloadUrl: downloadUrl,
+          apiHeaders: apiHeaders,
+        );
         break;
     }
 
@@ -2850,21 +2882,20 @@ class _AttachmentPreviewDialog extends StatelessWidget {
 }
 
 class _ImagePreview extends StatelessWidget {
-  const _ImagePreview({required this.downloadUrl});
+  const _ImagePreview({required this.downloadUrl, this.apiHeaders});
 
   final String downloadUrl;
+  final Map<String, String>? apiHeaders;
 
   @override
   Widget build(BuildContext context) {
     return InteractiveViewer(
       child: Center(
-        child: Image.network(
-          downloadUrl,
+        child: AuthenticatedImage(
+          imageUrl: downloadUrl,
+          headers: apiHeaders,
           fit: BoxFit.contain,
           loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) {
-              return child;
-            }
             return const Center(child: CircularProgressIndicator());
           },
           errorBuilder: (context, error, stackTrace) {
@@ -2882,12 +2913,13 @@ class _ImagePreview extends StatelessWidget {
 }
 
 class _PdfPreview extends StatelessWidget {
-  const _PdfPreview({required this.downloadUrl});
+  const _PdfPreview({required this.downloadUrl, this.apiHeaders});
 
   final String downloadUrl;
+  final Map<String, String>? apiHeaders;
 
   @override
   Widget build(BuildContext context) {
-    return buildAttachmentPdfPreview(downloadUrl);
+    return buildAttachmentPdfPreview(downloadUrl, headers: apiHeaders);
   }
 }
