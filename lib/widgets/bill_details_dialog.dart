@@ -340,7 +340,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
       builder: (context) => _AddPaymentDialog(
         currencySymbol: bill.currencySymbol,
         billId: bill.id,
-        vendorId: bill.vendorId,
+        vendor: bill.vendorId,
+        debitAccounts: bill.debitAccounts,
       ),
     );
 
@@ -2189,12 +2190,14 @@ class _AddPaymentDialog extends StatefulWidget {
   const _AddPaymentDialog({
     required this.currencySymbol,
     required this.billId,
-    required this.vendorId,
+    required this.vendor,
+    required this.debitAccounts,
   });
 
   final String currencySymbol;
   final String billId;
-  final String vendorId;
+  final String vendor;
+  final List<BillAccountLine> debitAccounts;
 
   @override
   State<_AddPaymentDialog> createState() => _AddPaymentDialogState();
@@ -2393,13 +2396,48 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
 
     final headers = _buildAuthHeaders(appState, token);
 
+    final paymentLines = <Map<String, dynamic>>[];
+
+    for (final debitAccount in widget.debitAccounts) {
+      final accountId = debitAccount.account?.trim();
+
+      String? accountName;
+
+      if (accountId != null && accountId.isNotEmpty) {
+        try {
+          final account = await _accountsService.fetchAccountById(
+            id: accountId,
+            headers: headers,
+          );
+          accountName = account.name;
+        } catch (error) {
+          if (!mounted) {
+            return;
+          }
+
+          setState(() {
+            _submitError = 'Unable to load debit account name: $error';
+            _isSubmitting = false;
+          });
+          return;
+        }
+      }
+
+      paymentLines.add({
+        'item_id': debitAccount.id,
+        'item_name': accountName ?? '',
+        'item_amount': debitAccount.amount ?? parsedAmount,
+        'amount_paid': parsedAmount,
+      });
+    }
+
     try {
       final payment = await _billsService.createBillPayment(
         billId: widget.billId,
         headers: headers,
-        vendorId: widget.vendorId,
-        amountPaid: parsedAmount,
+        vendor: widget.vendor,
         paymentDate: _selectedDate,
+        paymentLines: paymentLines,
         paymentAccountId: _selectedPaymentAccount?.id,
         depositAccountId: _selectedDepositAccount?.id,
         attachment: _selectedFile,
