@@ -586,7 +586,14 @@ class BillsService {
         return decoded;
       }
 
-      const preferredKeys = ['data', 'payment', 'result', 'item'];
+      const preferredKeys = [
+        'data',
+        'payment',
+        'result',
+        'item',
+        'bill_payment',
+        'payment_data',
+      ];
       for (final key in preferredKeys) {
         final candidate = _extractPayment(decoded[key]);
         if (candidate != null) {
@@ -638,7 +645,12 @@ class BillsService {
     return map.containsKey('payment_id') ||
         map.containsKey('paymentId') ||
         map.containsKey('payment_no') ||
-        (map.containsKey('id') && map.containsKey('payment_amount'));
+        (map.containsKey('id') &&
+            (map.containsKey('payment_amount') ||
+                map.containsKey('paymentAmount') ||
+                map.containsKey('amount') ||
+                map.containsKey('amount_paid') ||
+                map.containsKey('amountPaid')));
   }
 
   PaginationInfo _resolvePagination(
