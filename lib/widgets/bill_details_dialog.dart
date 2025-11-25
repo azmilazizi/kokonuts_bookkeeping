@@ -368,6 +368,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
           }
         }
       });
+
+      _refreshBillDetails();
     }
   }
 
@@ -1463,6 +1465,8 @@ class _PaymentsTable extends StatelessWidget {
                   accountId: payment.paymentAccountId,
                   fallbackLabel: payment.paymentAccount,
                 );
+                final canPreviewAttachment =
+                    !payment.hasEmptyAttachment && attachment != null;
                 return TableRow(
                   children: [
                     Padding(
@@ -1508,9 +1512,9 @@ class _PaymentsTable extends StatelessWidget {
                             IconButton(
                               tooltip: 'View attachment',
                               icon: const Icon(Icons.visibility_outlined),
-                              onPressed: attachment == null
-                                  ? null
-                                  : () => onPreviewPaymentAttachment(payment),
+                              onPressed: canPreviewAttachment
+                                  ? () => onPreviewPaymentAttachment(payment)
+                                  : null,
                             ),
                             const SizedBox(width: 4),
                             IconButton(
