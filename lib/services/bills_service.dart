@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
@@ -236,67 +237,73 @@ class BillsService {
     PlatformFile? attachment,
     String? attachmentDescription,
   }) async {
-    final uri = Uri.parse('$_billBaseUrl/$billId/payment');
+    final uri = Uri.parse('$_billBaseUrl/$billId/payments');
 
-    final request = http.MultipartRequest('POST', uri)
-      ..headers.addAll({'Accept': 'application/json', ...headers})
-      ..fields.addAll({
-        'date': DateFormat('yyyy-MM-dd').format(paymentDate),
-      });
+    final payload = <String, dynamic>{
+      'date': DateFormat('yyyy-MM-dd').format(paymentDate),
+    };
 
     final sanitizedVendorId = vendor.trim();
     if (sanitizedVendorId.isNotEmpty) {
-      request.fields['vendor'] = sanitizedVendorId;
+      payload['vendor'] = sanitizedVendorId;
     }
 
     if (paymentLines.isNotEmpty) {
-      request.fields['payment_lines'] = jsonEncode(paymentLines);
+      payload['payment_lines'] = paymentLines;
     }
 
     final sanitizedReference = referenceNo?.trim();
     if (sanitizedReference != null && sanitizedReference.isNotEmpty) {
-      request.fields['reference_no'] = sanitizedReference;
+      payload['reference_no'] = sanitizedReference;
     }
 
     final sanitizedPaymentAccount = paymentAccountId?.trim();
     if (sanitizedPaymentAccount != null && sanitizedPaymentAccount.isNotEmpty) {
-      request.fields['account_credit'] = sanitizedPaymentAccount;
+      payload['account_credit'] = sanitizedPaymentAccount;
     }
 
     final sanitizedDepositAccount = depositAccountId?.trim();
     if (sanitizedDepositAccount != null && sanitizedDepositAccount.isNotEmpty) {
-      request.fields['account_debit'] = sanitizedDepositAccount;
+      payload['account_debit'] = sanitizedDepositAccount;
     }
 
     final sanitizedDescription = attachmentDescription?.trim();
     if (sanitizedDescription != null && sanitizedDescription.isNotEmpty) {
-      request.fields['description'] = sanitizedDescription;
+      payload['description'] = sanitizedDescription;
     }
 
     if (attachment != null) {
-      final file = await _buildMultipartFile(attachment);
-      if (file != null) {
-        request.files.add(file);
+      final encodedFile = await _encodeAttachment(attachment);
+      if (encodedFile != null) {
+        payload['file'] = encodedFile;
+        payload['file_name'] = attachment.name.trim();
       }
     }
 
-    http.StreamedResponse response;
+    http.Response response;
     try {
-      response = await _client.send(request);
+      response = await _client.post(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: jsonEncode(payload),
+      );
     } catch (error) {
       throw BillsException('Failed to reach server: $error');
     }
 
-    final resolved = await http.Response.fromStream(response);
-    if (resolved.statusCode != 200 && resolved.statusCode != 201) {
+    if (response.statusCode != 200 && response.statusCode != 201) {
       throw BillsException(
-        'Payment request failed with status ${resolved.statusCode}: ${resolved.body}',
+        'Payment request failed with status ${response.statusCode}: ${response.body}',
       );
     }
 
     dynamic decoded;
     try {
-      decoded = jsonDecode(resolved.body);
+      decoded = jsonDecode(response.body);
     } catch (error) {
       throw BillsException('Unable to parse payment response: $error');
     }
@@ -457,6 +464,35 @@ class BillsService {
         path,
         filename: sanitizedName,
       );
+    }
+
+    return null;
+  }
+
+  Future<String?> _encodeAttachment(PlatformFile file) async {
+    final bytes = await _extractFileBytes(file);
+
+    if (bytes == null || bytes.isEmpty) {
+      return null;
+    }
+
+    return base64Encode(bytes);
+  }
+
+  Future<List<int>?> _extractFileBytes(PlatformFile file) async {
+    final inlineBytes = file.bytes;
+    if (inlineBytes != null && inlineBytes.isNotEmpty) {
+      return inlineBytes;
+    }
+
+    final stream = file.readStream;
+    if (stream != null) {
+      final builder = BytesBuilder(copy: false);
+      await for (final chunk in stream) {
+        builder.add(chunk);
+      }
+      final data = builder.takeBytes();
+      return data.isEmpty ? null : data;
     }
 
     return null;
