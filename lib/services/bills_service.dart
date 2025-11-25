@@ -653,6 +653,7 @@ class Bill {
     this.debitAccountId,
     this.creditAccount,
     this.debitAccount,
+    this.datePaid,
     this.totalPaid,
     this.totalDue,
     this.payments = const [],
@@ -748,6 +749,7 @@ class Bill {
               ? null
               : _stringValue(json['debit_account']) ??
                   _stringValue(json['debitAccount'])),
+      datePaid: _parseDate(_stringValue(json['date_paid'])),
       totalPaid: _parseDouble(json['total_paid'] ?? json['paid']),
       totalDue: _parseDouble(json['total_due'] ?? json['due']),
       payments: payments,
@@ -768,6 +770,7 @@ class Bill {
   final String? debitAccountId;
   final String? creditAccount;
   final String? debitAccount;
+  final DateTime? datePaid;
   final double? totalPaid;
   final double? totalDue;
   final List<BillPayment> payments;
@@ -800,9 +803,9 @@ class Bill {
     return _formatCurrency(amount);
   }
 
-  double get _resolvedTotalPaid => totalPaid ?? 0.0;
+  double get resolvedTotalPaid => totalPaid ?? 0.0;
 
-  double? get _resolvedTotalDue {
+  double? get resolvedTotalDue {
     if (totalDue != null) {
       return totalDue;
     }
@@ -812,12 +815,14 @@ class Bill {
       return null;
     }
 
-    return amount - _resolvedTotalPaid;
+    return amount - resolvedTotalPaid;
   }
 
-  String get totalPaidLabel => _formatCurrency(_resolvedTotalPaid);
+  String get totalPaidLabel => _formatCurrency(resolvedTotalPaid);
 
-  String get totalDueLabel => _formatCurrency(_resolvedTotalDue);
+  String get totalDueLabel => _formatCurrency(resolvedTotalDue);
+
+  String formatCurrency(double? amount) => _formatCurrency(amount);
 
   String _formatCurrency(double? amount) {
     if (amount == null) {
