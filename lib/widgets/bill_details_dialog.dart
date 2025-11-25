@@ -1376,6 +1376,14 @@ class _BillAttachmentCard extends StatelessWidget {
         ? _normalizeAttachmentDownloadUrl(attachment.downloadUrl!)
         : null;
 
+    // Align preview URL with expense attachment preview structure
+    // Example: https://crm.kokonuts.my/accounting/api/v1/bill/{billId}/attachment/{attachmentId}
+    const baseUrl = 'https://crm.kokonuts.my/accounting/api/v1/bill';
+    final previewDownloadUrl = attachment.id != null &&
+            attachment.id!.trim().isNotEmpty
+        ? '$baseUrl/$billId/attachment/${attachment.id}'
+        : '$baseUrl/$billId/attachment';
+
     final previewType = _resolvePreviewType(
       attachment.fileName,
       normalizedDownloadUrl,
@@ -1473,7 +1481,7 @@ class _BillAttachmentCard extends StatelessWidget {
               _showAttachmentPreview(
                 context: context,
                 fileName: attachment.fileName,
-                downloadUrl: normalizedDownloadUrl,
+                downloadUrl: previewDownloadUrl,
                 previewType: previewType,
               );
             },
