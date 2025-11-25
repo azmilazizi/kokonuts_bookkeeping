@@ -470,10 +470,15 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final maxDialogHeight = MediaQuery.sizeOf(context).height - 48;
+
     return Dialog(
       insetPadding: const EdgeInsets.all(24),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720),
+        constraints: BoxConstraints(
+          maxWidth: 720,
+          maxHeight: maxDialogHeight,
+        ),
         child: DefaultTabController(
           length: 2,
           child: Padding(
@@ -490,7 +495,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                 final hasError = snapshot.hasError;
 
                 return Column(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize: MainAxisSize.max,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _DialogHeader(onClose: () => Navigator.of(context).pop()),
@@ -517,10 +522,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                         child: Center(child: CircularProgressIndicator()),
                       ),
                     if (!isLoading || snapshot.data != null)
-                      Flexible(
-                        fit: FlexFit.loose,
+                      Expanded(
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
                             if (isLoading)
                               const Padding(
@@ -533,8 +536,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                   ),
                                 ),
                               ),
-                            Flexible(
-                              fit: FlexFit.loose,
+                            Expanded(
                               child: TabBarView(
                                 children: [
                                   _DetailsTab(
