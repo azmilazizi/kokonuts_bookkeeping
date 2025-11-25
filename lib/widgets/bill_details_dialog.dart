@@ -522,11 +522,9 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     String? previewUrlOverride,
     Map<String, String>? headersOverride,
   }) async {
-    final normalizedDownloadUrl = previewUrlOverride != null
-        ? _normalizeAttachmentDownloadUrl(previewUrlOverride)
-        : attachment.downloadUrl != null
-            ? _normalizeAttachmentDownloadUrl(attachment.downloadUrl!)
-            : null;
+    final normalizedDownloadUrl = _normalizeAttachmentDownloadUrl(
+      previewUrlOverride ?? _buildBillAttachmentPreviewUrl(widget.bill.id),
+    );
     final previewType = _resolvePreviewType(
       attachment.fileName,
       normalizedDownloadUrl,
@@ -559,8 +557,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     _showAttachmentPreview(
       context: context,
       fileName: attachment.fileName,
-      downloadUrl: normalizedDownloadUrl ??
-          _buildBillAttachmentPreviewUrl(widget.bill.id, attachment),
+      downloadUrl: normalizedDownloadUrl,
       previewType: previewType,
       apiHeaders: headers,
     );
@@ -1611,9 +1608,8 @@ class _BillAttachmentCard extends StatelessWidget {
     final theme = Theme.of(context);
     final labelColor = theme.colorScheme.onSurfaceVariant;
 
-    final normalizedDownloadUrl = attachment.downloadUrl != null
-        ? _normalizeAttachmentDownloadUrl(attachment.downloadUrl!)
-        : null;
+    final normalizedDownloadUrl =
+        _normalizeAttachmentDownloadUrl(_buildBillAttachmentPreviewUrl(billId));
 
     final previewType = _resolvePreviewType(
       attachment.fileName,
@@ -1728,13 +1724,10 @@ class _BillAttachmentCard extends StatelessWidget {
   }
 }
 
-String _buildBillAttachmentPreviewUrl(String billId, BillAttachment attachment) {
-  // Align preview URL with expense attachment preview structure
-  // Example: https://crm.kokonuts.my/accounting/api/v1/bill/{billId}/attachment/{attachmentId}
+String _buildBillAttachmentPreviewUrl(String billId) {
+  // Align preview URL with bill attachment preview structure
+  // Example: https://crm.kokonuts.my/accounting/api/v1/bill/{billId}/attachment
   const baseUrl = 'https://crm.kokonuts.my/accounting/api/v1/bill';
-  if (attachment.id != null && attachment.id!.trim().isNotEmpty) {
-    return '$baseUrl/$billId/attachment/${attachment.id}';
-  }
   return '$baseUrl/$billId/attachment';
 }
 
