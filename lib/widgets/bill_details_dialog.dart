@@ -69,6 +69,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
       _accountsError = null;
       _paymentsError = null;
       _accountNamesById = {};
+      _paymentsLoaded = false;
       _payments = const [];
     });
 
@@ -123,11 +124,14 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
   }
 
   final _pendingPayments = <BillPayment>[];
+  bool _paymentsLoaded = false;
 
   List<BillPayment> _buildPaymentEntries(Bill bill) {
     final entries = <BillPayment>[];
 
-    if (_payments.isNotEmpty) {
+    if (_paymentsLoaded) {
+      entries.addAll(_payments);
+    } else if (_payments.isNotEmpty) {
       entries.addAll(_payments);
     } else if (bill.payments.isNotEmpty) {
       entries.addAll(bill.payments);
@@ -219,6 +223,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
         setState(() {
           _payments = payments;
           _isLoadingPayments = false;
+          _paymentsLoaded = true;
         });
       }
     } catch (error) {
@@ -560,6 +565,10 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     final mappedName = _accountNamesById[value];
     if (mappedName != null && mappedName.isNotEmpty) {
       return mappedName;
+    }
+
+    if (_isLoadingAccounts || _isLoadingAccountNames) {
+      return 'Loading accounts...';
     }
 
     for (final account in _accounts) {
