@@ -607,6 +607,26 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                 final isLoading =
                     snapshot.connectionState == ConnectionState.waiting;
                 final hasError = snapshot.hasError;
+                double? totalPaidOverride;
+                double? totalDueOverride;
+
+                if (bill.datePaid != null) {
+                  totalPaidOverride = payments.fold<double>(
+                    0,
+                    (total, payment) => total + (payment.amount ?? 0),
+                  );
+
+                  final amount = bill.totalAmount;
+                  if (amount != null) {
+                    totalDueOverride = amount - totalPaidOverride;
+                  }
+                }
+
+                final totalAmountLabel = bill.totalLabel;
+                final totalPaidLabel =
+                    bill.formatCurrency(totalPaidOverride ?? bill.resolvedTotalPaid);
+                final totalDueLabel =
+                    bill.formatCurrency(totalDueOverride ?? bill.resolvedTotalDue);
 
                 return Column(
                   mainAxisSize: MainAxisSize.max,
@@ -671,6 +691,9 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                     onPreviewAttachment:
                                         _handlePreviewAttachment,
                                     accountsError: _accountsError,
+                                    totalAmountLabel: totalAmountLabel,
+                                    totalPaidLabel: totalPaidLabel,
+                                    totalDueLabel: totalDueLabel,
                                   ),
                                   _PaymentsTab(
                                     bill: bill,
@@ -745,6 +768,9 @@ class _DetailsTab extends StatelessWidget {
     required this.isLoadingAccounts,
     required this.onAddAttachment,
     required this.onPreviewAttachment,
+    required this.totalAmountLabel,
+    required this.totalPaidLabel,
+    required this.totalDueLabel,
     this.accountsError,
   });
 
@@ -755,6 +781,9 @@ class _DetailsTab extends StatelessWidget {
   final bool isLoadingAccounts;
   final VoidCallback onAddAttachment;
   final void Function(BillAttachment attachment) onPreviewAttachment;
+  final String totalAmountLabel;
+  final String totalPaidLabel;
+  final String totalDueLabel;
   final String? accountsError;
 
   @override
@@ -805,9 +834,9 @@ class _DetailsTab extends StatelessWidget {
             ],
             const SizedBox(height: 20),
             _BillTotalsSection(
-              totalAmount: bill.totalLabel,
-              totalPaid: bill.totalPaidLabel,
-              totalDue: bill.totalDueLabel,
+              totalAmount: totalAmountLabel,
+              totalPaid: totalPaidLabel,
+              totalDue: totalDueLabel,
               theme: theme,
             ),
           ],
