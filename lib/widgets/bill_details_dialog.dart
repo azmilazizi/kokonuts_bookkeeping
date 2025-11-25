@@ -16,10 +16,12 @@ class BillDetailsDialog extends StatefulWidget {
     super.key,
     required this.bill,
     required this.vendorName,
+    this.onBillUpdated,
   });
 
   final Bill bill;
   final String vendorName;
+  final void Function(Bill bill)? onBillUpdated;
 
   @override
   State<BillDetailsDialog> createState() => _BillDetailsDialogState();
@@ -48,7 +50,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     }
   }
 
-  Future<Bill> _loadDetails() async {
+  Future<Bill> _loadDetails({bool notifyParent = false}) async {
     final appState = AppStateScope.of(context);
     final token = await appState.getValidAuthToken();
 
@@ -88,6 +90,10 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
         _loadAccountNames(bill, headers),
         _loadPayments(bill.id, headers),
       ]);
+
+      if (notifyParent && widget.onBillUpdated != null) {
+        widget.onBillUpdated!(bill);
+      }
 
       return bill;
     } catch (error) {
@@ -480,6 +486,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
         _isLoadingPayments = false;
       });
 
+      _refreshBillDetails();
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Payment deleted.')),
       );
@@ -501,6 +509,12 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
         ),
       );
     }
+  }
+
+  void _refreshBillDetails() {
+    setState(() {
+      _future = _loadDetails(notifyParent: true);
+    });
   }
 
   Future<void> _openAddAttachmentDialog(Bill bill) async {
