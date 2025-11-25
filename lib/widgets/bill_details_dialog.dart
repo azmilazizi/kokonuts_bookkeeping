@@ -907,14 +907,14 @@ class _AccountRow extends StatelessWidget {
             ),
             TableRow(
               children: [
-                buildCell('Credit Account'),
-                buildCell(creditAccount),
+                buildCell('Debit Account'),
+                buildCell(debitAccount),
               ],
             ),
             TableRow(
               children: [
-                buildCell('Debit Account'),
-                buildCell(debitAccount),
+                buildCell('Credit Account'),
+                buildCell(creditAccount),
               ],
             ),
           ],
