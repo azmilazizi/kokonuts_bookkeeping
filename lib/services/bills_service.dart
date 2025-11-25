@@ -309,6 +309,37 @@ class BillsService {
     return BillPayment.fromJson(paymentJson);
   }
 
+  Future<void> deleteBillPayment({
+    required String billId,
+    required String paymentId,
+    required Map<String, String> headers,
+  }) async {
+    final normalizedPaymentId = paymentId.trim();
+
+    final request = http.Request(
+      'DELETE',
+      Uri.parse('$_billBaseUrl/$billId/payment/$normalizedPaymentId'),
+    )
+      ..headers.addAll({
+        'Accept': 'application/json',
+        ...headers,
+      });
+
+    http.StreamedResponse response;
+    try {
+      response = await _client.send(request);
+    } catch (error) {
+      throw BillsException('Failed to reach server: $error');
+    }
+
+    final resolved = await http.Response.fromStream(response);
+    if (resolved.statusCode != 200 && resolved.statusCode != 204) {
+      throw BillsException(
+        'Payment delete failed with status ${resolved.statusCode}: ${resolved.body}',
+      );
+    }
+  }
+
   Future<void> deleteBill({
     required String id,
     required Map<String, String> headers,
