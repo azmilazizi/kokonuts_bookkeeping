@@ -207,22 +207,44 @@ class BillsService {
       throw BillsException('Unable to parse response: $error');
     }
 
-    final paymentsJson = _extractItems(decoded)
-        .whereType<Map<String, dynamic>>()
-        .map(BillPayment.fromJson)
-        .toList();
+    final paymentAttachmentsById = _buildPaymentAttachmentLookup(decoded);
 
-    if (paymentsJson.isEmpty && decoded is Map<String, dynamic>) {
+    List<BillPayment> mapPayments(List<Map<String, dynamic>> items) {
+      return items.map((paymentJson) {
+        var payment = BillPayment.fromJson(paymentJson);
+
+        if (payment.attachment == null) {
+          final paymentId = payment.id;
+          final attachment = _resolvePaymentAttachment(paymentJson) ??
+              (paymentAttachmentsById[paymentId] != null
+                  ? _enrichAttachmentWithPaymentContext(
+                      paymentAttachmentsById[paymentId]!,
+                      paymentJson,
+                    )
+                  : null);
+
+          if (attachment != null) {
+            payment = payment.copyWith(attachment: attachment);
+          }
+        }
+
+        return payment;
+      }).toList();
+    }
+
+    final paymentsJson = _extractItems(decoded).whereType<Map<String, dynamic>>();
+    final payments = mapPayments(paymentsJson.toList());
+
+    if (payments.isEmpty && decoded is Map<String, dynamic>) {
       final data = decoded['data'];
       if (data is Map<String, dynamic>) {
-        return _extractItems(data)
-            .whereType<Map<String, dynamic>>()
-            .map(BillPayment.fromJson)
-            .toList();
+        return mapPayments(
+          _extractItems(data).whereType<Map<String, dynamic>>().toList(),
+        );
       }
     }
 
-    return paymentsJson;
+    return payments;
   }
 
   Future<BillAttachment> fetchPaymentAttachment({
@@ -1060,6 +1082,29 @@ class BillAccountLine {
   final String? description;
 }
 
+Map<String, BillAttachment> _buildPaymentAttachmentLookup(dynamic source) {
+  final lookup = <String, BillAttachment>{};
+
+  final attachments = _extractRelatedCollection(source, const [
+    'attachments',
+    'files',
+    'documents',
+    'payment_attachments',
+    'paymentAttachments',
+  ]).whereType<Map<String, dynamic>>();
+
+  for (final attachmentJson in attachments) {
+    final attachment = BillAttachment.fromJson(attachmentJson);
+    final paymentId = attachment.paymentId?.trim();
+
+    if (paymentId != null && paymentId.isNotEmpty) {
+      lookup.putIfAbsent(paymentId, () => attachment);
+    }
+  }
+
+  return lookup;
+}
+
 class BillAttachment {
   const BillAttachment({
     required this.fileName,
@@ -1158,6 +1203,38 @@ class BillAttachment {
   final double? amount;
 }
 
+BillAttachment _enrichAttachmentWithPaymentContext(
+  BillAttachment attachment,
+  Map<String, dynamic>? paymentJson,
+) {
+  if (paymentJson == null) {
+    return attachment;
+  }
+
+  final paymentDate = Bill._parseDate(
+    _stringValue(paymentJson['payment_date']) ??
+        _stringValue(paymentJson['date']) ??
+        _stringValue(paymentJson['uploaded_at']),
+  );
+
+  return BillAttachment(
+    fileName: attachment.fileName,
+    description: attachment.description ?? _stringValue(paymentJson['description']),
+    downloadUrl: attachment.downloadUrl,
+    uploadedBy: attachment.uploadedBy,
+    uploadedAt: attachment.uploadedAt ??
+        Bill._parseDate(_stringValue(paymentJson['uploaded_at'])),
+    sizeLabel: attachment.sizeLabel,
+    id: attachment.id,
+    paymentId: attachment.paymentId ?? _paymentIdFromJson(paymentJson),
+    paymentDate: attachment.paymentDate ?? paymentDate,
+    amount: attachment.amount ??
+        Bill._parseDouble(
+          paymentJson['payment_amount'] ?? paymentJson['amount'],
+        ),
+  );
+}
+
 class BillPayment {
   const BillPayment({
     required this.id,
@@ -1171,7 +1248,7 @@ class BillPayment {
   });
 
   factory BillPayment.fromJson(Map<String, dynamic> json) {
-    final attachment = _findMap(json, const ['attachment', 'file', 'document']);
+    final attachment = _resolvePaymentAttachment(json);
 
     return BillPayment(
       id: _stringValue(json['id']) ??
@@ -1197,8 +1274,7 @@ class BillPayment {
           _stringValue(json['accountName']) ??
           _stringValue(json['account']),
       amount: Bill._parseDouble(json['payment_amount'] ?? json['amount']),
-      attachment:
-          attachment == null ? null : BillAttachment.fromJson(attachment),
+      attachment: attachment,
     );
   }
 
@@ -1266,6 +1342,74 @@ String _fileNameFromPath(String value) {
   }
 
   return 'Attachment';
+}
+
+String? _paymentIdFromJson(Map<String, dynamic> json) {
+  return _stringValue(json['payment_id']) ??
+      _stringValue(json['paymentId']) ??
+      _stringValue(json['payment_no']) ??
+      _stringValue(json['id']);
+}
+
+BillAttachment? _resolvePaymentAttachment(Map<String, dynamic> json) {
+  final directAttachment = _findMap(
+    json,
+    const ['attachment', 'file', 'document'],
+  );
+
+  if (directAttachment != null) {
+    return _enrichAttachmentWithPaymentContext(
+      BillAttachment.fromJson(directAttachment),
+      json,
+    );
+  }
+
+  final attachments = _extractRelatedCollection(json, const [
+    'attachments',
+    'files',
+    'documents',
+    'payment_attachments',
+    'paymentAttachments',
+  ]).whereType<Map<String, dynamic>>();
+
+  if (attachments.isNotEmpty) {
+    return _enrichAttachmentWithPaymentContext(
+      BillAttachment.fromJson(attachments.first),
+      json,
+    );
+  }
+
+  final attachmentName = _stringValue(json['attachment']) ??
+      _stringValue(json['attachment_file']) ??
+      _stringValue(json['file_name']) ??
+      _stringValue(json['file']);
+  final downloadUrl = _stringValue(json['attachment_url']) ??
+      _stringValue(json['download_url']) ??
+      _stringValue(json['file_url']) ??
+      _stringValue(json['url']);
+  final description =
+      _stringValue(json['attachment_description']) ?? _stringValue(json['description']);
+
+  if ((attachmentName != null && attachmentName.trim().isNotEmpty) ||
+      (downloadUrl != null && downloadUrl.trim().isNotEmpty)) {
+    final fileName =
+        attachmentName != null && attachmentName.trim().isNotEmpty
+            ? attachmentName.trim()
+            : downloadUrl != null
+                ? _fileNameFromPath(downloadUrl)
+                : 'Attachment';
+
+    return _enrichAttachmentWithPaymentContext(
+      BillAttachment.fromJson({
+        'file_name': fileName,
+        'download_url': downloadUrl ?? attachmentName,
+        if (description != null) 'description': description,
+      }),
+      json,
+    );
+  }
+
+  return null;
 }
 
 Map<String, dynamic>? _findMap(dynamic source, List<String> keys) {

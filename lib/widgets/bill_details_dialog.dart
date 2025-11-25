@@ -583,6 +583,21 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
 
     final headers = _buildAuthHeaders(appState, token);
 
+    final existingAttachment = payment.attachment;
+    if (existingAttachment != null) {
+      final previewUrl = existingAttachment.downloadUrl != null &&
+              existingAttachment.downloadUrl!.trim().isNotEmpty
+          ? existingAttachment.downloadUrl!
+          : _buildPaymentAttachmentPreviewUrl(widget.bill.id, payment.id);
+
+      await _handlePreviewAttachment(
+        existingAttachment,
+        previewUrlOverride: previewUrl,
+        headersOverride: headers,
+      );
+      return;
+    }
+
     try {
       final attachment = await _billsService.fetchPaymentAttachment(
         billId: widget.bill.id,
