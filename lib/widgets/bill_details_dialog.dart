@@ -409,6 +409,95 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     });
   }
 
+  Future<void> _confirmAndDeletePayment(
+    BillPayment payment,
+    Bill bill,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete payment?'),
+        content: const Text(
+          'Are you sure you want to delete this payment? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You are not logged in.')),
+      );
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    setState(() {
+      _isLoadingPayments = true;
+      _paymentsError = null;
+    });
+
+    try {
+      await _billsService.deleteBillPayment(
+        billId: bill.id,
+        paymentId: payment.id,
+        headers: headers,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _payments = _payments.where((entry) => entry.id != payment.id).toList();
+        _pendingPayments.removeWhere((entry) => entry.id == payment.id);
+        _isLoadingPayments = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Payment deleted.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoadingPayments = false;
+        _paymentsError = error.toString();
+      });
+
+      final theme = Theme.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete payment: $error'),
+          backgroundColor: theme.colorScheme.error,
+        ),
+      );
+    }
+  }
+
   Future<void> _openAddAttachmentDialog(Bill bill) async {
     final uploaded = await showDialog<bool>(
       context: context,
@@ -584,6 +673,11 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                         _openAddPaymentDialog(bill),
                                     onEditPayment: (payment) =>
                                         _openEditPaymentDialog(payment, bill),
+                                    onDeletePayment: (payment) =>
+                                        _confirmAndDeletePayment(
+                                      payment,
+                                      bill,
+                                    ),
                                     onPreviewAttachment:
                                         _handlePreviewAttachment,
                                     resolveAccountName: _resolveAccountName,
@@ -1002,6 +1096,7 @@ class _PaymentsTab extends StatelessWidget {
     this.error,
     required this.onAddPayment,
     required this.onEditPayment,
+    required this.onDeletePayment,
     required this.onPreviewAttachment,
     required this.resolveAccountName,
   });
@@ -1013,6 +1108,7 @@ class _PaymentsTab extends StatelessWidget {
   final String? error;
   final VoidCallback onAddPayment;
   final void Function(BillPayment payment) onEditPayment;
+  final void Function(BillPayment payment) onDeletePayment;
   final void Function(BillAttachment attachment) onPreviewAttachment;
   final String Function(String? value) resolveAccountName;
 
@@ -1095,6 +1191,7 @@ class _PaymentsTab extends StatelessWidget {
                     attachments: attachments,
                     resolveAccountName: resolveAccountName,
                     onEditPayment: onEditPayment,
+                    onDeletePayment: onDeletePayment,
                     onPreviewAttachment: onPreviewAttachment,
                   ),
                 ],
@@ -1123,6 +1220,7 @@ class _PaymentsTable extends StatelessWidget {
     required this.attachments,
     required this.resolveAccountName,
     required this.onEditPayment,
+    required this.onDeletePayment,
     required this.onPreviewAttachment,
   });
 
@@ -1131,6 +1229,7 @@ class _PaymentsTable extends StatelessWidget {
   final List<BillAttachment> attachments;
   final String Function(String? value) resolveAccountName;
   final void Function(BillPayment payment) onEditPayment;
+  final void Function(BillPayment payment) onDeletePayment;
   final void Function(BillAttachment attachment) onPreviewAttachment;
 
   BillAttachment? _findAttachment(BillPayment payment) {
@@ -1263,14 +1362,7 @@ class _PaymentsTable extends StatelessWidget {
                               tooltip: 'Delete payment',
                               icon: const Icon(Icons.delete_outline),
                               color: theme.colorScheme.error,
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content:
-                                        Text('Delete payment coming soon.'),
-                                  ),
-                                );
-                              },
+                              onPressed: () => onDeletePayment(payment),
                             ),
                           ],
                         ),
