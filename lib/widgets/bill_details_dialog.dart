@@ -581,19 +581,30 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
       return;
     }
 
+    final paymentId = payment.payBillId?.trim().isNotEmpty == true
+        ? payment.payBillId!.trim()
+        : payment.id.trim();
+
+    if (paymentId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Payment is missing an attachment id.')),
+      );
+      return;
+    }
+
     final headers = _buildAuthHeaders(appState, token);
 
     try {
       final attachment = await _billsService.fetchPaymentAttachment(
         billId: widget.bill.id,
-        paymentId: payment.id,
+        paymentId: paymentId,
         headers: headers,
       );
 
       final previewUrl = attachment.downloadUrl != null &&
               attachment.downloadUrl!.trim().isNotEmpty
           ? attachment.downloadUrl!
-          : _buildPaymentAttachmentPreviewUrl(widget.bill.id, payment.id);
+          : _buildPaymentAttachmentPreviewUrl(widget.bill.id, paymentId);
 
       await _handlePreviewAttachment(
         attachment,
@@ -1346,7 +1357,13 @@ class _PaymentsTable extends StatelessWidget {
       return payment.attachment;
     }
     for (final attachment in attachments) {
+      final payBillId = payment.payBillId?.trim();
       if (attachment.paymentId == payment.id || attachment.id == payment.id) {
+        return attachment;
+      }
+      if (payBillId != null &&
+          payBillId.isNotEmpty &&
+          (attachment.paymentId == payBillId || attachment.id == payBillId)) {
         return attachment;
       }
     }

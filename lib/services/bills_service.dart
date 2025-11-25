@@ -230,8 +230,7 @@ class BillsService {
     required String paymentId,
     required Map<String, String> headers,
   }) async {
-    final uri =
-        Uri.parse('$_billBaseUrl/$billId/payment/${paymentId.trim()}/attachment');
+    final uri = Uri.parse('$_billBaseUrl/$billId/payment/${paymentId.trim()}');
 
     http.Response response;
     try {
@@ -1161,6 +1160,7 @@ class BillAttachment {
 class BillPayment {
   const BillPayment({
     required this.id,
+    this.payBillId,
     this.date,
     this.paymentAccount,
     this.paymentAccountId,
@@ -1179,6 +1179,8 @@ class BillPayment {
           _stringValue(json['payment_no']) ??
           _stringValue(json['paymentId']) ??
           '',
+      payBillId:
+          _stringValue(json['pay_bill_id']) ?? _stringValue(json['payBillId']),
       date: Bill._parseDate(
         _stringValue(json['payment_date']) ??
             _stringValue(json['date']) ??
@@ -1203,6 +1205,7 @@ class BillPayment {
   }
 
   final String id;
+  final String? payBillId;
   final DateTime? date;
   final String? paymentAccount;
   final String? paymentAccountId;
@@ -1213,6 +1216,7 @@ class BillPayment {
 
   BillPayment copyWith({
     String? id,
+    String? payBillId,
     DateTime? date,
     String? paymentAccount,
     String? paymentAccountId,
@@ -1223,6 +1227,7 @@ class BillPayment {
   }) {
     return BillPayment(
       id: id ?? this.id,
+      payBillId: payBillId ?? this.payBillId,
       date: date ?? this.date,
       paymentAccount: paymentAccount ?? this.paymentAccount,
       paymentAccountId: paymentAccountId ?? this.paymentAccountId,
