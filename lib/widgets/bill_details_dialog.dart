@@ -614,10 +614,14 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
         headers: headers,
       );
 
-      final previewUrl = attachment.downloadUrl != null &&
-              attachment.downloadUrl!.trim().isNotEmpty
-          ? attachment.downloadUrl!
-          : _buildPaymentAttachmentPreviewUrl(widget.bill.id, paymentId);
+      final payBillId = payment.payBillId?.trim().isNotEmpty == true
+          ? payment.payBillId!.trim()
+          : paymentId;
+
+      final previewUrl = _buildPaymentAttachmentPreviewUrl(
+        payBillId: payBillId,
+        attachmentName: attachment.fileName,
+      );
 
       await _handlePreviewAttachment(
         attachment,
@@ -1750,8 +1754,14 @@ String _buildBillAttachmentPreviewUrl(String billId) {
   return '$baseUrl/$billId/attachment';
 }
 
-String _buildPaymentAttachmentPreviewUrl(String billId, String paymentId) {
-  return 'https://crm.kokonuts.my/accounting/api/v1/bill/$billId/payment/$paymentId/attachment';
+String _buildPaymentAttachmentPreviewUrl({
+  required String payBillId,
+  required String attachmentName,
+}) {
+  final trimmedBillId = payBillId.trim();
+  final trimmedAttachment = attachmentName.trim();
+
+  return 'https://crm.kokonuts.my/modules/accounting/uploads/pay_bill/$trimmedBillId/$trimmedAttachment';
 }
 
 class _AddAttachmentDialog extends StatefulWidget {
