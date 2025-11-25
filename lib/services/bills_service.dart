@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
@@ -230,7 +229,9 @@ class BillsService {
     required String paymentId,
     required Map<String, String> headers,
   }) async {
-    final uri = Uri.parse('$_billBaseUrl/$billId/payment/${paymentId.trim()}');
+    final uri = Uri.parse(
+      '$_billBaseUrl/$billId/payment/${paymentId.trim()}/attachment',
+    );
 
     http.Response response;
     try {
@@ -280,6 +281,76 @@ class BillsService {
     return BillAttachment.fromJson(attachmentJson);
   }
 
+  Future<BillAttachment?> _uploadPaymentAttachment({
+    required String billId,
+    required String paymentId,
+    required Map<String, String> headers,
+    required PlatformFile attachment,
+    String? description,
+  }) async {
+    final file = await _buildMultipartFile(attachment);
+    if (file == null) {
+      return null;
+    }
+
+    final uri = Uri.parse('$_billBaseUrl/$billId/payment/$paymentId/attachment');
+
+    final request = http.MultipartRequest('POST', uri)
+      ..headers.addAll({'Accept': 'application/json', ...headers})
+      ..files.add(file);
+
+    final sanitizedDescription = description?.trim();
+    if (sanitizedDescription != null && sanitizedDescription.isNotEmpty) {
+      request.fields['description'] = sanitizedDescription;
+    }
+
+    http.StreamedResponse response;
+    try {
+      response = await _client.send(request);
+    } catch (error) {
+      throw BillsException('Failed to upload payment attachment: $error');
+    }
+
+    final resolved = await http.Response.fromStream(response);
+    if (resolved.statusCode != 200 &&
+        resolved.statusCode != 201 &&
+        resolved.statusCode != 204) {
+      throw BillsException(
+        'Payment attachment upload failed with status ${resolved.statusCode}: ${resolved.body}',
+      );
+    }
+
+    if (resolved.body.isEmpty) {
+      return null;
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(resolved.body);
+    } catch (_) {
+      return null;
+    }
+
+    Map<String, dynamic>? attachmentJson;
+    if (decoded is Map<String, dynamic>) {
+      attachmentJson = _findMap(decoded, const ['data', 'attachment', 'file']);
+      attachmentJson ??=
+          decoded['data'] is Map<String, dynamic> ? decoded['data'] : decoded;
+    }
+
+    if (attachmentJson == null) {
+      final extracted =
+          _extractItems(decoded).whereType<Map<String, dynamic>>().toList();
+      if (extracted.isNotEmpty) {
+        attachmentJson = extracted.first;
+      }
+    }
+
+    return attachmentJson == null
+        ? null
+        : BillAttachment.fromJson(attachmentJson);
+  }
+
   Future<BillPayment> createBillPayment({
     required String billId,
     required Map<String, String> headers,
@@ -292,7 +363,7 @@ class BillsService {
     PlatformFile? attachment,
     String? attachmentDescription,
   }) async {
-    final uri = Uri.parse('$_billBaseUrl/$billId/payments');
+    final uri = Uri.parse('$_billBaseUrl/$billId/payment');
 
     final payload = <String, dynamic>{
       'date': DateFormat('yyyy-MM-dd').format(paymentDate),
@@ -320,19 +391,6 @@ class BillsService {
     final sanitizedDepositAccount = depositAccountId?.trim();
     if (sanitizedDepositAccount != null && sanitizedDepositAccount.isNotEmpty) {
       payload['account_debit'] = sanitizedDepositAccount;
-    }
-
-    final sanitizedDescription = attachmentDescription?.trim();
-    if (sanitizedDescription != null && sanitizedDescription.isNotEmpty) {
-      payload['description'] = sanitizedDescription;
-    }
-
-    if (attachment != null) {
-      final encodedFile = await _encodeAttachment(attachment);
-      if (encodedFile != null) {
-        payload['file'] = encodedFile;
-        payload['file_name'] = attachment.name.trim();
-      }
     }
 
     http.Response response;
@@ -368,7 +426,33 @@ class BillsService {
       throw BillsException('Payment response did not include a payment payload.');
     }
 
-    return BillPayment.fromJson(paymentJson);
+    var payment = BillPayment.fromJson(paymentJson);
+
+    if (attachment != null) {
+      final paymentId = payment.payBillId?.trim().isNotEmpty == true
+          ? payment.payBillId!.trim()
+          : payment.id.trim();
+
+      if (paymentId.isEmpty) {
+        throw BillsException(
+          'Payment response did not include a payment identifier for attachment upload.',
+        );
+      }
+
+      final uploadedAttachment = await _uploadPaymentAttachment(
+        billId: billId,
+        paymentId: paymentId,
+        headers: headers,
+        attachment: attachment,
+        description: attachmentDescription,
+      );
+
+      if (uploadedAttachment != null) {
+        payment = payment.copyWith(attachment: uploadedAttachment);
+      }
+    }
+
+    return payment;
   }
 
   Future<void> deleteBillPayment({
@@ -519,35 +603,6 @@ class BillsService {
         path,
         filename: sanitizedName,
       );
-    }
-
-    return null;
-  }
-
-  Future<String?> _encodeAttachment(PlatformFile file) async {
-    final bytes = await _extractFileBytes(file);
-
-    if (bytes == null || bytes.isEmpty) {
-      return null;
-    }
-
-    return base64Encode(bytes);
-  }
-
-  Future<List<int>?> _extractFileBytes(PlatformFile file) async {
-    final inlineBytes = file.bytes;
-    if (inlineBytes != null && inlineBytes.isNotEmpty) {
-      return inlineBytes;
-    }
-
-    final stream = file.readStream;
-    if (stream != null) {
-      final builder = BytesBuilder(copy: false);
-      await for (final chunk in stream) {
-        builder.add(chunk);
-      }
-      final data = builder.takeBytes();
-      return data.isEmpty ? null : data;
     }
 
     return null;
