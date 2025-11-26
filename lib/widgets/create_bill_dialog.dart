@@ -9,6 +9,7 @@ import '../services/bills_service.dart';
 import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
+import 'searchable_dropdown_form_field.dart';
 
 class CreateBillDialog extends StatefulWidget {
   const CreateBillDialog({super.key});
@@ -43,6 +44,24 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
   String? _accountsError;
   bool _isSubmitting = false;
   String? _submitError;
+
+  String _vendorLabel(String id) {
+    return _vendors
+            .firstWhere(
+              (vendor) => vendor.id == id,
+              orElse: () => VendorSummary(id: id, name: 'Unknown vendor'),
+            )
+            .name;
+  }
+
+  String _accountLabel(String id) {
+    return _accounts
+            .firstWhere(
+              (account) => account.id == id,
+              orElse: () => Account(id: id, name: 'Unknown account'),
+            )
+            .name;
+  }
 
   static const _accountsPerPage = 50;
 
@@ -281,16 +300,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
   }
 
   Widget _buildVendorDropdown(ThemeData theme) {
-    final items = _vendors
-        .map(
-          (vendor) => DropdownMenuItem<String>(
-            value: vendor.id,
-            child: Text(vendor.name),
-          ),
-        )
-        .toList();
-
-    return DropdownButtonFormField<String>(
+    return SearchableDropdownFormField<String>(
       decoration: InputDecoration(
         labelText: 'Vendor',
         suffixIcon: _isLoadingVendors
@@ -307,12 +317,13 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
               )
             : null,
       ),
-      isExpanded: true,
-      value: _selectedVendorId,
-      items: items,
-      onChanged: _isLoadingVendors || _vendors.isEmpty
-          ? null
-          : (value) => setState(() => _selectedVendorId = value),
+      initialValue: _selectedVendorId,
+      items: _vendors.map((vendor) => vendor.id).toList(),
+      itemToString: _vendorLabel,
+      hintText: _isLoadingVendors ? 'Loading vendors...' : 'Select a vendor',
+      enabled: !_isLoadingVendors,
+      dialogTitle: 'Select vendor',
+      onChanged: (value) => setState(() => _selectedVendorId = value),
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'Please select a vendor';
@@ -393,19 +404,10 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
     required ValueChanged<String?> onChanged,
     required TextEditingController amountController,
   }) {
-    final items = _accounts
-        .map(
-          (account) => DropdownMenuItem<String>(
-            value: account.id,
-            child: Text(account.name),
-          ),
-        )
-        .toList();
-
     return Row(
       children: [
         Expanded(
-          child: DropdownButtonFormField<String>(
+          child: SearchableDropdownFormField<String>(
             decoration: InputDecoration(
               labelText: label,
               suffixIcon: _isLoadingAccounts
@@ -419,11 +421,14 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
                     )
                   : null,
             ),
-            value: selected,
-            isExpanded: true,
-            items: items,
-            onChanged:
-                _isLoadingAccounts || _accounts.isEmpty ? null : onChanged,
+            initialValue: selected,
+            items: _accounts.map((account) => account.id).toList(),
+            itemToString: _accountLabel,
+            hintText:
+                _isLoadingAccounts ? 'Loading accounts...' : 'Select an account',
+            enabled: !_isLoadingAccounts,
+            dialogTitle: 'Select $label',
+            onChanged: _isLoadingAccounts || _accounts.isEmpty ? null : onChanged,
           ),
         ),
         const SizedBox(width: 16),

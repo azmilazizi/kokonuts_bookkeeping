@@ -14,6 +14,7 @@ import '../services/purchase_order_detail_service.dart';
 import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
+import 'searchable_dropdown_form_field.dart';
 
 enum DiscountType { percentage, amount }
 
@@ -77,6 +78,17 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   final Set<String> _attachmentsMarkedForDeletion = {};
   final Set<String> _removedLineItemIds = {};
   final Set<String> _removedPaymentIds = {};
+
+  String _vendorLabel(String name) => name;
+
+  String _paymentModeLabel(String id) {
+    return _paymentModes
+            .firstWhere(
+              (mode) => mode.id == id,
+              orElse: () => PaymentMode(id: id, name: 'Unknown mode'),
+            )
+            .name;
+  }
 
   @override
   void initState() {
@@ -1055,20 +1067,15 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       );
     }
 
-    return DropdownButtonFormField<String>(
-      value: _selectedVendorName,
+    return SearchableDropdownFormField<String>(
+      initialValue: _selectedVendorName,
+      items: _vendors.map((vendor) => vendor.name).toList(growable: false),
+      itemToString: _vendorLabel,
       decoration: const InputDecoration(
         labelText: 'Vendor name',
         hintText: 'Select a vendor',
       ),
-      items: _vendors
-          .map(
-            (vendor) => DropdownMenuItem<String>(
-              value: vendor.name,
-              child: Text(vendor.name),
-            ),
-          )
-          .toList(growable: false),
+      dialogTitle: 'Select vendor',
       onChanged: (value) {
         setState(() {
           _selectedVendorName = value;
@@ -1430,36 +1437,24 @@ class _PaymentEntriesTable extends StatelessWidget {
                         ),
                         inputFormatters: const [CurrencyInputFormatter()],
                       ),
-                      DropdownButtonFormField<String>(
-                        value: entries[i].paymentModeId,
+                      SearchableDropdownFormField<String>(
+                        initialValue: entries[i].paymentModeId,
+                        items: paymentModes.map((mode) => mode.id).toList(),
+                        itemToString: (id) => paymentModes
+                            .firstWhere(
+                              (mode) => mode.id == id,
+                              orElse: () => PaymentMode(id: id, name: 'Unknown mode'),
+                            )
+                            .name,
                         decoration: const InputDecoration(
                           labelText: 'Payment mode',
                           border: OutlineInputBorder(),
                         ),
-                        isExpanded: true,
-                        hint: isLoadingPaymentModes
-                            ? Row(
-                                children: const [
-                                  SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text('Loading payment modes...'),
-                                ],
-                              )
-                            : const Text('Select payment mode'),
-                        items: paymentModes
-                            .map(
-                              (mode) => DropdownMenuItem<String>(
-                                value: mode.id,
-                                child: Text(mode.name),
-                              ),
-                            )
-                            .toList(),
+                        hintText: isLoadingPaymentModes
+                            ? 'Loading payment modes...'
+                            : 'Select payment mode',
+                        enabled: !isLoadingPaymentModes,
+                        dialogTitle: 'Select payment mode',
                         onChanged: paymentModes.isEmpty || isLoadingPaymentModes
                             ? null
                             : (value) =>

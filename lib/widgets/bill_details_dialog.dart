@@ -7,6 +7,7 @@ import 'package:kokonuts_bookkeeping/widgets/authenticated_image.dart';
 import 'attachment_pdf_preview.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
+import 'searchable_dropdown_form_field.dart';
 
 import '../services/accounts_service.dart';
 import '../services/bills_service.dart';
@@ -2015,6 +2016,15 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
   Account? _selectedPaymentAccount;
   Account? _selectedDepositAccount;
 
+  String _accountLabel(String id) {
+    return _accounts
+            .firstWhere(
+              (account) => account.id == id,
+              orElse: () => Account(id: id, name: 'Unknown account'),
+            )
+            .name;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -2361,26 +2371,25 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
                     Row(
                       children: [
                         Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: _selectedPaymentAccount?.id,
+                          child: SearchableDropdownFormField<String>(
+                            initialValue: _selectedPaymentAccount?.id,
+                            items: _accounts.map((account) => account.id).toList(),
+                            itemToString: _accountLabel,
                             decoration: const InputDecoration(
                               labelText: 'Payment Account',
                               border: OutlineInputBorder(),
                             ),
-                            items: _accounts
-                                .map(
-                                  (account) => DropdownMenuItem(
-                                    value: account.id,
-                                    child: Text(account.name),
-                                  ),
-                                )
-                                .toList(),
+                            hintText: _accounts.isEmpty
+                                ? 'No accounts available'
+                                : 'Select payment account',
+                            dialogTitle: 'Select payment account',
                             onChanged: (value) {
                               setState(() {
                                 _selectedPaymentAccount = value == null
                                     ? null
                                     : _accounts.firstWhere(
                                         (account) => account.id == value,
+                                        orElse: () => Account(id: value, name: _accountLabel(value)),
                                       );
                               });
                             },
@@ -2388,26 +2397,25 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: _selectedDepositAccount?.id,
+                          child: SearchableDropdownFormField<String>(
+                            initialValue: _selectedDepositAccount?.id,
+                            items: _accounts.map((account) => account.id).toList(),
+                            itemToString: _accountLabel,
                             decoration: const InputDecoration(
                               labelText: 'Deposit Account',
                               border: OutlineInputBorder(),
                             ),
-                            items: _accounts
-                                .map(
-                                  (account) => DropdownMenuItem(
-                                    value: account.id,
-                                    child: Text(account.name),
-                                  ),
-                                )
-                                .toList(),
+                            hintText: _accounts.isEmpty
+                                ? 'No accounts available'
+                                : 'Select deposit account',
+                            dialogTitle: 'Select deposit account',
                             onChanged: (value) {
                               setState(() {
                                 _selectedDepositAccount = value == null
                                     ? null
                                     : _accounts.firstWhere(
                                         (account) => account.id == value,
+                                        orElse: () => Account(id: value, name: _accountLabel(value)),
                                       );
                               });
                             },
@@ -2495,6 +2503,15 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
   bool _isLoadingOptions = false;
   String? _loadError;
   List<Account> _accounts = const [];
+
+  String _accountLabel(String id) {
+    return _accounts
+            .firstWhere(
+              (account) => account.id == id,
+              orElse: () => Account(id: id, name: 'Unknown account'),
+            )
+            .name;
+  }
   String? _submitError;
 
   @override
@@ -2898,20 +2915,19 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                     Row(
                       children: [
                         Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: _selectedPaymentAccount?.id,
+                          child: SearchableDropdownFormField<String>(
+                            initialValue: _selectedPaymentAccount?.id,
+                            items: _accounts.map((account) => account.id).toList(),
+                            itemToString: _accountLabel,
                             decoration: const InputDecoration(
                               labelText: 'Payment Account',
                               border: OutlineInputBorder(),
                             ),
-                            items: _accounts
-                                .map(
-                                  (account) => DropdownMenuItem(
-                                    value: account.id,
-                                    child: Text(account.name),
-                                  ),
-                                )
-                                .toList(),
+                            hintText: _accounts.isEmpty
+                                ? 'No accounts available'
+                                : 'Select payment account',
+                            dialogTitle: 'Select payment account',
+                            enabled: !_isSubmitting,
                             onChanged: _isSubmitting
                                 ? null
                                 : (value) {
@@ -2920,27 +2936,27 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                                           ? null
                                           : _accounts.firstWhere(
                                               (account) => account.id == value,
+                                              orElse: () => Account(id: value, name: _accountLabel(value)),
                                             );
                                     });
-                                },
+                                  },
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: _selectedDepositAccount?.id,
+                          child: SearchableDropdownFormField<String>(
+                            initialValue: _selectedDepositAccount?.id,
+                            items: _accounts.map((account) => account.id).toList(),
+                            itemToString: _accountLabel,
                             decoration: const InputDecoration(
                               labelText: 'Deposit To',
                               border: OutlineInputBorder(),
                             ),
-                            items: _accounts
-                                .map(
-                                  (account) => DropdownMenuItem(
-                                    value: account.id,
-                                    child: Text(account.name),
-                                  ),
-                                )
-                                .toList(),
+                            hintText: _accounts.isEmpty
+                                ? 'No accounts available'
+                                : 'Select deposit account',
+                            dialogTitle: 'Select deposit account',
+                            enabled: !_isSubmitting,
                             onChanged: _isSubmitting
                                 ? null
                                 : (value) {
@@ -2949,9 +2965,10 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                                           ? null
                                           : _accounts.firstWhere(
                                               (account) => account.id == value,
+                                              orElse: () => Account(id: value, name: _accountLabel(value)),
                                             );
                                     });
-                                },
+                                  },
                           ),
                         ),
                       ],

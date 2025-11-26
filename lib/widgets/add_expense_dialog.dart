@@ -11,6 +11,7 @@ import '../services/payment_modes_service.dart';
 import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
+import 'searchable_dropdown_form_field.dart';
 
 class AddExpenseDialog extends StatefulWidget {
   const AddExpenseDialog({super.key});
@@ -45,6 +46,33 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   List<PaymentMode> _paymentModes = const [];
   List<VendorSummary> _vendors = const [];
   List<ExpenseCategory> _categories = const [];
+
+  String _vendorLabel(String id) {
+    return _vendors
+            .firstWhere(
+              (vendor) => vendor.id == id,
+              orElse: () => VendorSummary(id: id, name: 'Unknown vendor'),
+            )
+            .name;
+  }
+
+  String _categoryLabel(String id) {
+    return _categories
+            .firstWhere(
+              (category) => category.id == id,
+              orElse: () => ExpenseCategory(id: id, name: 'Unknown category'),
+            )
+            .name;
+  }
+
+  String _paymentModeLabel(String id) {
+    return _paymentModes
+            .firstWhere(
+              (mode) => mode.id == id,
+              orElse: () => PaymentMode(id: id, name: 'Unknown mode'),
+            )
+            .name;
+  }
 
   @override
   void dispose() {
@@ -239,37 +267,18 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   }
 
   Widget _buildVendorField() {
-    return DropdownButtonFormField<String>(
-      value: _selectedVendorId,
+    return SearchableDropdownFormField<String>(
+      initialValue: _selectedVendorId,
+      items: _vendors.map((vendor) => vendor.id).toList(),
+      itemToString: _vendorLabel,
       decoration: InputDecoration(
         labelText: 'Vendor',
         helperText: _loadingError,
       ),
-      isExpanded: true,
-      hint: _isLoadingData
-          ? Row(
-              children: const [
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                SizedBox(width: 8),
-                Text('Loading vendors...'),
-              ],
-            )
-          : const Text('Select a vendor'),
-      items: _vendors
-          .map(
-            (vendor) => DropdownMenuItem<String>(
-              value: vendor.id,
-              child: Text(vendor.name),
-            ),
-          )
-          .toList(),
-      onChanged: _vendors.isEmpty || _isLoadingData
-          ? null
-          : (value) => setState(() => _selectedVendorId = value),
+      hintText: _isLoadingData ? 'Loading vendors...' : 'Select a vendor',
+      enabled: !_isLoadingData,
+      dialogTitle: 'Select vendor',
+      onChanged: (value) => setState(() => _selectedVendorId = value),
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'Vendor is required.';
@@ -297,36 +306,18 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   }
 
   Widget _buildCategoryDropdown() {
-    return DropdownButtonFormField<String>(
-      value: _selectedCategory,
+    return SearchableDropdownFormField<String>(
+      initialValue: _selectedCategory,
+      items: _categories.map((category) => category.id).toList(),
+      itemToString: _categoryLabel,
       decoration: InputDecoration(
         labelText: 'Expense category',
         helperText: _loadingError,
       ),
-      hint: _isLoadingData
-          ? Row(
-              children: const [
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                SizedBox(width: 8),
-                Text('Loading categories...'),
-              ],
-            )
-          : const Text('Select a category'),
-      items: _categories
-          .map(
-            (category) => DropdownMenuItem<String>(
-              value: category.id,
-              child: Text(category.name),
-            ),
-          )
-          .toList(),
-      onChanged: _categories.isEmpty || _isLoadingData
-          ? null
-          : (value) => setState(() => _selectedCategory = value),
+      hintText: _isLoadingData ? 'Loading categories...' : 'Select a category',
+      enabled: !_isLoadingData,
+      dialogTitle: 'Select expense category',
+      onChanged: (value) => setState(() => _selectedCategory = value),
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'Expense category is required.';
@@ -376,37 +367,18 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   }
 
   Widget _buildPaymentModeField() {
-    return DropdownButtonFormField<String>(
-      value: _selectedPaymentMode,
+    return SearchableDropdownFormField<String>(
+      initialValue: _selectedPaymentMode,
+      items: _paymentModes.map((mode) => mode.id).toList(),
+      itemToString: _paymentModeLabel,
       decoration: InputDecoration(
         labelText: 'Payment mode',
         helperText: _loadingError,
       ),
-      isExpanded: true,
-      hint: _isLoadingData
-          ? Row(
-              children: const [
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                SizedBox(width: 8),
-                Text('Loading payment modes...'),
-              ],
-            )
-          : const Text('Choose payment mode'),
-      items: _paymentModes
-          .map(
-            (mode) => DropdownMenuItem<String>(
-              value: mode.id,
-              child: Text(mode.name),
-            ),
-          )
-          .toList(),
-      onChanged: _paymentModes.isEmpty || _isLoadingData
-          ? null
-          : (value) => setState(() => _selectedPaymentMode = value),
+      hintText: _isLoadingData ? 'Loading payment modes...' : 'Choose payment mode',
+      enabled: !_isLoadingData,
+      dialogTitle: 'Select payment mode',
+      onChanged: (value) => setState(() => _selectedPaymentMode = value),
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'Payment mode is required.';
