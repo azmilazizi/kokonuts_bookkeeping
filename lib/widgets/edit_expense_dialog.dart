@@ -11,6 +11,7 @@ import '../services/payment_modes_service.dart';
 import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
+import 'searchable_dropdown_form_field.dart';
 
 class EditExpenseDialog extends StatefulWidget {
   const EditExpenseDialog({super.key, required this.expense});
@@ -176,6 +177,24 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
   String? _selectedVendorId; // Keep track of ID but API might use name
 
   late final String _initialPaymentModeLabel;
+
+  String _vendorLabel(String id) {
+    return _vendors
+            .firstWhere(
+              (vendor) => vendor.id == id,
+              orElse: () => VendorSummary(id: id, name: 'Unknown vendor'),
+            )
+            .name;
+  }
+
+  String _paymentModeLabel(String id) {
+    return _paymentModes
+            .firstWhere(
+              (mode) => mode.id == id,
+              orElse: () => PaymentMode(id: id, name: 'Unknown mode'),
+            )
+            .name;
+  }
 
   // Attachment handling
   List<PlatformFile> _supportingAttachments = const [];
@@ -440,33 +459,22 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
       );
     }
 
-    return DropdownButtonFormField<String>(
-      value: _selectedVendorName,
+    return SearchableDropdownFormField<String>(
+      initialValue: _selectedVendorId,
+      items: _vendors.map((vendor) => vendor.id).toList(),
+      itemToString: _vendorLabel,
       decoration: const InputDecoration(
         labelText: 'Vendor',
         hintText: 'Select a vendor',
       ),
-      items: _vendors
-          .map(
-            (vendor) => DropdownMenuItem<String>(
-              value: vendor.name,
-              child: Text(vendor.name),
-            ),
-          )
-          .toList(),
+      enabled: !_isLoadingReferenceData,
+      dialogTitle: 'Select vendor',
       onChanged: (value) {
-        if (value != null) {
-          setState(() {
-            _selectedVendorName = value;
-            final matched = _vendors.firstWhere(
-              (v) => v.name == value,
-              orElse: () => const VendorSummary(id: '', name: ''),
-            );
-            if (matched.id.isNotEmpty) {
-              _selectedVendorId = matched.id;
-            }
-          });
-        }
+        setState(() {
+          _selectedVendorId = value;
+          _selectedVendorName =
+              value != null && value.isNotEmpty ? _vendorLabel(value) : null;
+        });
       },
       validator: (value) {
         if (value == null || value.trim().isEmpty) {
@@ -501,20 +509,15 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
         widget.expense.categoryName,
     }.toList();
 
-    return DropdownButtonFormField<String>(
-      value: items.contains(_categoryController.text)
+    return SearchableDropdownFormField<String>(
+      initialValue: items.contains(_categoryController.text)
           ? _categoryController.text
           : null,
+      items: items,
+      itemToString: (value) => value,
       decoration: const InputDecoration(labelText: 'Expense category'),
-      hint: const Text('Select a category'),
-      items: items
-          .map(
-            (category) => DropdownMenuItem<String>(
-              value: category,
-              child: Text(category),
-            ),
-          )
-          .toList(),
+      hintText: 'Select a category',
+      dialogTitle: 'Select expense category',
       onChanged: (value) {
         if (value != null) {
           _categoryController.text = value;
@@ -574,37 +577,19 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
   }
 
   Widget _buildPaymentModeField() {
-    return DropdownButtonFormField<String>(
-      value: _selectedPaymentMode,
+    return SearchableDropdownFormField<String>(
+      initialValue: _selectedPaymentMode,
+      items: _paymentModes.map((mode) => mode.id).toList(),
+      itemToString: _paymentModeLabel,
       decoration: InputDecoration(
         labelText: 'Payment mode',
         helperText: _referenceDataError,
       ),
-      isExpanded: true,
-      hint: _isLoadingReferenceData
-          ? Row(
-              children: const [
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                SizedBox(width: 8),
-                Text('Loading payment modes...'),
-              ],
-            )
-          : const Text('Choose payment mode'),
-      items: _paymentModes
-          .map(
-            (mode) => DropdownMenuItem<String>(
-              value: mode.id,
-              child: Text(mode.name),
-            ),
-          )
-          .toList(),
-      onChanged: _paymentModes.isEmpty || _isLoadingReferenceData
-          ? null
-          : (value) => setState(() => _selectedPaymentMode = value),
+      hintText:
+          _isLoadingReferenceData ? 'Loading payment modes...' : 'Choose payment mode',
+      enabled: !_isLoadingReferenceData,
+      dialogTitle: 'Select payment mode',
+      onChanged: (value) => setState(() => _selectedPaymentMode = value),
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'Payment mode is required.';

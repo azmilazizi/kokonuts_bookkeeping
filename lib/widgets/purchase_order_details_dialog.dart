@@ -6,12 +6,13 @@ import 'package:intl/intl.dart';
 import 'package:kokonuts_bookkeeping/app/app_state.dart';
 
 import '../app/app_state_scope.dart';
-import 'attachment_picker.dart';
 import '../services/payment_modes_service.dart';
 import '../services/purchase_order_detail_service.dart';
 import '../services/purchase_orders_service.dart';
+import 'attachment_picker.dart';
 import 'attachment_pdf_preview.dart';
 import 'currency_input_formatter.dart';
+import 'searchable_dropdown_form_field.dart';
 
 class PurchaseOrderDetailsDialog extends StatefulWidget {
   const PurchaseOrderDetailsDialog({super.key, required this.orderId});
@@ -1609,8 +1610,11 @@ class _PaymentEntriesTable extends StatelessWidget {
                           ),
                         )
                       else
-                        DropdownButtonFormField<String>(
-                          value: entries[i].paymentModeId,
+                        SearchableDropdownFormField<String>(
+                          initialValue: entries[i].paymentModeId,
+                          items: paymentModes.map((mode) => mode.id).toList(),
+                          itemToString: (id) =>
+                              _findPaymentModeName(paymentModes, id) ?? 'Unknown mode',
                           decoration: InputDecoration(
                             labelText: 'Payment mode',
                             border: const OutlineInputBorder(),
@@ -1620,46 +1624,27 @@ class _PaymentEntriesTable extends StatelessWidget {
                                     ? 'Unable to load payment modes'
                                     : null),
                           ),
-                          isExpanded: true,
-                          hint: isLoadingPaymentModes
-                              ? Row(
-                                  children: const [
-                                    SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                    SizedBox(width: 8),
-                                    Text('Loading payment modes...'),
-                                  ],
-                                )
-                              : const Text('Select payment mode'),
-                          items: paymentModes
-                              .map(
-                                (mode) => DropdownMenuItem<String>(
-                                  value: mode.id,
-                                  child: Text(mode.name),
-                                ),
-                              )
-                              .toList(),
+                          hintText: isLoadingPaymentModes
+                              ? 'Loading payment modes...'
+                              : 'Select payment mode',
+                          enabled: !isLoadingPaymentModes && !readOnly,
+                          dialogTitle: 'Select payment mode',
                           onChanged:
                               paymentModes.isEmpty ||
-                                  isLoadingPaymentModes ||
-                                  readOnly
-                              ? null
-                              : (value) {
-                                  final selectedName = _findPaymentModeName(
-                                    paymentModes,
-                                    value,
-                                  );
-                                  onPaymentModeChanged(entries[i], value);
-                                  entries[i].setPaymentModeId(
-                                    value,
-                                    name: selectedName,
-                                  );
-                                },
+                                      isLoadingPaymentModes ||
+                                      readOnly
+                                  ? null
+                                  : (value) {
+                                      final selectedName = _findPaymentModeName(
+                                        paymentModes,
+                                        value,
+                                      );
+                                      onPaymentModeChanged(entries[i], value);
+                                      entries[i].setPaymentModeId(
+                                        value,
+                                        name: selectedName,
+                                      );
+                                    },
                         ),
                       _PaymentDateField(
                         label: 'Payment date',
