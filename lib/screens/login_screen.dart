@@ -133,6 +133,10 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final logoAsset = isDark
+        ? 'assets/images/app_logo_dark.png'
+        : 'assets/images/app_logo_light.png';
 
     return Scaffold(
       appBar: AppBar(title: const Text('Login')),
@@ -147,9 +151,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Align(
+                  Align(
                     alignment: Alignment.center,
-                    child: FlutterLogo(size: 96),
+                    child: Image.asset(
+                      logoAsset,
+                      height: 96,
+                      width: 96,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   Text(

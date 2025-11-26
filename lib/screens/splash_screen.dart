@@ -5,14 +5,23 @@ class SplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final logoAsset = isDark
+        ? 'assets/images/app_logo_dark.png'
+        : 'assets/images/app_logo_light.png';
+
+    return Scaffold(
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FlutterLogo(size: 120),
-            SizedBox(height: 24),
-            CircularProgressIndicator(),
+            Image.asset(
+              logoAsset,
+              height: 120,
+              width: 120,
+            ),
+            const SizedBox(height: 24),
+            const CircularProgressIndicator(),
           ],
         ),
       ),

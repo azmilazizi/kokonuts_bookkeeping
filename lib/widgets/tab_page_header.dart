@@ -25,6 +25,10 @@ class TabPageHeader extends StatelessWidget {
     final isCompact = MediaQuery.sizeOf(context).width < 600;
     final modeLabel = _themeModeLabel(appState.themeMode);
     final themeTooltip = 'Theme: ${modeLabel.tooltip}';
+    final isDark = theme.brightness == Brightness.dark;
+    final logoAsset = isDark
+        ? 'assets/images/app_logo_dark.png'
+        : 'assets/images/app_logo_light.png';
 
     return Padding(
       padding: padding,
@@ -35,7 +39,11 @@ class TabPageHeader extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                FlutterLogo(size: logoSize),
+                Image.asset(
+                  logoAsset,
+                  height: logoSize,
+                  width: logoSize,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
