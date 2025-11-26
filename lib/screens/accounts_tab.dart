@@ -331,7 +331,7 @@ class _AccountsTabState extends State<AccountsTab> {
     if (detailType.contains(query)) {
       return true;
     }
-    final balance = account.balance.toLowerCase();
+    final balance = account.primaryBalance.toLowerCase();
     return balance.contains(query);
   }
 
@@ -456,7 +456,7 @@ class _AccountsTabState extends State<AccountsTab> {
   }
 
   double _balanceValue(Account account) {
-    final normalized = account.balance.replaceAll(',', '').trim();
+    final normalized = account.primaryBalance.replaceAll(',', '').trim();
     return double.tryParse(normalized) ?? 0;
   }
 
@@ -655,7 +655,7 @@ class _AccountsRow extends StatelessWidget {
           _DataCell(parentName, flex: _columnFlex[1]),
           _DataCell(account.typeName ?? '—', flex: _columnFlex[2]),
           _DataCell(account.detailTypeName ?? '—', flex: _columnFlex[3]),
-          _DataCell(account.balance, flex: _columnFlex[4], textAlign: TextAlign.end),
+          _DataCell(account.primaryBalance, flex: _columnFlex[4], textAlign: TextAlign.end),
         ],
       ),
     );
