@@ -1216,6 +1216,7 @@ class BillPayment {
   const BillPayment({
     required this.id,
     this.payBillId,
+    this.payBillItemPaidId,
     this.date,
     this.paymentAccount,
     this.paymentAccountId,
@@ -1223,6 +1224,7 @@ class BillPayment {
     this.referenceNo,
     this.amount,
     this.attachment,
+    this.attachmentFileName,
     this.hasEmptyAttachment = false,
     this.hasAttachmentString = false,
   });
@@ -1235,6 +1237,21 @@ class BillPayment {
     final hasEmptyAttachment =
         rawAttachment is String && rawAttachment.trim().isEmpty;
 
+    final payBillItemPaid = _extractItems(json['pay_bill_item_paid'])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+
+    String? attachmentFileName;
+    if (rawAttachment is String && rawAttachment.trim().isNotEmpty) {
+      attachmentFileName = rawAttachment.trim();
+    } else if (attachment is Map<String, dynamic>) {
+      attachmentFileName =
+          _stringValue(attachment['file_name']) ??
+              _stringValue(attachment['filename']) ??
+              _stringValue(attachment['name']) ??
+              _stringValue(attachment['title']);
+    }
+
     return BillPayment(
       id: _stringValue(json['id']) ??
           _stringValue(json['payment_id']) ??
@@ -1243,6 +1260,9 @@ class BillPayment {
           '',
       payBillId:
           _stringValue(json['pay_bill_id']) ?? _stringValue(json['payBillId']),
+      payBillItemPaidId: payBillItemPaid.isNotEmpty
+          ? _stringValue(payBillItemPaid.first['pay_bill_id'])
+          : null,
       date: Bill._parseDate(
         _stringValue(json['payment_date']) ??
             _stringValue(json['date']) ??
@@ -1263,6 +1283,7 @@ class BillPayment {
       amount: Bill._parseDouble(json['payment_amount'] ?? json['amount']),
       attachment:
           attachment == null ? null : BillAttachment.fromJson(attachment),
+      attachmentFileName: attachmentFileName,
       hasEmptyAttachment: hasEmptyAttachment,
       hasAttachmentString: hasAttachmentString,
     );
@@ -1270,6 +1291,7 @@ class BillPayment {
 
   final String id;
   final String? payBillId;
+  final String? payBillItemPaidId;
   final DateTime? date;
   final String? paymentAccount;
   final String? paymentAccountId;
@@ -1277,12 +1299,14 @@ class BillPayment {
   final String? referenceNo;
   final double? amount;
   final BillAttachment? attachment;
+  final String? attachmentFileName;
   final bool hasEmptyAttachment;
   final bool hasAttachmentString;
 
   BillPayment copyWith({
     String? id,
     String? payBillId,
+    String? payBillItemPaidId,
     DateTime? date,
     String? paymentAccount,
     String? paymentAccountId,
@@ -1290,12 +1314,14 @@ class BillPayment {
     String? referenceNo,
     double? amount,
     BillAttachment? attachment,
+    String? attachmentFileName,
     bool? hasEmptyAttachment,
     bool? hasAttachmentString,
   }) {
     return BillPayment(
       id: id ?? this.id,
       payBillId: payBillId ?? this.payBillId,
+      payBillItemPaidId: payBillItemPaidId ?? this.payBillItemPaidId,
       date: date ?? this.date,
       paymentAccount: paymentAccount ?? this.paymentAccount,
       paymentAccountId: paymentAccountId ?? this.paymentAccountId,
@@ -1303,6 +1329,7 @@ class BillPayment {
       referenceNo: referenceNo ?? this.referenceNo,
       amount: amount ?? this.amount,
       attachment: attachment ?? this.attachment,
+      attachmentFileName: attachmentFileName ?? this.attachmentFileName,
       hasEmptyAttachment: hasEmptyAttachment ?? this.hasEmptyAttachment,
       hasAttachmentString: hasAttachmentString ?? this.hasAttachmentString,
     );
