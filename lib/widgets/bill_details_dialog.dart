@@ -1775,7 +1775,7 @@ String _buildPaymentAttachmentPreviewUrl({
   final trimmedBillId = payBillItemPaidId.trim();
   final trimmedAttachment = attachmentName.trim();
 
-  return 'https://crm.kokonuts.my/modules/accounting/uploads/pay_bill/$trimmedBillId/$trimmedAttachment';
+  return 'https://crm.kokonuts.my/modules/accounting/uploads/pay_bills/$trimmedBillId/$trimmedAttachment';
 }
 
 class _AddAttachmentDialog extends StatefulWidget {
