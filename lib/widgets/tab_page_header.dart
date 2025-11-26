@@ -35,7 +35,11 @@ class TabPageHeader extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                FlutterLogo(size: logoSize),
+                Image.asset(
+                  'assets/images/app_logo.png',
+                  height: logoSize,
+                  width: logoSize,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
