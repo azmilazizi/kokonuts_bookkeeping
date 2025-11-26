@@ -594,11 +594,23 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
       return;
     }
 
-    final paymentId = payment.payBillId?.trim().isNotEmpty == true
-        ? payment.payBillId!.trim()
-        : payment.id.trim();
+    final attachmentName =
+        payment.attachment?.fileName ?? payment.attachmentFileName;
+    if (attachmentName == null || attachmentName.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Payment is missing an attachment name.')),
+      );
+      return;
+    }
 
-    if (paymentId.isEmpty) {
+    final payBillItemPaidId = payment.payBillItemPaidId?.trim();
+    final payBillId = payBillItemPaidId?.isNotEmpty == true
+        ? payBillItemPaidId!
+        : payment.payBillId?.trim();
+    final resolvedBillId =
+        payBillId?.isNotEmpty == true ? payBillId! : payment.id.trim();
+
+    if (resolvedBillId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Payment is missing an attachment id.')),
       );
@@ -606,23 +618,18 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     }
 
     final headers = _buildAuthHeaders(appState, token);
+    final previewUrl = _buildPaymentAttachmentPreviewUrl(
+      payBillItemPaidId: resolvedBillId,
+      attachmentName: attachmentName.trim(),
+    );
+
+    final attachment = payment.attachment ??
+        BillAttachment(
+          fileName: attachmentName.trim(),
+          paymentId: resolvedBillId,
+        );
 
     try {
-      final attachment = await _billsService.fetchPaymentAttachment(
-        billId: widget.bill.id,
-        paymentId: paymentId,
-        headers: headers,
-      );
-
-      final payBillId = payment.payBillId?.trim().isNotEmpty == true
-          ? payment.payBillId!.trim()
-          : paymentId;
-
-      final previewUrl = _buildPaymentAttachmentPreviewUrl(
-        payBillId: payBillId,
-        attachmentName: attachment.fileName,
-      );
-
       await _handlePreviewAttachment(
         attachment,
         previewUrlOverride: previewUrl,
@@ -1375,12 +1382,19 @@ class _PaymentsTable extends StatelessWidget {
     }
     for (final attachment in attachments) {
       final payBillId = payment.payBillId?.trim();
+      final payBillItemPaidId = payment.payBillItemPaidId?.trim();
       if (attachment.paymentId == payment.id || attachment.id == payment.id) {
         return attachment;
       }
       if (payBillId != null &&
           payBillId.isNotEmpty &&
           (attachment.paymentId == payBillId || attachment.id == payBillId)) {
+        return attachment;
+      }
+      if (payBillItemPaidId != null &&
+          payBillItemPaidId.isNotEmpty &&
+          (attachment.paymentId == payBillItemPaidId ||
+              attachment.id == payBillItemPaidId)) {
         return attachment;
       }
     }
@@ -1755,13 +1769,13 @@ String _buildBillAttachmentPreviewUrl(String billId) {
 }
 
 String _buildPaymentAttachmentPreviewUrl({
-  required String payBillId,
+  required String payBillItemPaidId,
   required String attachmentName,
 }) {
-  final trimmedBillId = payBillId.trim();
+  final trimmedBillId = payBillItemPaidId.trim();
   final trimmedAttachment = attachmentName.trim();
 
-  return 'https://crm.kokonuts.my/modules/accounting/uploads/pay_bill/$trimmedBillId/$trimmedAttachment';
+  return 'https://crm.kokonuts.my/modules/accounting/uploads/pay_bills/$trimmedBillId/$trimmedAttachment';
 }
 
 class _AddAttachmentDialog extends StatefulWidget {
