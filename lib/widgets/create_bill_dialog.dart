@@ -47,20 +47,29 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
 
   String _vendorLabel(String id) {
     return _vendors
-            .firstWhere(
-              (vendor) => vendor.id == id,
-              orElse: () => VendorSummary(id: id, name: 'Unknown vendor'),
-            )
-            .name;
+        .firstWhere(
+          (vendor) => vendor.id == id,
+          orElse: () => VendorSummary(id: id, name: 'Unknown vendor'),
+        )
+        .name;
   }
 
   String _accountLabel(String id) {
     return _accounts
-            .firstWhere(
-              (account) => account.id == id,
-              orElse: () => Account(id: id, name: 'Unknown account'),
-            )
-            .name;
+        .firstWhere(
+          (account) => account.id == id,
+          orElse: () => Account(
+            id: id,
+            name: 'Unknown account',
+            parentAccountId: '',
+            typeName: '',
+            detailTypeName: '',
+            balance: '',
+            primaryBalance: '',
+            isActive: false,
+          ),
+        )
+        .name;
   }
 
   static const _accountsPerPage = 50;
@@ -116,18 +125,21 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   void initState() {
     super.initState();
-    _debitAmountController.text =
-        CurrencyInputFormatter.normalizeExistingValue(_debitAmountController.text);
+    _debitAmountController.text = CurrencyInputFormatter.normalizeExistingValue(
+      _debitAmountController.text,
+    );
     _creditAmountController.text =
-        CurrencyInputFormatter.normalizeExistingValue(_creditAmountController.text);
+        CurrencyInputFormatter.normalizeExistingValue(
+          _creditAmountController.text,
+        );
   }
 
   @override
@@ -144,7 +156,10 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final dialogWidth = (MediaQuery.of(context).size.width * 0.95).clamp(420.0, 1040.0);
+    final dialogWidth = (MediaQuery.of(context).size.width * 0.95).clamp(
+      420.0,
+      1040.0,
+    );
 
     return AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
@@ -161,7 +176,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
             tooltip: 'Close',
             onPressed: () => Navigator.of(context).pop(),
             icon: const Icon(Icons.close),
-          )
+          ),
         ],
       ),
       content: SizedBox(
@@ -246,7 +261,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
                               ),
                             ),
                           ),
-                        ]
+                        ],
                       ],
                     );
                   },
@@ -273,7 +288,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
                       color: theme.colorScheme.error,
                     ),
                   ),
-                ]
+                ],
               ],
             ),
           ),
@@ -381,7 +396,8 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
           _buildAccountRow(
             label: 'Credit account',
             selected: _selectedCreditAccount,
-            onChanged: (value) => setState(() => _selectedCreditAccount = value),
+            onChanged: (value) =>
+                setState(() => _selectedCreditAccount = value),
             amountController: _creditAmountController,
           ),
           if (_accountsError != null) ...[
@@ -424,11 +440,14 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
             initialValue: selected,
             items: _accounts.map((account) => account.id).toList(),
             itemToString: _accountLabel,
-            hintText:
-                _isLoadingAccounts ? 'Loading accounts...' : 'Select an account',
+            hintText: _isLoadingAccounts
+                ? 'Loading accounts...'
+                : 'Select an account',
             enabled: !_isLoadingAccounts,
             dialogTitle: 'Select $label',
-            onChanged: _isLoadingAccounts || _accounts.isEmpty ? null : onChanged,
+            onChanged: _isLoadingAccounts || _accounts.isEmpty
+                ? null
+                : onChanged,
           ),
         ),
         const SizedBox(width: 16),
@@ -468,9 +487,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
 
   double? _parseAmount(TextEditingController controller) {
     return double.tryParse(
-      controller.text
-          .replaceAll(RegExp(r'[^0-9.,-]'), '')
-          .replaceAll(',', ''),
+      controller.text.replaceAll(RegExp(r'[^0-9.,-]'), '').replaceAll(',', ''),
     );
   }
 
@@ -508,7 +525,8 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
 
     if ((debitAmount - creditAmount).abs() > tolerance) {
       setState(() {
-        _submitError = 'Debit and credit amounts must be balanced before saving.';
+        _submitError =
+            'Debit and credit amounts must be balanced before saving.';
         _isSubmitting = false;
       });
       _showSubmitSnackBar(_submitError!);
@@ -522,16 +540,10 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
       'expense_name': _nameController.text.trim(),
       'amount': debitAmount,
       'debit_lines': [
-        {
-          'account': _selectedDebitAccount,
-          'amount': debitAmount,
-        },
+        {'account': _selectedDebitAccount, 'amount': debitAmount},
       ],
       'credit_lines': [
-        {
-          'account': _selectedCreditAccount,
-          'amount': debitAmount,
-        },
+        {'account': _selectedCreditAccount, 'amount': debitAmount},
       ],
       'approved': 1,
       if (_attachments.isNotEmpty)
@@ -583,12 +595,15 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
     final sanitizedToken = token
         .replaceFirst(RegExp('^Bearer\s+', caseSensitive: false), '')
         .trim();
-    final normalizedAuth =
-        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
     final authtokenHeader = rawToken
         .replaceFirst(RegExp('^Bearer\s+', caseSensitive: false), '')
         .trim();
-    final autoTokenValue = authtokenHeader.isNotEmpty ? authtokenHeader : sanitizedToken;
+    final autoTokenValue = authtokenHeader.isNotEmpty
+        ? authtokenHeader
+        : sanitizedToken;
     return {'authtoken': autoTokenValue, 'Authorization': normalizedAuth};
   }
 
@@ -651,7 +666,6 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
       }
     }
   }
-
 
   Future<void> _loadVendors() async {
     setState(() {

@@ -214,10 +214,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     }
   }
 
-  Future<void> _loadPayments(
-    String billId,
-    Map<String, String> headers,
-  ) async {
+  Future<void> _loadPayments(String billId, Map<String, String> headers) async {
     try {
       final payments = await _billsService.fetchBillPayments(
         billId: billId,
@@ -259,15 +256,13 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
 
     try {
       final results = await Future.wait(
-        creditIds.map(
-          (id) async {
-            final account = await _accountsService.fetchAccountById(
-              id: id!,
-              headers: headers,
-            );
-            return MapEntry(id, account.name);
-          },
-        ),
+        creditIds.map((id) async {
+          final account = await _accountsService.fetchAccountById(
+            id: id!,
+            headers: headers,
+          );
+          return MapEntry(id, account.name);
+        }),
       );
 
       if (mounted) {
@@ -287,10 +282,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     }
   }
 
-  Future<void> _loadAccountNames(
-    Bill bill,
-    Map<String, String> headers,
-  ) async {
+  Future<void> _loadAccountNames(Bill bill, Map<String, String> headers) async {
     final creditId = bill.creditAccountId;
     final debitId = bill.debitAccountId;
 
@@ -330,10 +322,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
       }
     }
 
-    await Future.wait([
-      fetchName(creditId),
-      fetchName(debitId),
-    ]);
+    await Future.wait([fetchName(creditId), fetchName(debitId)]);
 
     if (mounted) {
       setState(() {
@@ -374,10 +363,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     }
   }
 
-  Future<void> _openEditPaymentDialog(
-    BillPayment payment,
-    Bill bill,
-  ) async {
+  Future<void> _openEditPaymentDialog(BillPayment payment, Bill bill) async {
     final result = await showDialog<BillPayment>(
       context: context,
       barrierDismissible: false,
@@ -423,10 +409,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     });
   }
 
-  Future<void> _confirmAndDeletePayment(
-    BillPayment payment,
-    Bill bill,
-  ) async {
+  Future<void> _confirmAndDeletePayment(BillPayment payment, Bill bill) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -459,9 +442,9 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     }
 
     if (token == null || token.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You are not logged in.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('You are not logged in.')));
       return;
     }
 
@@ -491,9 +474,9 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
 
       _refreshBillDetails();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Payment deleted.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Payment deleted.')));
     } catch (error) {
       if (!mounted) {
         return;
@@ -589,9 +572,9 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     }
 
     if (token == null || token.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You are not logged in.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('You are not logged in.')));
       return;
     }
 
@@ -608,8 +591,9 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     final payBillId = payBillItemPaidId?.isNotEmpty == true
         ? payBillItemPaidId!
         : payment.payBillId?.trim();
-    final resolvedBillId =
-        payBillId?.isNotEmpty == true ? payBillId! : payment.id.trim();
+    final resolvedBillId = payBillId?.isNotEmpty == true
+        ? payBillId!
+        : payment.id.trim();
 
     if (resolvedBillId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -624,7 +608,8 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
       attachmentName: attachmentName.trim(),
     );
 
-    final attachment = payment.attachment ??
+    final attachment =
+        payment.attachment ??
         BillAttachment(
           fileName: attachmentName.trim(),
           paymentId: resolvedBillId,
@@ -647,10 +632,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     }
   }
 
-  String _resolveAccountName({
-    String? accountId,
-    String? fallbackLabel,
-  }) {
+  String _resolveAccountName({String? accountId, String? fallbackLabel}) {
     final trimmedId = accountId?.trim();
     final trimmedFallback = fallbackLabel?.trim();
 
@@ -694,10 +676,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
     return Dialog(
       insetPadding: const EdgeInsets.all(24),
       child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 720,
-          maxHeight: maxDialogHeight,
-        ),
+        constraints: BoxConstraints(maxWidth: 720, maxHeight: maxDialogHeight),
         child: DefaultTabController(
           length: 2,
           child: Padding(
@@ -728,10 +707,12 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                 }
 
                 final totalAmountLabel = bill.totalLabel;
-                final totalPaidLabel =
-                    bill.formatCurrency(totalPaidOverride ?? bill.resolvedTotalPaid);
-                final totalDueLabel =
-                    bill.formatCurrency(totalDueOverride ?? bill.resolvedTotalDue);
+                final totalPaidLabel = bill.formatCurrency(
+                  totalPaidOverride ?? bill.resolvedTotalPaid,
+                );
+                final totalDueLabel = bill.formatCurrency(
+                  totalDueOverride ?? bill.resolvedTotalDue,
+                );
 
                 return Column(
                   mainAxisSize: MainAxisSize.max,
@@ -791,7 +772,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                     ),
                                     isLoadingAccounts:
                                         _isLoadingAccounts ||
-                                            _isLoadingAccountNames,
+                                        _isLoadingAccountNames,
                                     onAddAttachment: () =>
                                         _openAddAttachmentDialog(bill),
                                     onPreviewAttachment:
@@ -810,10 +791,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
                                     onAddPayment: () =>
                                         _openAddPaymentDialog(bill),
                                     onDeletePayment: (payment) =>
-                                        _confirmAndDeletePayment(
-                                      payment,
-                                      bill,
-                                    ),
+                                        _confirmAndDeletePayment(payment, bill),
                                     onPreviewPaymentAttachment:
                                         _handlePreviewPaymentAttachment,
                                     resolveAccountName: _resolveAccountName,
@@ -980,11 +958,7 @@ class _DateRow extends StatelessWidget {
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            billDateField,
-            const SizedBox(height: 12),
-            dueDateField,
-          ],
+          children: [billDateField, const SizedBox(height: 12), dueDateField],
         );
       },
     );
@@ -1018,10 +992,7 @@ class _AccountRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Table(
-          columnWidths: const {
-            0: IntrinsicColumnWidth(),
-            1: FlexColumnWidth(),
-          },
+          columnWidths: const {0: IntrinsicColumnWidth(), 1: FlexColumnWidth()},
           border: TableBorder.all(
             color: theme.dividerColor,
             width: 1,
@@ -1054,16 +1025,10 @@ class _AccountRow extends StatelessWidget {
               ],
             ),
             TableRow(
-              children: [
-                buildCell('Debit Account'),
-                buildCell(debitAccount),
-              ],
+              children: [buildCell('Debit Account'), buildCell(debitAccount)],
             ),
             TableRow(
-              children: [
-                buildCell('Credit Account'),
-                buildCell(creditAccount),
-              ],
+              children: [buildCell('Credit Account'), buildCell(creditAccount)],
             ),
           ],
         ),
@@ -1257,7 +1222,7 @@ class _PaymentsTab extends StatelessWidget {
   final void Function(BillPayment payment) onDeletePayment;
   final void Function(BillPayment payment) onPreviewPaymentAttachment;
   final String Function({String? accountId, String? fallbackLabel})
-      resolveAccountName;
+  resolveAccountName;
 
   @override
   Widget build(BuildContext context) {
@@ -1276,8 +1241,9 @@ class _PaymentsTab extends StatelessWidget {
                   if (error != null)
                     Text(
                       'Failed to load payments: $error',
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: theme.colorScheme.error),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
                     )
                   else
                     Text(
@@ -1310,8 +1276,9 @@ class _PaymentsTab extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Text(
                 'Failed to load payments: $error',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: theme.colorScheme.error),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
               ),
             ),
           ),
@@ -1373,7 +1340,7 @@ class _PaymentsTable extends StatelessWidget {
   final List<BillPayment> payments;
   final List<BillAttachment> attachments;
   final String Function({String? accountId, String? fallbackLabel})
-      resolveAccountName;
+  resolveAccountName;
   final void Function(BillPayment payment) onDeletePayment;
   final void Function(BillPayment payment) onPreviewPaymentAttachment;
 
@@ -1450,23 +1417,31 @@ class _PaymentsTable extends StatelessWidget {
                 ),
                 children: [
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 12,
+                    ),
                     child: Text('Date', style: headerStyle),
                   ),
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 12,
+                    ),
                     child: Text('Payment Account', style: headerStyle),
                   ),
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 12,
+                    ),
                     child: Text('Amount', style: headerStyle),
                   ),
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 12,
+                    ),
                     child: Text(
                       'Options',
                       style: headerStyle,
@@ -1646,8 +1621,9 @@ class _BillAttachmentCard extends StatelessWidget {
     final theme = Theme.of(context);
     final labelColor = theme.colorScheme.onSurfaceVariant;
 
-    final normalizedDownloadUrl =
-        _normalizeAttachmentDownloadUrl(_buildBillAttachmentPreviewUrl(billId));
+    final normalizedDownloadUrl = _normalizeAttachmentDownloadUrl(
+      _buildBillAttachmentPreviewUrl(billId),
+    );
 
     final previewType = _resolvePreviewType(
       attachment.fileName,
@@ -1941,20 +1917,19 @@ class _AddAttachmentDialogState extends State<_AddAttachmentDialog> {
               ),
               const SizedBox(height: 16),
               if (_submitError != null) ...[
-                Text(
-                  _submitError!,
-                  style: const TextStyle(color: Colors.red),
-                ),
+                Text(_submitError!, style: const TextStyle(color: Colors.red)),
                 const SizedBox(height: 12),
               ],
               AttachmentPicker(
                 label: 'Attachment',
                 description: 'Choose a file to attach to this bill.',
-                files:
-                    _selectedFile == null ? const [] : <PlatformFile>[_selectedFile!],
+                files: _selectedFile == null
+                    ? const []
+                    : <PlatformFile>[_selectedFile!],
                 onPick: _isSubmitting ? () {} : _pickAttachment,
-                onFilesSelected:
-                    _isSubmitting ? (_) {} : (files) => _handleFilesSelected(files),
+                onFilesSelected: _isSubmitting
+                    ? (_) {}
+                    : (files) => _handleFilesSelected(files),
                 onFileRemoved: _isSubmitting
                     ? (_) {}
                     : (_) => _handleFilesSelected(const <PlatformFile>[]),
@@ -1964,8 +1939,9 @@ class _AddAttachmentDialogState extends State<_AddAttachmentDialog> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed:
-                        _isSubmitting ? null : () => Navigator.of(context).pop(false),
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => Navigator.of(context).pop(false),
                     child: const Text('Cancel'),
                   ),
                   const SizedBox(width: 12),
@@ -2018,11 +1994,20 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
 
   String _accountLabel(String id) {
     return _accounts
-            .firstWhere(
-              (account) => account.id == id,
-              orElse: () => Account(id: id, name: 'Unknown account'),
-            )
-            .name;
+        .firstWhere(
+          (account) => account.id == id,
+          orElse: () => Account(
+            id: id,
+            name: 'Unknown account',
+            parentAccountId: '',
+            typeName: '',
+            detailTypeName: '',
+            balance: '',
+            primaryBalance: '',
+            isActive: false,
+          ),
+        )
+        .name;
   }
 
   @override
@@ -2103,22 +2088,28 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
       try {
         return accounts.firstWhere(
           (account) =>
-              account.id == trimmed || account.name.toLowerCase() == trimmed.toLowerCase(),
+              account.id == trimmed ||
+              account.name.toLowerCase() == trimmed.toLowerCase(),
         );
       } catch (_) {
         return null;
       }
     }
 
-    final paymentAccount =
-        match(widget.payment.paymentAccountId ?? widget.payment.paymentAccount);
+    final paymentAccount = match(
+      widget.payment.paymentAccountId ?? widget.payment.paymentAccount,
+    );
     final depositAccount = match(widget.payment.depositAccountId);
 
     setState(() {
       _selectedPaymentAccount =
-          paymentAccount != null && paymentAccount.id.isNotEmpty ? paymentAccount : null;
+          paymentAccount != null && paymentAccount.id.isNotEmpty
+          ? paymentAccount
+          : null;
       _selectedDepositAccount =
-          depositAccount != null && depositAccount.id.isNotEmpty ? depositAccount : null;
+          depositAccount != null && depositAccount.id.isNotEmpty
+          ? depositAccount
+          : null;
     });
   }
 
@@ -2133,7 +2124,9 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
     final autoTokenValue = rawToken
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
-    final authtokenHeader = autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
     return {
       'Accept': 'application/json',
       'authtoken': authtokenHeader,
@@ -2226,7 +2219,9 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
         id: null,
         paymentId: widget.payment.id,
         paymentDate: _selectedDate,
-        amount: double.tryParse(_amountController.text.trim()) ?? widget.payment.amount,
+        amount:
+            double.tryParse(_amountController.text.trim()) ??
+            widget.payment.amount,
       );
     }
 
@@ -2250,9 +2245,12 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
     final updatedPayment = widget.payment.copyWith(
       date: _selectedDate,
       amount: parsedAmount,
-      paymentAccount: _selectedPaymentAccount?.name ?? widget.payment.paymentAccount,
-      paymentAccountId: _selectedPaymentAccount?.id ?? widget.payment.paymentAccountId,
-      depositAccountId: _selectedDepositAccount?.id ?? widget.payment.depositAccountId,
+      paymentAccount:
+          _selectedPaymentAccount?.name ?? widget.payment.paymentAccount,
+      paymentAccountId:
+          _selectedPaymentAccount?.id ?? widget.payment.paymentAccountId,
+      depositAccountId:
+          _selectedDepositAccount?.id ?? widget.payment.depositAccountId,
       attachment: _buildAttachment(),
     );
 
@@ -2321,8 +2319,9 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
                       label: 'Attachment',
                       description:
                           'Drag and drop files or tap to browse for payment attachments.',
-                      files:
-                          _selectedFile != null ? [_selectedFile!] : const [],
+                      files: _selectedFile != null
+                          ? [_selectedFile!]
+                          : const [],
                       onPick: _pickAttachment,
                       onFilesSelected: _onFilesSelected,
                       onFileRemoved: (_) => _clearSelectedFile(),
@@ -2373,7 +2372,9 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
                         Expanded(
                           child: SearchableDropdownFormField<String>(
                             initialValue: _selectedPaymentAccount?.id,
-                            items: _accounts.map((account) => account.id).toList(),
+                            items: _accounts
+                                .map((account) => account.id)
+                                .toList(),
                             itemToString: _accountLabel,
                             decoration: const InputDecoration(
                               labelText: 'Payment Account',
@@ -2389,7 +2390,16 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
                                     ? null
                                     : _accounts.firstWhere(
                                         (account) => account.id == value,
-                                        orElse: () => Account(id: value, name: _accountLabel(value)),
+                                        orElse: () => Account(
+                                          id: value,
+                                          name: _accountLabel(value),
+                                          parentAccountId: '',
+                                          typeName: '',
+                                          detailTypeName: '',
+                                          balance: '',
+                                          primaryBalance: '',
+                                          isActive: false,
+                                        ),
                                       );
                               });
                             },
@@ -2399,7 +2409,9 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
                         Expanded(
                           child: SearchableDropdownFormField<String>(
                             initialValue: _selectedDepositAccount?.id,
-                            items: _accounts.map((account) => account.id).toList(),
+                            items: _accounts
+                                .map((account) => account.id)
+                                .toList(),
                             itemToString: _accountLabel,
                             decoration: const InputDecoration(
                               labelText: 'Deposit Account',
@@ -2415,7 +2427,16 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
                                     ? null
                                     : _accounts.firstWhere(
                                         (account) => account.id == value,
-                                        orElse: () => Account(id: value, name: _accountLabel(value)),
+                                        orElse: () => Account(
+                                          id: value,
+                                          name: _accountLabel(value),
+                                          parentAccountId: '',
+                                          typeName: '',
+                                          detailTypeName: '',
+                                          balance: '',
+                                          primaryBalance: '',
+                                          isActive: false,
+                                        ),
                                       );
                               });
                             },
@@ -2506,12 +2527,22 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
 
   String _accountLabel(String id) {
     return _accounts
-            .firstWhere(
-              (account) => account.id == id,
-              orElse: () => Account(id: id, name: 'Unknown account'),
-            )
-            .name;
+        .firstWhere(
+          (account) => account.id == id,
+          orElse: () => Account(
+            id: id,
+            name: 'Unknown account',
+            parentAccountId: '',
+            typeName: '',
+            detailTypeName: '',
+            balance: '',
+            primaryBalance: '',
+            isActive: false,
+          ),
+        )
+        .name;
   }
+
   String? _submitError;
 
   @override
@@ -2662,9 +2693,9 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
 
     final parsedAmount = _parseAmountInput();
     if (parsedAmount == null || parsedAmount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid amount.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Enter a valid amount.')));
       return;
     }
 
@@ -2752,9 +2783,9 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
         _isSubmitting = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save payment: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save payment: $error')));
     }
   }
 
@@ -2827,7 +2858,9 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                       label: 'Attachment',
                       description:
                           'Drag and drop payment receipts or tap to browse.',
-                      files: _selectedFile == null ? const [] : [_selectedFile!],
+                      files: _selectedFile == null
+                          ? const []
+                          : [_selectedFile!],
                       onPick: _pickAttachment,
                       onFilesSelected: _handleFilesSelected,
                       onFileRemoved: (_) =>
@@ -2882,8 +2915,9 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                                   icon: const Icon(
                                     Icons.calendar_today_outlined,
                                   ),
-                                  onPressed:
-                                      _isSubmitting ? null : () => _pickDate(),
+                                  onPressed: _isSubmitting
+                                      ? null
+                                      : () => _pickDate(),
                                 ),
                               ],
                             ),
@@ -2917,7 +2951,9 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                         Expanded(
                           child: SearchableDropdownFormField<String>(
                             initialValue: _selectedPaymentAccount?.id,
-                            items: _accounts.map((account) => account.id).toList(),
+                            items: _accounts
+                                .map((account) => account.id)
+                                .toList(),
                             itemToString: _accountLabel,
                             decoration: const InputDecoration(
                               labelText: 'Payment Account',
@@ -2936,7 +2972,16 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                                           ? null
                                           : _accounts.firstWhere(
                                               (account) => account.id == value,
-                                              orElse: () => Account(id: value, name: _accountLabel(value)),
+                                              orElse: () => Account(
+                                                id: value,
+                                                name: _accountLabel(value),
+                                                parentAccountId: '',
+                                                typeName: '',
+                                                detailTypeName: '',
+                                                balance: '',
+                                                primaryBalance: '',
+                                                isActive: false,
+                                              ),
                                             );
                                     });
                                   },
@@ -2946,7 +2991,9 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                         Expanded(
                           child: SearchableDropdownFormField<String>(
                             initialValue: _selectedDepositAccount?.id,
-                            items: _accounts.map((account) => account.id).toList(),
+                            items: _accounts
+                                .map((account) => account.id)
+                                .toList(),
                             itemToString: _accountLabel,
                             decoration: const InputDecoration(
                               labelText: 'Deposit To',
@@ -2965,7 +3012,16 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                                           ? null
                                           : _accounts.firstWhere(
                                               (account) => account.id == value,
-                                              orElse: () => Account(id: value, name: _accountLabel(value)),
+                                              orElse: () => Account(
+                                                id: value,
+                                                name: _accountLabel(value),
+                                                parentAccountId: '',
+                                                typeName: '',
+                                                detailTypeName: '',
+                                                balance: '',
+                                                primaryBalance: '',
+                                                isActive: false,
+                                              ),
                                             );
                                     });
                                   },
@@ -3172,10 +3228,7 @@ class _AttachmentPreviewDialog extends StatelessWidget {
         );
         break;
       case _AttachmentPreviewType.pdf:
-        content = _PdfPreview(
-          downloadUrl: downloadUrl,
-          apiHeaders: apiHeaders,
-        );
+        content = _PdfPreview(downloadUrl: downloadUrl, apiHeaders: apiHeaders);
         break;
     }
 
