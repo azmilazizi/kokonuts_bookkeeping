@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/auth_service.dart';
+import '../widgets/app_logo.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -147,13 +148,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Align(
+                  const Align(
                     alignment: Alignment.center,
-                    child: Image.asset(
-                      'assets/images/app_logo.png',
-                      height: 96,
-                      width: 96,
-                    ),
+                    child: AppLogo(size: 96),
                   ),
                   const SizedBox(height: 24),
                   Text(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
+import 'app_logo.dart';
 
 /// Displays the application logo next to a page title.
 class TabPageHeader extends StatelessWidget {
@@ -35,11 +36,7 @@ class TabPageHeader extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset(
-                  'assets/images/app_logo.png',
-                  height: logoSize,
-                  width: logoSize,
-                ),
+                AppLogo(size: logoSize),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
