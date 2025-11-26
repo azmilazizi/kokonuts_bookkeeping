@@ -5,14 +5,18 @@ class SplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FlutterLogo(size: 120),
-            SizedBox(height: 24),
-            CircularProgressIndicator(),
+            Image.asset(
+              'assets/images/app_logo.png',
+              height: 120,
+              width: 120,
+            ),
+            const SizedBox(height: 24),
+            const CircularProgressIndicator(),
           ],
         ),
       ),
