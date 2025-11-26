@@ -55,6 +55,7 @@ class AccountsService {
     final uri = Uri.parse(_baseUrl).replace(queryParameters: {
       'page': '$page',
       'per_page': '$perPage',
+      'with_balances': '1',
     });
 
     http.Response response;
@@ -232,6 +233,7 @@ class Account {
     required this.typeName,
     required this.detailTypeName,
     required this.balance,
+    required this.primaryBalance,
     required this.isActive,
   });
 
@@ -246,6 +248,7 @@ class Account {
       detailTypeName:
           _stringValue(json['detail_type_name']) ?? _stringValue(json['account_detail_type_name']),
       balance: _formatBalance(balance),
+      primaryBalance: _formatBalance(json['primary_balance'] ?? balance),
       isActive: activeValue == '1',
     );
   }
@@ -256,6 +259,7 @@ class Account {
   final String? typeName;
   final String? detailTypeName;
   final String balance;
+  final String primaryBalance;
   final bool isActive;
 
   bool get hasParent {
