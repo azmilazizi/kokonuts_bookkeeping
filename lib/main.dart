@@ -48,16 +48,16 @@ class _KokonutsBookkeepingAppState extends State<KokonutsBookkeepingApp> {
             title: 'Kokonuts Bookkeeping',
             debugShowCheckedModeBanner: false,
             theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.orange,
-                brightness: Brightness.light,
+              colorScheme: ColorScheme.light().copyWith(
+                primary: Colors.orange,
+                secondary: Colors.orange,
               ),
               useMaterial3: true,
             ),
             darkTheme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.orange,
-                brightness: Brightness.dark,
+              colorScheme: ColorScheme.dark().copyWith(
+                primary: Colors.orange,
+                secondary: Colors.orange,
               ),
               useMaterial3: true,
             ),
