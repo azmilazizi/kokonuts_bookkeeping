@@ -82,7 +82,7 @@ class PinnedTableRow extends StatelessWidget {
                   final offset =
                       horizontalController.hasClients ? horizontalController.offset : 0.0;
                   return Transform.translate(
-                    offset: Offset(offset, 0),
+                    offset: Offset(-offset, 0),
                     child: child,
                   );
                 },
