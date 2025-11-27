@@ -39,7 +39,8 @@ class OverviewService {
 
     // Attempt to extract the data payload if wrapped
     dynamic data = decoded;
-    if (decoded is Map<String, dynamic>) {
+    // Check key existence on decoded if it's a map
+    if (decoded is Map) {
       if (decoded.containsKey('data')) {
         data = decoded['data'];
       } else if (decoded.containsKey('summary')) {
@@ -71,20 +72,29 @@ class MoneyOutSummary {
   const MoneyOutSummary(this.rawData);
 
   factory MoneyOutSummary.fromJson(dynamic json) {
-    if (json is Map<String, dynamic>) {
-      return MoneyOutSummary(json);
+    if (json is Map) {
+       // Convert to Map<String, dynamic> safely
+       try {
+         return MoneyOutSummary(Map<String, dynamic>.from(json));
+       } catch (_) {
+         // Fallback if conversion fails (e.g. keys are not strings, though unlikely for JSON)
+         return const MoneyOutSummary({});
+       }
     }
     return const MoneyOutSummary({});
   }
 
   String get totalSpent {
-    if (rawData.containsKey('total_spent')) {
-      return rawData['total_spent'].toString();
+    double? val;
+    if (rawData.containsKey('grand_total')) {
+      val = _parseDouble(rawData['grand_total']);
+    } else if (rawData.containsKey('total_spent')) {
+      val = _parseDouble(rawData['total_spent']);
+    } else if (rawData.containsKey('total')) {
+      val = _parseDouble(rawData['total']);
     }
-    if (rawData.containsKey('total')) {
-      return rawData['total'].toString();
-    }
-    return '0.00';
+
+    return val != null ? val.toStringAsFixed(2) : '0.00';
   }
 
   TransactionCategorySummary get purchaseOrders => _parseCategory(['purchase_orders', 'purchase_order']);
@@ -92,28 +102,67 @@ class MoneyOutSummary {
   TransactionCategorySummary get bills => _parseCategory(['bills', 'bill']);
 
   TransactionCategorySummary _parseCategory(List<String> keys) {
+    // Check if 'totals' object exists and search inside it first
+    Map<String, dynamic>? searchScope;
+    if (rawData.containsKey('totals') && rawData['totals'] is Map) {
+      try {
+        searchScope = Map<String, dynamic>.from(rawData['totals']);
+      } catch (_) {
+        searchScope = rawData;
+      }
+    } else {
+      searchScope = rawData;
+    }
+
     dynamic categoryData;
     for (final key in keys) {
-      if (rawData.containsKey(key)) {
-        categoryData = rawData[key];
+      if (searchScope!.containsKey(key)) {
+        categoryData = searchScope[key];
         break;
       }
     }
 
-    if (categoryData is Map<String, dynamic>) {
-      final count = _parseInt(categoryData['count']) ?? _parseInt(categoryData['number_of_transaction']) ?? 0;
-      final total = categoryData['total']?.toString() ?? categoryData['total_spent']?.toString() ?? '0.00';
-      return TransactionCategorySummary(count: count, total: total);
+    // If not found in 'totals', fallback to searching in root (backward compatibility)
+    if (categoryData == null && searchScope != rawData) {
+       for (final key in keys) {
+        if (rawData.containsKey(key)) {
+          categoryData = rawData[key];
+          break;
+        }
+      }
     }
 
-    // Fallback for flat structure if needed, e.g. purchase_orders_count
-    // But keeping it simple for now based on likely nested structure
+    if (categoryData is Map) {
+      // Safely access keys on generic Map
+      final count = _parseInt(categoryData['count']) ?? _parseInt(categoryData['number_of_transaction']) ?? 0;
+
+      double? amount;
+      if (categoryData.containsKey('amount')) {
+        amount = _parseDouble(categoryData['amount']);
+      } else if (categoryData.containsKey('total')) {
+        amount = _parseDouble(categoryData['total']);
+      } else if (categoryData.containsKey('total_spent')) {
+        amount = _parseDouble(categoryData['total_spent']);
+      }
+
+      final totalStr = amount != null ? amount.toStringAsFixed(2) : '0.00';
+
+      return TransactionCategorySummary(count: count, total: totalStr);
+    }
+
     return TransactionCategorySummary.empty();
   }
 
   int? _parseInt(dynamic value) {
     if (value is int) return value;
     if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  double? _parseDouble(dynamic value) {
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
     return null;
   }
 
