@@ -42,12 +42,14 @@ class PurchaseOrdersService {
         body: jsonEncode(payload),
       );
     } catch (error) {
-      throw PurchaseOrdersException('Failed to create payments: $error');
+      throw PurchaseOrdersException(
+        'We couldn\'t save the payments right now. Please try again in a moment.',
+      );
     }
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw PurchaseOrdersException(
-        'Payment creation failed with status ${response.statusCode}: ${response.body}',
+        'We couldn\'t save the payments. Please try again or contact support if this keeps happening.',
       );
     }
   }
@@ -80,13 +82,15 @@ class PurchaseOrdersService {
     try {
       response = await _client.send(request);
     } catch (error) {
-      throw PurchaseOrdersException('Failed to delete payments: $error');
+      throw PurchaseOrdersException(
+        'We couldn\'t remove the selected payments. Please try again shortly.',
+      );
     }
 
     final resolved = await http.Response.fromStream(response);
     if (resolved.statusCode != 200 && resolved.statusCode != 204) {
       throw PurchaseOrdersException(
-        'Payment delete failed with status ${resolved.statusCode}: ${resolved.body}',
+        'We couldn\'t remove the selected payments right now. Please try again later.',
       );
     }
   }
@@ -105,12 +109,14 @@ class PurchaseOrdersService {
     try {
       response = await _client.get(uri, headers: headers);
     } catch (error) {
-      throw PurchaseOrdersException('Failed to reach server: $error');
+      throw PurchaseOrdersException(
+        'We couldn\'t connect to load purchase orders. Check your connection and try again.',
+      );
     }
 
     if (response.statusCode != 200) {
       throw PurchaseOrdersException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        'We couldn\'t load purchase orders right now. Please try again in a moment.',
       );
     }
 
@@ -118,7 +124,9 @@ class PurchaseOrdersService {
     try {
       decoded = jsonDecode(response.body);
     } catch (error) {
-      throw PurchaseOrdersException('Unable to parse response: $error');
+      throw PurchaseOrdersException(
+        'Something went wrong while loading purchase orders. Please try again.',
+      );
     }
 
     final ordersList = _extractOrdersList(decoded);
@@ -152,12 +160,14 @@ class PurchaseOrdersService {
         body: jsonEncode(request.toJson()),
       );
     } catch (error) {
-      throw PurchaseOrdersException('Failed to create purchase order: $error');
+      throw PurchaseOrdersException(
+        'We couldn\'t create the purchase order. Please check your connection and try again.',
+      );
     }
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw PurchaseOrdersException(
-        'Creation failed with status ${response.statusCode}: ${response.body}',
+        'The purchase order couldn\'t be created right now. Please try again later.',
       );
     }
 
@@ -165,13 +175,15 @@ class PurchaseOrdersService {
     try {
       decoded = jsonDecode(response.body);
     } catch (error) {
-      throw PurchaseOrdersException('Unable to parse create response: $error');
+      throw PurchaseOrdersException(
+        'We couldn\'t read the server response while creating the purchase order. Please try again.',
+      );
     }
 
     final orderJson = _extractCreatedOrder(decoded);
     if (orderJson == null) {
       throw PurchaseOrdersException(
-        'Create response did not include a purchase order payload.',
+        'The server response was missing purchase order details. Please try again.',
       );
     }
 
@@ -195,12 +207,14 @@ class PurchaseOrdersService {
         body: jsonEncode(request.toJson()),
       );
     } catch (error) {
-      throw PurchaseOrdersException('Failed to update purchase order: $error');
+      throw PurchaseOrdersException(
+        'We couldn\'t update the purchase order. Please check your connection and try again.',
+      );
     }
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw PurchaseOrdersException(
-        'Update failed with status ${response.statusCode}: ${response.body}',
+        'The purchase order couldn\'t be updated right now. Please try again later.',
       );
     }
 
@@ -208,13 +222,15 @@ class PurchaseOrdersService {
     try {
       decoded = jsonDecode(response.body);
     } catch (error) {
-      throw PurchaseOrdersException('Unable to parse update response: $error');
+      throw PurchaseOrdersException(
+        'We couldn\'t read the server response while updating the purchase order. Please try again.',
+      );
     }
 
     final orderJson = _extractCreatedOrder(decoded);
     if (orderJson == null) {
       throw PurchaseOrdersException(
-        'Update response did not include a purchase order payload.',
+        'The server response was missing purchase order details. Please try again.',
       );
     }
 
@@ -232,12 +248,14 @@ class PurchaseOrdersService {
         headers: headers,
       );
     } catch (error) {
-      throw PurchaseOrdersException('Failed to delete purchase order: $error');
+      throw PurchaseOrdersException(
+        'We couldn\'t delete the purchase order right now. Please try again.',
+      );
     }
 
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw PurchaseOrdersException(
-        'Delete failed with status ${response.statusCode}: ${response.body}',
+        'The purchase order couldn\'t be deleted. Please try again later.',
       );
     }
   }
@@ -276,7 +294,9 @@ class PurchaseOrdersService {
     try {
       response = await _client.send(request);
     } catch (error) {
-      throw PurchaseOrdersException('Failed to upload attachments: $error');
+      throw PurchaseOrdersException(
+        'We couldn\'t upload the attachments. Please try again.',
+      );
     }
 
     final resolved = await http.Response.fromStream(response);
@@ -284,7 +304,7 @@ class PurchaseOrdersService {
         resolved.statusCode != 201 &&
         resolved.statusCode != 204) {
       throw PurchaseOrdersException(
-        'Attachment upload failed with status ${resolved.statusCode}: ${resolved.body}',
+        'The attachments couldn\'t be uploaded right now. Please try again later.',
       );
     }
   }
@@ -313,13 +333,15 @@ class PurchaseOrdersService {
     try {
       response = await _client.send(request);
     } catch (error) {
-      throw PurchaseOrdersException('Failed to delete attachments: $error');
+      throw PurchaseOrdersException(
+        'We couldn\'t delete the attachments right now. Please try again.',
+      );
     }
 
     final resolved = await http.Response.fromStream(response);
     if (resolved.statusCode != 200 && resolved.statusCode != 204) {
       throw PurchaseOrdersException(
-        'Attachment delete failed with status ${resolved.statusCode}: ${resolved.body}',
+        'The attachments couldn\'t be deleted right now. Please try again later.',
       );
     }
   }
@@ -741,11 +763,14 @@ class PurchaseOrder {
     required this.totalLabel,
     required this.currencySymbol,
     required this.deliveryStatus,
+    this.totalPaid,
   });
 
   factory PurchaseOrder.fromJson(Map<String, dynamic> json) {
     final totalValue = json['total'];
     final totalAmount = _parseDouble(totalValue);
+    final totalPaidAmount =
+        _parseDouble(json['total_paid'] ?? json['paid'] ?? json['amount_paid']);
     final currency = json['currency_symbol'] ?? json['currency'];
     final vendorData = json['vendor'];
     String? resolvedVendor;
@@ -774,6 +799,7 @@ class PurchaseOrder {
           totalAmount != null ? totalAmount.toStringAsFixed(2) : _formatAmount(totalValue),
       currencySymbol: _stringValue(currency) ?? '',
       deliveryStatus: _parseDeliveryStatus(json),
+      totalPaid: totalPaidAmount,
     );
   }
 
@@ -786,6 +812,7 @@ class PurchaseOrder {
   final String totalLabel;
   final String currencySymbol;
   final int deliveryStatus;
+  final double? totalPaid;
 
   String get formattedDate {
     final date = orderDate;

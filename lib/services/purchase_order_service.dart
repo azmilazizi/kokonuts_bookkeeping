@@ -174,7 +174,7 @@ class PurchaseOrderService {
 
     if (response.statusCode != 200) {
       throw PurchaseOrderException(
-        'Failed to load purchase orders (status code ${response.statusCode}).',
+        'We couldn\'t load purchase orders right now. Please try again in a moment.',
       );
     }
 

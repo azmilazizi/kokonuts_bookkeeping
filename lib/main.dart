@@ -49,14 +49,14 @@ class _KokonutsBookkeepingAppState extends State<KokonutsBookkeepingApp> {
             debugShowCheckedModeBanner: false,
             theme: ThemeData(
               colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.teal,
+                seedColor: Colors.orange,
                 brightness: Brightness.light,
               ),
               useMaterial3: true,
             ),
             darkTheme: ThemeData(
               colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.teal,
+                seedColor: Colors.orange,
                 brightness: Brightness.dark,
               ),
               useMaterial3: true,
