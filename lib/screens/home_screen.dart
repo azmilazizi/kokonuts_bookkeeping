@@ -7,6 +7,7 @@ import '../app/app_state_scope.dart';
 import 'accounts_tab.dart';
 import 'bills_tab.dart';
 import 'expenses_tab.dart';
+import 'overview_tab.dart';
 import 'purchase_orders_tab.dart';
 
 import '../services/bills_service.dart';
@@ -57,7 +58,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         icon: Icons.account_balance_outlined,
         builder: (_, __) => const AccountsTab(),
       ),
-      const _HomeTab(title: 'Overview', icon: Icons.dashboard_outlined),
+      _HomeTab(
+        title: 'Overview',
+        icon: Icons.dashboard_outlined,
+        builder: (_, appState) => OverviewTab(appState: appState),
+      ),
     ];
     _controller = TabController(length: _tabs.length, vsync: this)
       ..addListener(_handleTabSelection);
