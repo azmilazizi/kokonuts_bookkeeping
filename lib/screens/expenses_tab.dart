@@ -32,17 +32,6 @@ class ExpensesTabState extends State<ExpensesTab> {
   ExpensesSortColumn _sortColumn = ExpensesSortColumn.date;
   bool _sortAscending = false;
   String _filterQuery = '';
-  int? _pinnedColumnIndex;
-
-  static const _columnLabels = [
-    'Vendor',
-    'Name',
-    'Category',
-    'Amount',
-    'Date',
-    'Payment mode',
-    'Actions',
-  ];
 
   static const _perPage = 20;
   // Provides generous breathing room for the seven expense columns so they do
@@ -230,9 +219,6 @@ class ExpensesTabState extends State<ExpensesTab> {
                               sortAscending: _sortAscending,
                               onSort: _handleSort,
                               horizontalController: _horizontalController,
-                              pinnedColumnIndex: _pinnedColumnIndex,
-                              onPinnedColumnChanged: _handlePinnedColumnChanged,
-                              columnLabels: _columnLabels,
                             ),
                           ),
                           SliverList(
@@ -246,7 +232,6 @@ class ExpensesTabState extends State<ExpensesTab> {
                                   onUpdated: _handleExpenseUpdated,
                                   onDeleted: _handleExpenseDeleted,
                                   horizontalController: _horizontalController,
-                                  pinnedColumnIndex: _pinnedColumnIndex,
                                 );
                               },
                               childCount: _expenses.length,
@@ -278,12 +263,6 @@ class ExpensesTabState extends State<ExpensesTab> {
       }
       _applySorting();
       _applyFilters();
-    });
-  }
-
-  void _handlePinnedColumnChanged(int? columnIndex) {
-    setState(() {
-      _pinnedColumnIndex = columnIndex;
     });
   }
 
@@ -655,9 +634,6 @@ class _ExpensesHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.sortAscending,
     required this.onSort,
     required this.horizontalController,
-    required this.pinnedColumnIndex,
-    required this.onPinnedColumnChanged,
-    required this.columnLabels,
   });
 
   final ThemeData theme;
@@ -665,9 +641,6 @@ class _ExpensesHeaderDelegate extends SliverPersistentHeaderDelegate {
   final bool sortAscending;
   final ValueChanged<ExpensesSortColumn> onSort;
   final ScrollController horizontalController;
-  final int? pinnedColumnIndex;
-  final ValueChanged<int?> onPinnedColumnChanged;
-  final List<String> columnLabels;
 
   static const double _height = 52;
 
@@ -691,9 +664,6 @@ class _ExpensesHeaderDelegate extends SliverPersistentHeaderDelegate {
           sortAscending: sortAscending,
           onSort: onSort,
           horizontalController: horizontalController,
-          pinnedColumnIndex: pinnedColumnIndex,
-          onPinnedColumnChanged: onPinnedColumnChanged,
-          columnLabels: columnLabels,
         ),
       ),
     );
@@ -703,7 +673,6 @@ class _ExpensesHeaderDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant _ExpensesHeaderDelegate oldDelegate) {
     return sortColumn != oldDelegate.sortColumn ||
         sortAscending != oldDelegate.sortAscending ||
-        pinnedColumnIndex != oldDelegate.pinnedColumnIndex ||
         theme != oldDelegate.theme;
   }
 }
@@ -715,9 +684,6 @@ class _ExpensesHeader extends StatelessWidget {
     required this.sortAscending,
     required this.onSort,
     required this.horizontalController,
-    required this.pinnedColumnIndex,
-    required this.onPinnedColumnChanged,
-    required this.columnLabels,
   });
 
   final ThemeData theme;
@@ -725,9 +691,6 @@ class _ExpensesHeader extends StatelessWidget {
   final bool sortAscending;
   final ValueChanged<ExpensesSortColumn> onSort;
   final ScrollController horizontalController;
-  final int? pinnedColumnIndex;
-  final ValueChanged<int?> onPinnedColumnChanged;
-  final List<String> columnLabels;
 
   static const _columnFlex = [4, 4, 3, 2, 3, 3, 3];
 
@@ -794,22 +757,9 @@ class _ExpensesHeader extends StatelessWidget {
       ),
       Align(
         alignment: Alignment.center,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'Actions',
-              style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(width: 6),
-            PinnedColumnSelector(
-              columns: columnLabels,
-              selectedIndex: pinnedColumnIndex,
-              onChanged: onPinnedColumnChanged,
-              iconColor: theme.colorScheme.onSurfaceVariant,
-            ),
-          ],
+        child: Text(
+          'Actions',
+          style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
       ),
     ];
@@ -820,7 +770,6 @@ class _ExpensesHeader extends StatelessWidget {
         columnFlex: _columnFlex,
         cells: cells,
         horizontalController: horizontalController,
-        pinnedColumnIndex: pinnedColumnIndex,
         overlayDecoration: BoxDecoration(
           color: headerBackground,
           boxShadow: [
@@ -844,7 +793,6 @@ class _ExpenseRow extends StatefulWidget {
     required this.onUpdated,
     required this.onDeleted,
     required this.horizontalController,
-    required this.pinnedColumnIndex,
   });
 
   final Expense expense;
@@ -853,7 +801,6 @@ class _ExpenseRow extends StatefulWidget {
   final ValueChanged<Expense> onUpdated;
   final Future<void> Function(Expense) onDeleted;
   final ScrollController horizontalController;
-  final int? pinnedColumnIndex;
 
   @override
   State<_ExpenseRow> createState() => _ExpenseRowState();
@@ -890,7 +837,6 @@ class _ExpenseRowState extends State<_ExpenseRow> {
           child: PinnedTableRow(
             columnFlex: _columnFlex,
             horizontalController: widget.horizontalController,
-            pinnedColumnIndex: widget.pinnedColumnIndex,
             overlayDecoration: BoxDecoration(
               color: _hovering ? hoverBackground : baseBackground,
               border: Border(
