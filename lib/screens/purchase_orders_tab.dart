@@ -9,6 +9,7 @@ import '../widgets/purchase_order_details_dialog.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/tab_page_header.dart';
 import '../widgets/table_filter_bar.dart';
+import '../widgets/pinned_table_row.dart';
 
 enum PurchaseOrderSortColumn {
   number,
@@ -40,6 +41,18 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   PurchaseOrderSortColumn _sortColumn = PurchaseOrderSortColumn.orderDate;
   bool _sortAscending = false;
   String _filterQuery = '';
+  int? _pinnedColumnIndex;
+
+  static const _columnLabels = [
+    'Order Number',
+    'Order Name',
+    'Vendor',
+    'Order Date',
+    'Payment Progress',
+    'Delivery Status',
+    'Total',
+    'Actions',
+  ];
 
   static const _perPage = 20;
   // A wider minimum width keeps the eight data columns readable on compact
@@ -339,6 +352,10 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                               sortColumn: _sortColumn,
                               sortAscending: _sortAscending,
                               onSort: _handleSort,
+                              horizontalController: _horizontalController,
+                              pinnedColumnIndex: _pinnedColumnIndex,
+                              onPinnedColumnChanged: _handlePinnedColumnChanged,
+                              columnLabels: _columnLabels,
                             ),
                           ),
                           SliverList(
@@ -354,6 +371,8 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                                 isCompactLayout: isCompactLayout,
                                 onDelete: () => _confirmDelete(order),
                                 isDeleting: _isDeleting,
+                                horizontalController: _horizontalController,
+                                pinnedColumnIndex: _pinnedColumnIndex,
                               );
                             }, childCount: _orders.length),
                           ),
@@ -382,6 +401,10 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       _applySorting();
       _applyFilters();
     });
+  }
+
+  void _handlePinnedColumnChanged(int? columnIndex) {
+    setState(() => _pinnedColumnIndex = columnIndex);
   }
 
   void _handleFilterChanged(String value) {
@@ -659,6 +682,10 @@ class _PurchaseOrdersHeader extends StatelessWidget {
     required this.sortColumn,
     required this.sortAscending,
     required this.onSort,
+    required this.horizontalController,
+    required this.pinnedColumnIndex,
+    required this.onPinnedColumnChanged,
+    required this.columnLabels,
   });
 
   final ThemeData theme;
@@ -666,88 +693,128 @@ class _PurchaseOrdersHeader extends StatelessWidget {
   final PurchaseOrderSortColumn sortColumn;
   final bool sortAscending;
   final ValueChanged<PurchaseOrderSortColumn> onSort;
+  final ScrollController horizontalController;
+  final int? pinnedColumnIndex;
+  final ValueChanged<int?> onPinnedColumnChanged;
+  final List<String> columnLabels;
 
   static const _columnFlex = [3, 4, 3, 3, 3, 2, 2, 4];
 
   @override
   Widget build(BuildContext context) {
+    final horizontalPadding = isCompactLayout ? 16.0 : 24.0;
     final gap = isCompactLayout ? 8.0 : 12.0;
+    final headerBackground = theme.colorScheme.surfaceVariant.withOpacity(0.6);
+    final cells = [
+      Padding(
+        padding: EdgeInsets.only(right: gap),
+        child: SortableHeaderCell(
+          label: 'Order Number',
+          flex: _columnFlex[0],
+          theme: theme,
+          isActive: sortColumn == PurchaseOrderSortColumn.number,
+          ascending: sortAscending,
+          onTap: () => onSort(PurchaseOrderSortColumn.number),
+          expand: false,
+        ),
+      ),
+      SortableHeaderCell(
+        label: 'Order Name',
+        flex: _columnFlex[1],
+        theme: theme,
+        isActive: sortColumn == PurchaseOrderSortColumn.name,
+        ascending: sortAscending,
+        onTap: () => onSort(PurchaseOrderSortColumn.name),
+        expand: false,
+      ),
+      SortableHeaderCell(
+        label: 'Vendor',
+        flex: _columnFlex[2],
+        theme: theme,
+        isActive: sortColumn == PurchaseOrderSortColumn.vendor,
+        ascending: sortAscending,
+        onTap: () => onSort(PurchaseOrderSortColumn.vendor),
+        expand: false,
+      ),
+      SortableHeaderCell(
+        label: 'Order Date',
+        flex: _columnFlex[3],
+        theme: theme,
+        textAlign: TextAlign.center,
+        isActive: sortColumn == PurchaseOrderSortColumn.orderDate,
+        ascending: sortAscending,
+        onTap: () => onSort(PurchaseOrderSortColumn.orderDate),
+        expand: false,
+      ),
+      SortableHeaderCell(
+        label: 'Payment Progress',
+        flex: _columnFlex[4],
+        theme: theme,
+        textAlign: TextAlign.center,
+        isActive: sortColumn == PurchaseOrderSortColumn.paymentProgress,
+        ascending: sortAscending,
+        onTap: () => onSort(PurchaseOrderSortColumn.paymentProgress),
+        expand: false,
+      ),
+      SortableHeaderCell(
+        label: 'Delivery Status',
+        flex: _columnFlex[5],
+        theme: theme,
+        textAlign: TextAlign.center,
+        expand: false,
+      ),
+      SortableHeaderCell(
+        label: 'Total',
+        flex: _columnFlex[6],
+        theme: theme,
+        textAlign: TextAlign.end,
+        isActive: sortColumn == PurchaseOrderSortColumn.total,
+        ascending: sortAscending,
+        onTap: () => onSort(PurchaseOrderSortColumn.total),
+        expand: false,
+      ),
+      Padding(
+        padding: EdgeInsets.only(left: gap),
+        child: Align(
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Actions',
+                style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(width: 6),
+              PinnedColumnSelector(
+                columns: columnLabels,
+                selectedIndex: pinnedColumnIndex,
+                onChanged: onPinnedColumnChanged,
+                iconColor: theme.colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ];
 
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: isCompactLayout ? 16 : 24,
-        vertical: 8,
-      ),
-      child: Row(
-        children: [
-          SortableHeaderCell(
-            label: 'Order Number',
-            flex: _columnFlex[0],
-            theme: theme,
-            isActive: sortColumn == PurchaseOrderSortColumn.number,
-            ascending: sortAscending,
-            onTap: () => onSort(PurchaseOrderSortColumn.number),
-          ),
-          SizedBox(width: gap),
-          SortableHeaderCell(
-            label: 'Order Name',
-            flex: _columnFlex[1],
-            theme: theme,
-            isActive: sortColumn == PurchaseOrderSortColumn.name,
-            ascending: sortAscending,
-            onTap: () => onSort(PurchaseOrderSortColumn.name),
-          ),
-          SortableHeaderCell(
-            label: 'Vendor',
-            flex: _columnFlex[2],
-            theme: theme,
-            isActive: sortColumn == PurchaseOrderSortColumn.vendor,
-            ascending: sortAscending,
-            onTap: () => onSort(PurchaseOrderSortColumn.vendor),
-          ),
-          SortableHeaderCell(
-            label: 'Order Date',
-            flex: _columnFlex[3],
-            theme: theme,
-            textAlign: TextAlign.center,
-            isActive: sortColumn == PurchaseOrderSortColumn.orderDate,
-            ascending: sortAscending,
-            onTap: () => onSort(PurchaseOrderSortColumn.orderDate),
-          ),
-          SortableHeaderCell(
-            label: 'Payment Progress',
-            flex: _columnFlex[4],
-            theme: theme,
-            textAlign: TextAlign.center,
-            isActive: sortColumn == PurchaseOrderSortColumn.paymentProgress,
-            ascending: sortAscending,
-            onTap: () => onSort(PurchaseOrderSortColumn.paymentProgress),
-          ),
-          SizedBox(width: gap),
-          SortableHeaderCell(
-            label: 'Delivery Status',
-            flex: _columnFlex[5],
-            theme: theme,
-            textAlign: TextAlign.center,
-          ),
-          SortableHeaderCell(
-            label: 'Total',
-            flex: _columnFlex[6],
-            theme: theme,
-            textAlign: TextAlign.end,
-            isActive: sortColumn == PurchaseOrderSortColumn.total,
-            ascending: sortAscending,
-            onTap: () => onSort(PurchaseOrderSortColumn.total),
-          ),
-          SizedBox(width: gap),
-          SortableHeaderCell(
-            label: 'Actions',
-            flex: _columnFlex[7],
-            theme: theme,
-            textAlign: TextAlign.center,
-            ascending: sortAscending,
-          ),
-        ],
+      padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8),
+      child: PinnedTableRow(
+        columnFlex: _columnFlex,
+        cells: cells,
+        horizontalController: horizontalController,
+        pinnedColumnIndex: pinnedColumnIndex,
+        overlayDecoration: BoxDecoration(
+          color: headerBackground,
+          boxShadow: [
+            BoxShadow(
+              color: theme.shadowColor.withOpacity(0.12),
+              blurRadius: 8,
+              offset: const Offset(1, 0),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -760,6 +827,10 @@ class _PurchaseOrdersHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.sortColumn,
     required this.sortAscending,
     required this.onSort,
+    required this.horizontalController,
+    required this.pinnedColumnIndex,
+    required this.onPinnedColumnChanged,
+    required this.columnLabels,
   });
 
   final ThemeData theme;
@@ -767,6 +838,10 @@ class _PurchaseOrdersHeaderDelegate extends SliverPersistentHeaderDelegate {
   final PurchaseOrderSortColumn sortColumn;
   final bool sortAscending;
   final ValueChanged<PurchaseOrderSortColumn> onSort;
+  final ScrollController horizontalController;
+  final int? pinnedColumnIndex;
+  final ValueChanged<int?> onPinnedColumnChanged;
+  final List<String> columnLabels;
 
   static const double _height = 52;
 
@@ -794,6 +869,10 @@ class _PurchaseOrdersHeaderDelegate extends SliverPersistentHeaderDelegate {
           sortColumn: sortColumn,
           sortAscending: sortAscending,
           onSort: onSort,
+          horizontalController: horizontalController,
+          pinnedColumnIndex: pinnedColumnIndex,
+          onPinnedColumnChanged: onPinnedColumnChanged,
+          columnLabels: columnLabels,
         ),
       ),
     );
@@ -803,6 +882,7 @@ class _PurchaseOrdersHeaderDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant _PurchaseOrdersHeaderDelegate oldDelegate) {
     return sortColumn != oldDelegate.sortColumn ||
         sortAscending != oldDelegate.sortAscending ||
+        pinnedColumnIndex != oldDelegate.pinnedColumnIndex ||
         theme != oldDelegate.theme ||
         isCompactLayout != oldDelegate.isCompactLayout;
   }
@@ -816,6 +896,8 @@ class _PurchaseOrderRow extends StatefulWidget {
     required this.isCompactLayout,
     required this.onDelete,
     required this.isDeleting,
+    required this.horizontalController,
+    required this.pinnedColumnIndex,
   });
 
   final PurchaseOrder order;
@@ -824,6 +906,8 @@ class _PurchaseOrderRow extends StatefulWidget {
   final bool isCompactLayout;
   final VoidCallback onDelete;
   final bool isDeleting;
+  final ScrollController horizontalController;
+  final int? pinnedColumnIndex;
 
   @override
   State<_PurchaseOrderRow> createState() => _PurchaseOrderRowState();
@@ -933,21 +1017,49 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
             horizontal: horizontalPadding,
             vertical: 6,
           ),
-          child: Row(
-            children: [
-              _DataCell(widget.order.number, flex: _columnFlex[0]),
-              SizedBox(width: columnGap),
-              _DataCell(widget.order.name, flex: _columnFlex[1]),
-              _DataCell(widget.order.vendorName, flex: _columnFlex[2]),
+          child: PinnedTableRow(
+            columnFlex: _columnFlex,
+            horizontalController: widget.horizontalController,
+            pinnedColumnIndex: widget.pinnedColumnIndex,
+            overlayDecoration: BoxDecoration(
+              color: _hovering ? hoverBackground : baseBackground,
+              border: Border(
+                top: widget.showTopBorder
+                    ? BorderSide(color: borderColor)
+                    : BorderSide.none,
+                bottom: BorderSide(color: borderColor),
+              ),
+            ),
+            cells: [
+              Padding(
+                padding: EdgeInsets.only(right: columnGap),
+                child: _DataCell(
+                  widget.order.number,
+                  flex: _columnFlex[0],
+                  expand: false,
+                ),
+              ),
+              _DataCell(
+                widget.order.name,
+                flex: _columnFlex[1],
+                expand: false,
+              ),
+              _DataCell(
+                widget.order.vendorName,
+                flex: _columnFlex[2],
+                expand: false,
+              ),
               _DataCell(
                 widget.order.formattedDate,
                 flex: _columnFlex[3],
                 textAlign: TextAlign.center,
+                expand: false,
               ),
               _DataCell(
                 paymentProgress,
                 flex: _columnFlex[4],
                 textAlign: TextAlign.center,
+                expand: false,
                 style: isComplete
                     ? widget.theme.textTheme.bodyMedium?.copyWith(
                         color: widget.theme.colorScheme.primary,
@@ -957,19 +1069,20 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
               _DeliveryStatusCell(
                 status: widget.order.deliveryStatus,
                 flex: _columnFlex[5],
+                expand: false,
               ),
               _DataCell(
                 totalLabel,
                 flex: _columnFlex[6],
                 textAlign: TextAlign.end,
+                expand: false,
                 style: widget.theme.textTheme.bodyMedium?.copyWith(
                   color: widget.theme.colorScheme.error,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              SizedBox(width: columnGap),
-              Expanded(
-                flex: _columnFlex[7],
+              Padding(
+                padding: EdgeInsets.only(left: columnGap),
                 child: Center(
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1008,10 +1121,15 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
 }
 
 class _DeliveryStatusCell extends StatelessWidget {
-  const _DeliveryStatusCell({required this.status, required this.flex});
+  const _DeliveryStatusCell({
+    required this.status,
+    required this.flex,
+    this.expand = true,
+  });
 
   final int status;
   final int flex;
+  final bool expand;
 
   @override
   Widget build(BuildContext context) {
@@ -1019,30 +1137,45 @@ class _DeliveryStatusCell extends StatelessWidget {
     final color = isDelivered ? Colors.green : Colors.red;
     final label = isDelivered ? 'Delivered' : 'Undelivered';
 
+    final icon = Center(
+      child: Semantics(
+        label: label,
+        child: Icon(Icons.circle, size: 12, color: color),
+      ),
+    );
+
+    if (!expand) {
+      return icon;
+    }
+
     return Expanded(
       flex: flex,
-      child: Center(
-        child: Semantics(
-          label: label,
-          child: Icon(Icons.circle, size: 12, color: color),
-        ),
-      ),
+      child: icon,
     );
   }
 }
 
 class _DataCell extends StatelessWidget {
-  const _DataCell(this.value, {required this.flex, this.textAlign, this.style});
+  const _DataCell(
+    this.value, {
+    required this.flex,
+    this.textAlign,
+    this.style,
+    this.expand = true,
+    this.padding = EdgeInsets.zero,
+  });
 
   final String value;
   final int flex;
   final TextAlign? textAlign;
   final TextStyle? style;
+  final bool expand;
+  final EdgeInsets padding;
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      flex: flex,
+    final text = Padding(
+      padding: padding,
       child: Text(
         value,
         textAlign: textAlign ?? TextAlign.start,
@@ -1050,6 +1183,15 @@ class _DataCell extends StatelessWidget {
         maxLines: 1,
         style: style,
       ),
+    );
+
+    if (!expand) {
+      return text;
+    }
+
+    return Expanded(
+      flex: flex,
+      child: text,
     );
   }
 }

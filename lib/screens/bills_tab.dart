@@ -7,6 +7,7 @@ import '../app/app_state_scope.dart';
 import '../services/bills_service.dart';
 import '../widgets/bill_details_dialog.dart';
 import '../widgets/date_range_filter_button.dart';
+import '../widgets/pinned_table_row.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/tab_page_header.dart';
 import '../widgets/table_filter_bar.dart';
@@ -34,6 +35,16 @@ class BillsTabState extends State<BillsTab> {
   BillsSortColumn _sortColumn = BillsSortColumn.billDate;
   bool _sortAscending = false;
   String _filterQuery = '';
+  int? _pinnedColumnIndex;
+
+  static const _columnLabels = [
+    'Vendor',
+    'Date',
+    'Due Date',
+    'Status',
+    'Total',
+    'Actions',
+  ];
 
   static const _perPage = 20;
   // The bills table includes action buttons which require extra width; raising
@@ -303,6 +314,10 @@ class BillsTabState extends State<BillsTab> {
                               sortColumn: _sortColumn,
                               sortAscending: _sortAscending,
                               onSort: _handleSort,
+                              horizontalController: _horizontalController,
+                              pinnedColumnIndex: _pinnedColumnIndex,
+                              onPinnedColumnChanged: _handlePinnedColumnChanged,
+                              columnLabels: _columnLabels,
                             ),
                           ),
                           SliverList(
@@ -318,6 +333,8 @@ class BillsTabState extends State<BillsTab> {
                                 showTopBorder: index == 0,
                                 onDelete: () => _deleteBill(bill),
                                 onBillUpdated: _handleBillUpdated,
+                                horizontalController: _horizontalController,
+                                pinnedColumnIndex: _pinnedColumnIndex,
                               );
                             }, childCount: _bills.length),
                           ),
@@ -346,6 +363,10 @@ class BillsTabState extends State<BillsTab> {
       _applySorting();
       _applyFilters();
     });
+  }
+
+  void _handlePinnedColumnChanged(int? columnIndex) {
+    setState(() => _pinnedColumnIndex = columnIndex);
   }
 
   void _handleFilterChanged(String value) {
@@ -700,74 +721,118 @@ class _BillsHeader extends StatelessWidget {
     required this.sortColumn,
     required this.sortAscending,
     required this.onSort,
+    required this.horizontalController,
+    required this.pinnedColumnIndex,
+    required this.onPinnedColumnChanged,
+    required this.columnLabels,
   });
 
   final ThemeData theme;
   final BillsSortColumn sortColumn;
   final bool sortAscending;
   final ValueChanged<BillsSortColumn> onSort;
+  final ScrollController horizontalController;
+  final int? pinnedColumnIndex;
+  final ValueChanged<int?> onPinnedColumnChanged;
+  final List<String> columnLabels;
 
   static const _columnFlex = [4, 3, 3, 3, 2, 3];
 
   @override
   Widget build(BuildContext context) {
+    final headerBackground = theme.colorScheme.surfaceVariant.withOpacity(0.6);
+    final cells = [
+      SortableHeaderCell(
+        label: 'Vendor',
+        flex: _columnFlex[0],
+        theme: theme,
+        isActive: sortColumn == BillsSortColumn.vendor,
+        ascending: sortAscending,
+        onTap: () => onSort(BillsSortColumn.vendor),
+        expand: false,
+      ),
+      SortableHeaderCell(
+        label: 'Date',
+        flex: _columnFlex[1],
+        theme: theme,
+        textAlign: TextAlign.center,
+        isActive: sortColumn == BillsSortColumn.billDate,
+        ascending: sortAscending,
+        onTap: () => onSort(BillsSortColumn.billDate),
+        expand: false,
+      ),
+      SortableHeaderCell(
+        label: 'Due Date',
+        flex: _columnFlex[2],
+        theme: theme,
+        textAlign: TextAlign.center,
+        isActive: sortColumn == BillsSortColumn.dueDate,
+        ascending: sortAscending,
+        onTap: () => onSort(BillsSortColumn.dueDate),
+        expand: false,
+      ),
+      SortableHeaderCell(
+        label: 'Status',
+        flex: _columnFlex[3],
+        theme: theme,
+        textAlign: TextAlign.center,
+        isActive: sortColumn == BillsSortColumn.status,
+        ascending: sortAscending,
+        onTap: () => onSort(BillsSortColumn.status),
+        expand: false,
+      ),
+      SortableHeaderCell(
+        label: 'Total',
+        flex: _columnFlex[4],
+        theme: theme,
+        textAlign: TextAlign.end,
+        isActive: sortColumn == BillsSortColumn.total,
+        ascending: sortAscending,
+        onTap: () => onSort(BillsSortColumn.total),
+        expand: false,
+      ),
+      Align(
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: Text(
+                'Actions',
+                style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(width: 6),
+            PinnedColumnSelector(
+              columns: columnLabels,
+              selectedIndex: pinnedColumnIndex,
+              onChanged: onPinnedColumnChanged,
+              iconColor: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    ];
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: Row(
-        children: [
-          SortableHeaderCell(
-            label: 'Vendor',
-            flex: _columnFlex[0],
-            theme: theme,
-            isActive: sortColumn == BillsSortColumn.vendor,
-            ascending: sortAscending,
-            onTap: () => onSort(BillsSortColumn.vendor),
-          ),
-          SortableHeaderCell(
-            label: 'Date',
-            flex: _columnFlex[1],
-            theme: theme,
-            textAlign: TextAlign.center,
-            isActive: sortColumn == BillsSortColumn.billDate,
-            ascending: sortAscending,
-            onTap: () => onSort(BillsSortColumn.billDate),
-          ),
-          SortableHeaderCell(
-            label: 'Due Date',
-            flex: _columnFlex[2],
-            theme: theme,
-            textAlign: TextAlign.center,
-            isActive: sortColumn == BillsSortColumn.dueDate,
-            ascending: sortAscending,
-            onTap: () => onSort(BillsSortColumn.dueDate),
-          ),
-          SortableHeaderCell(
-            label: 'Status',
-            flex: _columnFlex[3],
-            theme: theme,
-            textAlign: TextAlign.center,
-            isActive: sortColumn == BillsSortColumn.status,
-            ascending: sortAscending,
-            onTap: () => onSort(BillsSortColumn.status),
-          ),
-          SortableHeaderCell(
-            label: 'Total',
-            flex: _columnFlex[4],
-            theme: theme,
-            textAlign: TextAlign.end,
-            isActive: sortColumn == BillsSortColumn.total,
-            ascending: sortAscending,
-            onTap: () => onSort(BillsSortColumn.total),
-          ),
-          const SizedBox(width: 12),
-          SortableHeaderCell(
-            label: 'Actions',
-            flex: _columnFlex[5],
-            theme: theme,
-            textAlign: TextAlign.center,
-            ascending: sortAscending,
-          ),
-        ],
+      child: PinnedTableRow(
+        columnFlex: _columnFlex,
+        cells: cells,
+        horizontalController: horizontalController,
+        pinnedColumnIndex: pinnedColumnIndex,
+        overlayDecoration: BoxDecoration(
+          color: headerBackground,
+          boxShadow: [
+            BoxShadow(
+              color: theme.shadowColor.withOpacity(0.12),
+              blurRadius: 8,
+              offset: const Offset(1, 0),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -779,12 +844,20 @@ class _BillsHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.sortColumn,
     required this.sortAscending,
     required this.onSort,
+    required this.horizontalController,
+    required this.pinnedColumnIndex,
+    required this.onPinnedColumnChanged,
+    required this.columnLabels,
   });
 
   final ThemeData theme;
   final BillsSortColumn sortColumn;
   final bool sortAscending;
   final ValueChanged<BillsSortColumn> onSort;
+  final ScrollController horizontalController;
+  final int? pinnedColumnIndex;
+  final ValueChanged<int?> onPinnedColumnChanged;
+  final List<String> columnLabels;
 
   static const double _height = 52;
 
@@ -811,6 +884,10 @@ class _BillsHeaderDelegate extends SliverPersistentHeaderDelegate {
           sortColumn: sortColumn,
           sortAscending: sortAscending,
           onSort: onSort,
+          horizontalController: horizontalController,
+          pinnedColumnIndex: pinnedColumnIndex,
+          onPinnedColumnChanged: onPinnedColumnChanged,
+          columnLabels: columnLabels,
         ),
       ),
     );
@@ -820,6 +897,7 @@ class _BillsHeaderDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant _BillsHeaderDelegate oldDelegate) {
     return sortColumn != oldDelegate.sortColumn ||
         sortAscending != oldDelegate.sortAscending ||
+        pinnedColumnIndex != oldDelegate.pinnedColumnIndex ||
         theme != oldDelegate.theme;
   }
 }
@@ -832,6 +910,8 @@ class _BillRow extends StatefulWidget {
     required this.showTopBorder,
     required this.onDelete,
     this.onBillUpdated,
+    required this.horizontalController,
+    required this.pinnedColumnIndex,
   });
 
   final Bill bill;
@@ -840,6 +920,8 @@ class _BillRow extends StatefulWidget {
   final bool showTopBorder;
   final Future<void> Function() onDelete;
   final void Function(Bill bill)? onBillUpdated;
+  final ScrollController horizontalController;
+  final int? pinnedColumnIndex;
 
   @override
   State<_BillRow> createState() => _BillRowState();
@@ -880,42 +962,58 @@ class _BillRowState extends State<_BillRow> {
             ),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
-          child: Row(
-            children: [
-              _DataCell(widget.vendorName, flex: _columnFlex[0]),
+          child: PinnedTableRow(
+            columnFlex: _columnFlex,
+            horizontalController: widget.horizontalController,
+            pinnedColumnIndex: widget.pinnedColumnIndex,
+            overlayDecoration: BoxDecoration(
+              color: _hovering ? hoverBackground : baseBackground,
+              border: Border(
+                top: widget.showTopBorder
+                    ? BorderSide(color: borderColor)
+                    : BorderSide.none,
+                bottom: BorderSide(color: borderColor),
+              ),
+            ),
+            cells: [
+              _DataCell(
+                widget.vendorName,
+                flex: _columnFlex[0],
+                expand: false,
+              ),
               _DataCell(
                 widget.bill.formattedDate,
                 flex: _columnFlex[1],
                 textAlign: TextAlign.center,
+                expand: false,
               ),
               _DataCell(
                 widget.bill.formattedDueDate,
                 flex: _columnFlex[2],
                 textAlign: TextAlign.center,
+                expand: false,
               ),
-              Expanded(
-                flex: _columnFlex[3],
-                child: Align(
-                  alignment: Alignment.center,
-                  child: _StatusPill(
-                    status: widget.bill.status,
-                    theme: widget.theme,
-                  ),
+              Align(
+                alignment: Alignment.center,
+                child: _StatusPill(
+                  status: widget.bill.status,
+                  theme: widget.theme,
                 ),
               ),
               _DataCell(
                 widget.bill.totalLabel,
                 flex: _columnFlex[4],
                 textAlign: TextAlign.end,
+                expand: false,
                 style: widget.theme.textTheme.bodyMedium?.copyWith(
                   color: widget.theme.colorScheme.error,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: _columnFlex[5],
-                child: Center(
+              Align(
+                alignment: Alignment.center,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 12),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1055,17 +1153,26 @@ class _StatusPill extends StatelessWidget {
 }
 
 class _DataCell extends StatelessWidget {
-  const _DataCell(this.value, {required this.flex, this.textAlign, this.style});
+  const _DataCell(
+    this.value, {
+    required this.flex,
+    this.textAlign,
+    this.style,
+    this.expand = true,
+    this.padding = EdgeInsets.zero,
+  });
 
   final String value;
   final int flex;
   final TextAlign? textAlign;
   final TextStyle? style;
+  final bool expand;
+  final EdgeInsets padding;
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      flex: flex,
+    final text = Padding(
+      padding: padding,
       child: Text(
         value,
         textAlign: textAlign ?? TextAlign.start,
@@ -1073,6 +1180,15 @@ class _DataCell extends StatelessWidget {
         maxLines: 1,
         style: style,
       ),
+    );
+
+    if (!expand) {
+      return text;
+    }
+
+    return Expanded(
+      flex: flex,
+      child: text,
     );
   }
 }
