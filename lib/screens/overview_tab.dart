@@ -90,52 +90,99 @@ class _OverviewTabState extends State<OverviewTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Date Range Picker Section
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+            // Date Range & Total Spent Section
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Date Range Filter
+                  InkWell(
+                    onTap: _selectDateRange,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8.0,
+                        horizontal: 4.0,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            'Date Range',
-                            style: theme.textTheme.labelMedium,
+                          Icon(
+                            Icons.calendar_today,
+                            size: 16,
+                            color: theme.colorScheme.onPrimaryContainer,
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(width: 8),
                           Text(
                             '${dateFormatter.format(_startDate)} - ${dateFormatter.format(_endDate)}',
-                            style: theme.textTheme.titleMedium,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: theme.colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_drop_down,
+                            color: theme.colorScheme.onPrimaryContainer,
                           ),
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.calendar_today),
-                      onPressed: _selectDateRange,
-                      tooltip: 'Select Date Range',
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Total Spent Header
+                  Text(
+                    'Total Spent',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer.withOpacity(0.8),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 4),
+                  if (_isLoading)
+                     SizedBox(
+                       height: 40,
+                       width: 40,
+                       child: CircularProgressIndicator(
+                         color: theme.colorScheme.onPrimaryContainer,
+                       ),
+                     )
+                  else if (_summary != null)
+                    Text(
+                      _summary!.totalSpent,
+                      style: theme.textTheme.headlineLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                    )
+                  else
+                    Text(
+                      '--',
+                      style: theme.textTheme.headlineLarge?.copyWith(
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Transaction Summary Section
+            Text(
+              'Transaction Summary',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 16),
 
-            // Summary Section
-            Text(
-              'Money Out Summary',
-              style: theme.textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-
-            if (_isLoading)
-              const Center(child: Padding(
-                padding: EdgeInsets.all(32.0),
-                child: CircularProgressIndicator(),
-              ))
-            else if (_errorMessage != null)
+            if (_errorMessage != null)
               Center(
                 child: Padding(
                   padding: const EdgeInsets.all(32.0),
@@ -147,8 +194,8 @@ class _OverviewTabState extends State<OverviewTab> {
                 ),
               )
             else if (_summary != null)
-              _SummaryGrid(summary: _summary!)
-            else
+              _TransactionSummarySection(summary: _summary!)
+            else if (!_isLoading)
               const Center(child: Text('No data available')),
           ],
         ),
@@ -157,59 +204,137 @@ class _OverviewTabState extends State<OverviewTab> {
   }
 }
 
-class _SummaryGrid extends StatelessWidget {
-  const _SummaryGrid({required this.summary});
+class _TransactionSummarySection extends StatelessWidget {
+  const _TransactionSummarySection({required this.summary});
 
   final MoneyOutSummary summary;
 
   @override
   Widget build(BuildContext context) {
-    final items = summary.displayItems;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Simple breakpoint logic: if width > 600, use Row, else Column
+        final isLargeScreen = constraints.maxWidth > 600;
 
-    if (items.isEmpty) {
-      return const Center(child: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Text('No summary data returned for this period.'),
-      ));
-    }
+        final cards = [
+          _SummaryCard(
+            title: 'Purchase Orders',
+            count: summary.purchaseOrders.count,
+            total: summary.purchaseOrders.total,
+            icon: Icons.shopping_cart,
+          ),
+          _SummaryCard(
+            title: 'Expenses',
+            count: summary.expenses.count,
+            total: summary.expenses.total,
+            icon: Icons.receipt,
+          ),
+          _SummaryCard(
+            title: 'Bills',
+            count: summary.bills.count,
+            total: summary.bills.total,
+            icon: Icons.description,
+          ),
+        ];
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 1.5,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final entry = items[index];
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+        if (isLargeScreen) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: cards.map((c) => Expanded(child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+              child: c,
+            ))).toList(),
+          );
+        } else {
+          return Column(
+            children: cards.map((c) => Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: c,
+            )).toList(),
+          );
+        }
+      },
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({
+    required this.title,
+    required this.count,
+    required this.total,
+    required this.icon,
+  });
+
+  final String title;
+  final int count;
+  final String total;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
+                Icon(icon, size: 20, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
                 Text(
-                  entry.key,
-                  style: Theme.of(context).textTheme.labelLarge,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  entry.value,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
                   ),
-                  textAlign: TextAlign.center,
                 ),
               ],
             ),
-          ),
-        );
-      },
+            const Divider(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Number of Transaction',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.textTheme.bodySmall?.color,
+                  ),
+                ),
+                Text(
+                  '$count',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Total Spent',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.textTheme.bodySmall?.color,
+                  ),
+                ),
+                Text(
+                  total,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
