@@ -15,6 +15,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  static const _usernameSuffix = '@kokonuts.my';
   bool _isSubmitting = false;
   String? _error;
   Map<String, String> _fieldErrors = {};
@@ -41,10 +42,11 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     final appState = AppStateScope.of(context);
+    final username = _formatUsername(_usernameController.text);
 
     try {
       await appState.login(
-        username: _usernameController.text.trim(),
+        username: username,
         password: _passwordController.text,
       );
     } on AuthException catch (error) {
@@ -80,6 +82,14 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     }
+  }
+
+  String _formatUsername(String rawUsername) {
+    final trimmed = rawUsername.trim();
+    if (trimmed.isEmpty || trimmed.endsWith(_usernameSuffix)) {
+      return trimmed;
+    }
+    return '$trimmed$_usernameSuffix';
   }
 
   Map<String, String> _mapFieldErrors(Map<String, List<String>> source) {
@@ -171,6 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Username',
                       border: OutlineInputBorder(),
+                      suffixText: _usernameSuffix,
                     ),
                     textInputAction: TextInputAction.next,
                     onChanged: (_) {
