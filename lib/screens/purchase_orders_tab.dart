@@ -174,15 +174,19 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
     }
 
     final rawToken = (appState.rawAuthToken ?? token).trim();
-    final sanitizedToken =
-        token.replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '').trim();
-    final normalizedAuth =
-        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
     final autoTokenValue = rawToken
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
 
-    final authtokenHeader = autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
 
     return {
       'Accept': 'application/json',
@@ -192,7 +196,8 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   }
 
   Future<void> _confirmDelete(PurchaseOrder order) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed =
+        await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Delete purchase order?'),
@@ -246,25 +251,19 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Purchase order "${order.number}" deleted.'),
-          ),
+          SnackBar(content: Text('Purchase order "${order.number}" deleted.')),
         );
       }
     } on PurchaseOrdersException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error.message),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to delete purchase order: $error'),
-          ),
+          SnackBar(content: Text('Failed to delete purchase order: $error')),
         );
       }
     } finally {
@@ -285,8 +284,9 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       onRefresh: () => _fetchPage(reset: true),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final maxWidth =
-              constraints.maxWidth.isFinite ? constraints.maxWidth : _minTableWidth;
+          final maxWidth = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : _minTableWidth;
           final isCompactLayout = maxWidth < _minTableWidth;
           final tableWidth = isCompactLayout ? _minTableWidth : maxWidth;
 
@@ -342,24 +342,22 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                             ),
                           ),
                           SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final order = _orders[index];
-                                return _PurchaseOrderRow(
-                                  order: order,
-                                  theme: theme,
-                                  showTopBorder: index == 0,
-                                  isCompactLayout: isCompactLayout,
-                                  onDelete: () => _confirmDelete(order),
-                                  isDeleting: _isDeleting,
-                                );
-                              },
-                              childCount: _orders.length,
-                            ),
+                            delegate: SliverChildBuilderDelegate((
+                              context,
+                              index,
+                            ) {
+                              final order = _orders[index];
+                              return _PurchaseOrderRow(
+                                order: order,
+                                theme: theme,
+                                showTopBorder: index == 0,
+                                isCompactLayout: isCompactLayout,
+                                onDelete: () => _confirmDelete(order),
+                                isDeleting: _isDeleting,
+                              );
+                            }, childCount: _orders.length),
                           ),
-                          SliverToBoxAdapter(
-                            child: _buildFooter(theme),
-                          ),
+                          SliverToBoxAdapter(child: _buildFooter(theme)),
                         ],
                       ),
                     ),
@@ -414,8 +412,9 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
     String? successMessage,
   }) {
     setState(() {
-      final existingIndex =
-          _allOrders.indexWhere((element) => element.id == order.id);
+      final existingIndex = _allOrders.indexWhere(
+        (element) => element.id == order.id,
+      );
       if (existingIndex >= 0) {
         _allOrders[existingIndex] = order;
       } else {
@@ -427,11 +426,9 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
     });
 
     if (successMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(successMessage),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(successMessage)));
     }
   }
 
@@ -449,9 +446,7 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
 
     _orders
       ..clear()
-      ..addAll(
-        _allOrders.where(_matchesAllFilters),
-      );
+      ..addAll(_allOrders.where(_matchesAllFilters));
   }
 
   bool get _hasDateRangeFilter =>
@@ -515,7 +510,9 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       return _sortAscending ? primary : -primary;
     }
 
-    final numberCompare = a.number.toLowerCase().compareTo(b.number.toLowerCase());
+    final numberCompare = a.number.toLowerCase().compareTo(
+      b.number.toLowerCase(),
+    );
     if (numberCompare != 0) {
       return _sortAscending ? numberCompare : -numberCompare;
     }
@@ -592,8 +589,9 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
           children: [
             Text(
               _error!,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.error),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.error,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
@@ -611,8 +609,11 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
         padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
         child: Column(
           children: [
-            Icon(Icons.shopping_bag_outlined,
-                size: 48, color: theme.colorScheme.primary),
+            Icon(
+              Icons.shopping_bag_outlined,
+              size: 48,
+              color: theme.colorScheme.primary,
+            ),
             const SizedBox(height: 16),
             Text(
               'No purchase orders available.',
@@ -847,10 +848,7 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
         final message = orderLabel.isEmpty
             ? 'Purchase order updated.'
             : 'Purchase order $orderLabel updated.';
-        tabState?.insertCreatedPurchaseOrder(
-          value,
-          successMessage: message,
-        );
+        tabState?.insertCreatedPurchaseOrder(value, successMessage: message);
       }
     });
   }
@@ -863,11 +861,28 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
     );
   }
 
+  double _paymentProgressValue(PurchaseOrder order) {
+    final total = order.totalAmount ?? 0;
+    final paidAmount = order.totalPaid ?? 0;
+    if (total <= 0) {
+      return 0;
+    }
+    final progress = paidAmount / total;
+    if (!progress.isFinite) {
+      return 0;
+    }
+    return progress.clamp(0, double.infinity);
+  }
+
   @override
   Widget build(BuildContext context) {
     final borderColor = widget.theme.dividerColor.withOpacity(0.6);
-    final baseBackground = widget.theme.colorScheme.surfaceVariant.withOpacity(0.25);
-    final hoverBackground = widget.theme.colorScheme.surfaceVariant.withOpacity(0.45);
+    final baseBackground = widget.theme.colorScheme.surfaceVariant.withOpacity(
+      0.25,
+    );
+    final hoverBackground = widget.theme.colorScheme.surfaceVariant.withOpacity(
+      0.45,
+    );
 
     final totalAmount = widget.order.totalAmount;
     final totalLabel = widget.order.totalLabel;
@@ -887,14 +902,15 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
 
     // Match Expenses table button style
     const double iconSize = 22.0;
-    const BoxConstraints iconConstraints =
-        BoxConstraints.tightFor(width: 40, height: 40);
+    const BoxConstraints iconConstraints = BoxConstraints.tightFor(
+      width: 40,
+      height: 40,
+    );
     const VisualDensity iconDensity = VisualDensity.compact;
 
     // Use the existing compact logic if needed, but user requested to match Expenses table style
     // If we want to strictly respect compact layout, we might need to adjust, but sticking to the request:
-    final double effectiveIconSize =
-        widget.isCompactLayout ? 20.0 : iconSize;
+    final double effectiveIconSize = widget.isCompactLayout ? 20.0 : iconSize;
     final BoxConstraints effectiveIconConstraints = widget.isCompactLayout
         ? const BoxConstraints.tightFor(width: 36, height: 36)
         : iconConstraints;
@@ -910,12 +926,16 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
           decoration: BoxDecoration(
             color: _hovering ? hoverBackground : baseBackground,
             border: Border(
-              top:
-                  widget.showTopBorder ? BorderSide(color: borderColor) : BorderSide.none,
+              top: widget.showTopBorder
+                  ? BorderSide(color: borderColor)
+                  : BorderSide.none,
               bottom: BorderSide(color: borderColor),
             ),
           ),
-          padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8),
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: 8,
+          ),
           child: Row(
             children: [
               _DataCell(widget.order.number, flex: _columnFlex[0]),
@@ -932,8 +952,9 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
                 flex: _columnFlex[4],
                 textAlign: TextAlign.center,
                 style: isComplete
-                    ? widget.theme.textTheme.bodyMedium
-                        ?.copyWith(color: widget.theme.colorScheme.primary)
+                    ? widget.theme.textTheme.bodyMedium?.copyWith(
+                        color: widget.theme.colorScheme.primary,
+                      )
                     : null,
               ),
               _DeliveryStatusCell(
@@ -990,10 +1011,7 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
 }
 
 class _DeliveryStatusCell extends StatelessWidget {
-  const _DeliveryStatusCell({
-    required this.status,
-    required this.flex,
-  });
+  const _DeliveryStatusCell({required this.status, required this.flex});
 
   final int status;
   final int flex;
@@ -1009,11 +1027,7 @@ class _DeliveryStatusCell extends StatelessWidget {
       child: Center(
         child: Semantics(
           label: label,
-          child: Icon(
-            Icons.circle,
-            size: 12,
-            color: color,
-          ),
+          child: Icon(Icons.circle, size: 12, color: color),
         ),
       ),
     );
@@ -1021,12 +1035,7 @@ class _DeliveryStatusCell extends StatelessWidget {
 }
 
 class _DataCell extends StatelessWidget {
-  const _DataCell(
-    this.value, {
-    required this.flex,
-    this.textAlign,
-    this.style,
-  });
+  const _DataCell(this.value, {required this.flex, this.textAlign, this.style});
 
   final String value;
   final int flex;
