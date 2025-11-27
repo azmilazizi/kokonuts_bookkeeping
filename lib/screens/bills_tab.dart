@@ -281,6 +281,7 @@ class BillsTabState extends State<BillsTab> {
                     child: SizedBox(
                       width: tableWidth,
                       child: CustomScrollView(
+                        shrinkWrap: true,
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
                         slivers: [

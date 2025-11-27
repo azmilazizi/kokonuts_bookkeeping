@@ -195,6 +195,7 @@ class ExpensesTabState extends State<ExpensesTab> {
                     child: SizedBox(
                       width: tableWidth,
                       child: CustomScrollView(
+                        shrinkWrap: true,
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
                         slivers: [
