@@ -7,7 +7,6 @@ import '../widgets/date_range_filter_button.dart';
 import '../widgets/edit_purchase_order_dialog.dart';
 import '../widgets/purchase_order_details_dialog.dart';
 import '../widgets/sortable_header_cell.dart';
-import '../widgets/tab_page_header.dart';
 import '../widgets/table_filter_bar.dart';
 
 enum PurchaseOrderSortColumn {
@@ -309,13 +308,6 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
                         slivers: [
-                          SliverPersistentHeader(
-                            pinned: true,
-                            delegate: TabPageHeaderDelegate(
-                              title: 'Purchase Orders',
-                              horizontalController: _horizontalController,
-                            ),
-                          ),
                           SliverToBoxAdapter(
                             child: TableFilterBar(
                               controller: _filterController,

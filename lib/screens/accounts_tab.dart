@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../app/app_state_scope.dart';
 import '../services/accounts_service.dart';
 import '../widgets/sortable_header_cell.dart';
-import '../widgets/tab_page_header.dart';
 import '../widgets/table_filter_bar.dart';
 
 enum AccountsSortColumn { name, parent, type, detailType, balance }
@@ -198,13 +197,6 @@ class _AccountsTabState extends State<AccountsTab> {
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
                         slivers: [
-                          SliverPersistentHeader(
-                            pinned: true,
-                            delegate: TabPageHeaderDelegate(
-                              title: 'Accounts',
-                              horizontalController: _horizontalController,
-                            ),
-                          ),
                           SliverToBoxAdapter(
                             child: TableFilterBar(
                               controller: _filterController,
