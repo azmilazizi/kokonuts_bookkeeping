@@ -146,7 +146,8 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
         return;
       }
       setState(() {
-        _error = error.toString();
+        _error =
+            'Something went wrong while loading purchase orders. Please try again later.';
         _hasMore = false;
       });
     } finally {
@@ -563,11 +564,15 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
 
   double _paymentProgressValue(PurchaseOrder order) {
     final total = order.totalAmount ?? 0;
+    final paidAmount = order.totalPaid ?? 0;
     if (total <= 0) {
       return 0;
     }
-    const paidAmount = 0.0;
-    return paidAmount / total;
+    final progress = paidAmount / total;
+    if (!progress.isFinite) {
+      return 0;
+    }
+    return progress.clamp(0, double.infinity);
   }
 
   Widget _buildFooter(ThemeData theme) {
@@ -866,11 +871,15 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
 
     final totalAmount = widget.order.totalAmount;
     final totalLabel = widget.order.totalLabel;
-    final paidAmount = 0.0;
-    const paidLabel = '0';
-    final paymentProgress = '$paidLabel/$totalLabel';
-    final isComplete =
-        totalAmount != null && totalAmount > 0 && paidAmount >= totalAmount;
+    final progressRatio = _paymentProgressValue(widget.order);
+    final hasTotal = totalAmount != null && totalAmount > 0;
+    final displayedPercent = hasTotal
+        ? (progressRatio * 100).clamp(0, 100)
+        : null;
+    final paymentProgress = displayedPercent != null
+        ? '${displayedPercent.toStringAsFixed(0)}%'
+        : '—';
+    final isComplete = hasTotal && progressRatio >= 1;
 
     final double horizontalPadding = widget.isCompactLayout ? 16.0 : 24.0;
     final double columnGap = widget.isCompactLayout ? 8.0 : 12.0;
@@ -924,7 +933,7 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
                 textAlign: TextAlign.center,
                 style: isComplete
                     ? widget.theme.textTheme.bodyMedium
-                        ?.copyWith(color: widget.theme.colorScheme.error)
+                        ?.copyWith(color: widget.theme.colorScheme.primary)
                     : null,
               ),
               _DeliveryStatusCell(
