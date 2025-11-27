@@ -6,7 +6,6 @@ import '../widgets/date_range_filter_button.dart';
 import '../widgets/expense_details_dialog.dart';
 import '../widgets/edit_expense_dialog.dart';
 import '../widgets/sortable_header_cell.dart';
-import '../widgets/tab_page_header.dart';
 import '../widgets/table_filter_bar.dart';
 
 enum ExpensesSortColumn { vendor, name, category, amount, date, paymentMode }
@@ -194,13 +193,6 @@ class ExpensesTabState extends State<ExpensesTab> {
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
                         slivers: [
-                          SliverPersistentHeader(
-                            pinned: true,
-                            delegate: TabPageHeaderDelegate(
-                              title: 'Expenses',
-                              horizontalController: _horizontalController,
-                            ),
-                          ),
                           SliverToBoxAdapter(
                             child: TableFilterBar(
                               controller: _filterController,

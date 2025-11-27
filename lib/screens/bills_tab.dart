@@ -8,7 +8,6 @@ import '../services/bills_service.dart';
 import '../widgets/bill_details_dialog.dart';
 import '../widgets/date_range_filter_button.dart';
 import '../widgets/sortable_header_cell.dart';
-import '../widgets/tab_page_header.dart';
 import '../widgets/table_filter_bar.dart';
 
 enum BillsSortColumn { vendor, billDate, dueDate, status, total }
@@ -274,13 +273,6 @@ class BillsTabState extends State<BillsTab> {
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
                         slivers: [
-                          SliverPersistentHeader(
-                            pinned: true,
-                            delegate: TabPageHeaderDelegate(
-                              title: 'Bills',
-                              horizontalController: _horizontalController,
-                            ),
-                          ),
                           SliverToBoxAdapter(
                             child: TableFilterBar(
                               controller: _filterController,

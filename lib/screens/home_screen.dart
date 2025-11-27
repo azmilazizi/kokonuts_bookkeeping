@@ -17,6 +17,7 @@ import '../widgets/add_expense_dialog.dart';
 import '../widgets/add_purchase_order_dialog.dart';
 import '../widgets/create_bill_dialog.dart';
 import '../widgets/post_dialog.dart';
+import '../widgets/app_logo.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -160,12 +161,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final AppState appState = AppStateScope.of(context);
-    final username = appState.username;
 
     final AppState scopedAppState = AppStateScope.of(context);
 
     final bool isOverviewTabSelected = _controller.index == _tabs.length - 1;
     final _HomeTab currentTab = _tabs[_controller.index];
+    final isCompact = MediaQuery.sizeOf(context).width < 600;
 
     final overlayStyle = theme.brightness == Brightness.dark
         ? SystemUiOverlayStyle.light.copyWith(
@@ -181,6 +182,37 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       value: overlayStyle,
       child: Scaffold(
         backgroundColor: theme.colorScheme.surface,
+        appBar: AppBar(
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const AppLogo(size: 28),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  currentTab.title,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            if (isCompact)
+               _HeaderMenuButton(appState: appState)
+            else ...[
+               _ThemeModeButton(appState: appState),
+               IconButton(
+                 tooltip: 'Log out',
+                 icon: const Icon(Icons.logout),
+                 onPressed: appState.logout,
+               ),
+            ],
+            const SizedBox(width: 8),
+          ],
+        ),
         body: ColoredBox(
           color: theme.colorScheme.surface,
           child: SafeArea(
@@ -256,31 +288,127 @@ class _ThemeModeButton extends StatelessWidget {
         break;
     }
 
-    return PopupMenuButton<ThemeMode>(
-      tooltip: 'Theme preferences',
+    return IconButton(
+      tooltip: tooltip,
       icon: Icon(icon),
-      initialValue: currentMode,
-      onSelected: appState.updateThemeMode,
-      itemBuilder: (context) => [
-        CheckedPopupMenuItem(
-          value: ThemeMode.light,
-          checked: currentMode == ThemeMode.light,
-          child: const Text('Light'),
-        ),
-        CheckedPopupMenuItem(
-          value: ThemeMode.dark,
-          checked: currentMode == ThemeMode.dark,
-          child: const Text('Dark'),
-        ),
-        CheckedPopupMenuItem(
-          value: ThemeMode.system,
-          checked: currentMode == ThemeMode.system,
-          child: const Text('System'),
-        ),
-      ],
+      onPressed: () => _selectTheme(context, appState),
     );
   }
 }
+
+Future<void> _selectTheme(BuildContext context, AppState appState) async {
+  final theme = Theme.of(context);
+  final selectedMode = await showDialog<ThemeMode>(
+    context: context,
+    builder: (context) {
+      const options = [
+        MapEntry(ThemeMode.light, 'Light'),
+        MapEntry(ThemeMode.dark, 'Dark'),
+        MapEntry(ThemeMode.system, 'System'),
+      ];
+
+      return AlertDialog(
+        title: const Text('Select theme'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: options
+              .map(
+                (option) => RadioListTile<ThemeMode>(
+                  value: option.key,
+                  groupValue: appState.themeMode,
+                  onChanged: (value) => Navigator.of(context).pop(value),
+                  title: Text(option.value, style: theme.textTheme.bodyLarge),
+                ),
+              )
+              .toList(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (selectedMode != null) {
+    appState.updateThemeMode(selectedMode);
+  }
+}
+
+class _HeaderMenuButton extends StatelessWidget {
+  const _HeaderMenuButton({required this.appState});
+
+  final AppState appState;
+
+  @override
+  Widget build(BuildContext context) {
+    final modeLabel = _themeModeLabel(appState.themeMode);
+    return IconButton(
+      tooltip: 'Menu',
+      icon: const Icon(Icons.menu),
+      onPressed: () {
+        showModalBottomSheet<void>(
+          context: context,
+          builder: (context) {
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    leading: Icon(modeLabel.icon),
+                    title: Text('Theme: ${modeLabel.tooltip}'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      _selectTheme(context, appState);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.logout),
+                    title: const Text('Log out'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      appState.logout();
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _ThemeModeLabel {
+  const _ThemeModeLabel({required this.icon, required this.tooltip});
+
+  final IconData icon;
+  final String tooltip;
+}
+
+_ThemeModeLabel _themeModeLabel(ThemeMode mode) {
+  switch (mode) {
+    case ThemeMode.dark:
+      return const _ThemeModeLabel(
+        icon: Icons.dark_mode_outlined,
+        tooltip: 'Dark mode',
+      );
+    case ThemeMode.light:
+      return const _ThemeModeLabel(
+        icon: Icons.light_mode_outlined,
+        tooltip: 'Light mode',
+      );
+    case ThemeMode.system:
+      return const _ThemeModeLabel(
+        icon: Icons.brightness_auto_outlined,
+        tooltip: 'System theme',
+      );
+  }
+}
+
 
 class _HomeTab {
   const _HomeTab({required this.title, required this.icon, this.builder});
