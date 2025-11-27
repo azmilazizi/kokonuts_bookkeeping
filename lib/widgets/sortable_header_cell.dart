@@ -10,7 +10,6 @@ class SortableHeaderCell extends StatelessWidget {
     this.isActive = false,
     this.ascending = true,
     this.onTap,
-    this.expand = true,
   });
 
   final String label;
@@ -20,7 +19,6 @@ class SortableHeaderCell extends StatelessWidget {
   final bool isActive;
   final bool ascending;
   final VoidCallback? onTap;
-  final bool expand;
 
   @override
   Widget build(BuildContext context) {
@@ -63,30 +61,24 @@ class SortableHeaderCell extends StatelessWidget {
       ),
     );
 
-    final wrapped = MouseRegion(
-      cursor: clickable ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(4),
-          splashColor: clickable ? null : Colors.transparent,
-          highlightColor: clickable ? null : Colors.transparent,
-          hoverColor: clickable
-              ? theme.colorScheme.primary.withOpacity(0.06)
-              : Colors.transparent,
-          child: content,
-        ),
-      ),
-    );
-
-    if (!expand) {
-      return wrapped;
-    }
-
     return Expanded(
       flex: flex,
-      child: wrapped,
+      child: MouseRegion(
+        cursor: clickable ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(4),
+            splashColor: clickable ? null : Colors.transparent,
+            highlightColor: clickable ? null : Colors.transparent,
+            hoverColor: clickable
+                ? theme.colorScheme.primary.withOpacity(0.06)
+                : Colors.transparent,
+            child: content,
+          ),
+        ),
+      ),
     );
   }
 
