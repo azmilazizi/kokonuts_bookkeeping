@@ -27,22 +27,29 @@ class PinnedTableRow extends StatelessWidget {
             .map((flex) => width * (flex / totalFlex))
             .toList(growable: false);
 
-        final row = Row(
-          children: [
-            for (var i = 0; i < cells.length; i++)
-              SizedBox(width: columnWidths[i], child: cells[i]),
-          ],
-        );
-
         final pinnedIndex = pinnedColumnIndex;
         if (pinnedIndex == null || pinnedIndex < 0 || pinnedIndex >= cells.length) {
-          return row;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < cells.length; i++)
+                SizedBox(width: columnWidths[i], child: cells[i]),
+            ],
+          );
         }
 
-        final pinnedLeft =
-            columnWidths.take(pinnedIndex).fold<double>(0, (value, width) => value + width);
         final pinnedWidth = columnWidths[pinnedIndex];
-        final decoration = overlayDecoration ??
+        final pinnedCell = cells[pinnedIndex];
+        final nonPinnedCells = <Widget>[];
+        final nonPinnedWidths = <double>[];
+
+        for (var i = 0; i < cells.length; i++) {
+          if (i == pinnedIndex) continue;
+          nonPinnedCells.add(cells[i]);
+          nonPinnedWidths.add(columnWidths[i]);
+        }
+
+        final baseDecoration = overlayDecoration ??
             BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
               boxShadow: [
@@ -53,14 +60,22 @@ class PinnedTableRow extends StatelessWidget {
                 ),
               ],
             );
+        final decoration = baseDecoration.copyWith(
+          color: baseDecoration.color?.withOpacity(1) ??
+              Theme.of(context).colorScheme.surface,
+        );
 
         return Stack(
           children: [
-            row,
-            Positioned(
-              left: pinnedLeft,
-              top: 0,
-              bottom: 0,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(width: pinnedWidth),
+                for (var i = 0; i < nonPinnedCells.length; i++)
+                  SizedBox(width: nonPinnedWidths[i], child: nonPinnedCells[i]),
+              ],
+            ),
+            Positioned.fill(
               child: AnimatedBuilder(
                 animation: horizontalController,
                 builder: (context, child) {
@@ -71,11 +86,16 @@ class PinnedTableRow extends StatelessWidget {
                     child: child,
                   );
                 },
-                child: ClipRect(
-                  child: Container(
-                    width: pinnedWidth,
-                    decoration: decoration,
-                    child: cells[pinnedIndex],
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: ClipRect(
+                    child: SizedBox(
+                      width: pinnedWidth,
+                      child: DecoratedBox(
+                        decoration: decoration,
+                        child: SizedBox.expand(child: pinnedCell),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -106,11 +126,25 @@ class PinnedColumnSelector extends StatelessWidget {
     final theme = Theme.of(context);
     return PopupMenuButton<int?>(
       tooltip: 'Pin a column',
+      initialValue: selectedIndex,
       onSelected: onChanged,
       itemBuilder: (context) => [
-        const PopupMenuItem<int?>(
+        PopupMenuItem<int?>(
           value: null,
-          child: Text('None'),
+          child: Row(
+            children: [
+              Icon(
+                selectedIndex == null
+                    ? Icons.check_circle
+                    : Icons.radio_button_unchecked,
+                size: 18,
+                color:
+                    selectedIndex == null ? theme.colorScheme.primary : theme.iconTheme.color,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('None')),
+            ],
+          ),
         ),
         ...List.generate(columns.length, (index) {
           final isSelected = selectedIndex == index;
