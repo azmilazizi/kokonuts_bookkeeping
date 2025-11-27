@@ -27,22 +27,28 @@ class PinnedTableRow extends StatelessWidget {
             .map((flex) => width * (flex / totalFlex))
             .toList(growable: false);
 
-        final row = Row(
-          children: [
-            for (var i = 0; i < cells.length; i++)
-              SizedBox(width: columnWidths[i], child: cells[i]),
-          ],
-        );
-
         final pinnedIndex = pinnedColumnIndex;
         if (pinnedIndex == null || pinnedIndex < 0 || pinnedIndex >= cells.length) {
-          return row;
+          return Row(
+            children: [
+              for (var i = 0; i < cells.length; i++)
+                SizedBox(width: columnWidths[i], child: cells[i]),
+            ],
+          );
         }
 
-        final pinnedLeft =
-            columnWidths.take(pinnedIndex).fold<double>(0, (value, width) => value + width);
         final pinnedWidth = columnWidths[pinnedIndex];
-        final decoration = overlayDecoration ??
+        final pinnedCell = cells[pinnedIndex];
+        final nonPinnedCells = <Widget>[];
+        final nonPinnedWidths = <double>[];
+
+        for (var i = 0; i < cells.length; i++) {
+          if (i == pinnedIndex) continue;
+          nonPinnedCells.add(cells[i]);
+          nonPinnedWidths.add(columnWidths[i]);
+        }
+
+        final baseDecoration = overlayDecoration ??
             BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
               boxShadow: [
@@ -53,12 +59,22 @@ class PinnedTableRow extends StatelessWidget {
                 ),
               ],
             );
+        final decoration = baseDecoration.copyWith(
+          color: baseDecoration.color?.withOpacity(1) ??
+              Theme.of(context).colorScheme.surface,
+        );
 
         return Stack(
           children: [
-            row,
+            Row(
+              children: [
+                SizedBox(width: pinnedWidth),
+                for (var i = 0; i < nonPinnedCells.length; i++)
+                  SizedBox(width: nonPinnedWidths[i], child: nonPinnedCells[i]),
+              ],
+            ),
             Positioned(
-              left: pinnedLeft,
+              left: 0,
               top: 0,
               bottom: 0,
               child: AnimatedBuilder(
@@ -67,7 +83,7 @@ class PinnedTableRow extends StatelessWidget {
                   final offset =
                       horizontalController.hasClients ? horizontalController.offset : 0.0;
                   return Transform.translate(
-                    offset: Offset(offset, 0),
+                    offset: Offset(-offset, 0),
                     child: child,
                   );
                 },
@@ -75,7 +91,7 @@ class PinnedTableRow extends StatelessWidget {
                   child: Container(
                     width: pinnedWidth,
                     decoration: decoration,
-                    child: cells[pinnedIndex],
+                    child: pinnedCell,
                   ),
                 ),
               ),
