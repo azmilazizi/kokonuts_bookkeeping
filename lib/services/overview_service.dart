@@ -51,6 +51,20 @@ class OverviewService {
   }
 }
 
+class TransactionCategorySummary {
+  final int count;
+  final String total;
+
+  const TransactionCategorySummary({
+    required this.count,
+    required this.total,
+  });
+
+  factory TransactionCategorySummary.empty() {
+    return const TransactionCategorySummary(count: 0, total: '0.00');
+  }
+}
+
 class MoneyOutSummary {
   final Map<String, dynamic> rawData;
 
@@ -61,6 +75,46 @@ class MoneyOutSummary {
       return MoneyOutSummary(json);
     }
     return const MoneyOutSummary({});
+  }
+
+  String get totalSpent {
+    if (rawData.containsKey('total_spent')) {
+      return rawData['total_spent'].toString();
+    }
+    if (rawData.containsKey('total')) {
+      return rawData['total'].toString();
+    }
+    return '0.00';
+  }
+
+  TransactionCategorySummary get purchaseOrders => _parseCategory(['purchase_orders', 'purchase_order']);
+  TransactionCategorySummary get expenses => _parseCategory(['expenses', 'expense']);
+  TransactionCategorySummary get bills => _parseCategory(['bills', 'bill']);
+
+  TransactionCategorySummary _parseCategory(List<String> keys) {
+    dynamic categoryData;
+    for (final key in keys) {
+      if (rawData.containsKey(key)) {
+        categoryData = rawData[key];
+        break;
+      }
+    }
+
+    if (categoryData is Map<String, dynamic>) {
+      final count = _parseInt(categoryData['count']) ?? _parseInt(categoryData['number_of_transaction']) ?? 0;
+      final total = categoryData['total']?.toString() ?? categoryData['total_spent']?.toString() ?? '0.00';
+      return TransactionCategorySummary(count: count, total: total);
+    }
+
+    // Fallback for flat structure if needed, e.g. purchase_orders_count
+    // But keeping it simple for now based on likely nested structure
+    return TransactionCategorySummary.empty();
+  }
+
+  int? _parseInt(dynamic value) {
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value);
+    return null;
   }
 
   /// Returns a list of key-value pairs for display.
