@@ -879,7 +879,7 @@ class _BillRowState extends State<_BillRow> {
               bottom: BorderSide(color: borderColor),
             ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
           child: Row(
             children: [
               _DataCell(widget.vendorName, flex: _columnFlex[0]),
@@ -923,11 +923,11 @@ class _BillRowState extends State<_BillRow> {
                       IconButton(
                         icon: const Icon(Icons.edit_outlined),
                         tooltip: 'Edit bill',
-                        iconSize: 22,
+                        iconSize: 20,
                         visualDensity: VisualDensity.compact,
                         constraints: const BoxConstraints.tightFor(
-                          width: 40,
-                          height: 40,
+                          width: 36,
+                          height: 36,
                         ),
                         onPressed: _handleEdit,
                       ),
@@ -935,11 +935,11 @@ class _BillRowState extends State<_BillRow> {
                       IconButton(
                         icon: const Icon(Icons.delete_outline),
                         tooltip: 'Delete bill',
-                        iconSize: 22,
+                        iconSize: 20,
                         visualDensity: VisualDensity.compact,
                         constraints: const BoxConstraints.tightFor(
-                          width: 40,
-                          height: 40,
+                          width: 36,
+                          height: 36,
                         ),
                         color: widget.theme.colorScheme.error,
                         onPressed: _isDeleting ? null : _handleDelete,

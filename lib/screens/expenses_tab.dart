@@ -804,7 +804,7 @@ class _ExpenseRowState extends State<_ExpenseRow> {
               bottom: BorderSide(color: borderColor),
             ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
           child: Row(
             children: [
               _DataCell(widget.expense.vendor, flex: _columnFlex[0]),
@@ -840,18 +840,18 @@ class _ExpenseRowState extends State<_ExpenseRow> {
                       IconButton(
                         tooltip: 'Edit',
                         icon: const Icon(Icons.edit_outlined),
-                        iconSize: 22,
+                        iconSize: 20,
                         visualDensity: VisualDensity.compact,
-                        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                        constraints: const BoxConstraints.tightFor(width: 36, height: 36),
                         onPressed: _handleEdit,
                       ),
                       const SizedBox(width: 8),
                       IconButton(
                         tooltip: 'Delete',
                         icon: const Icon(Icons.delete_outline),
-                        iconSize: 22,
+                        iconSize: 20,
                         visualDensity: VisualDensity.compact,
-                        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                        constraints: const BoxConstraints.tightFor(width: 36, height: 36),
                         color: widget.theme.colorScheme.error,
                         onPressed: _handleDelete,
                       ),

@@ -900,19 +900,16 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
     final double columnGap = widget.isCompactLayout ? 8.0 : 12.0;
     final double actionSpacing = widget.isCompactLayout ? 4.0 : 8.0;
 
-    // Match Expenses table button style
-    const double iconSize = 22.0;
+    const double iconSize = 20.0;
     const BoxConstraints iconConstraints = BoxConstraints.tightFor(
-      width: 40,
-      height: 40,
+      width: 36,
+      height: 36,
     );
     const VisualDensity iconDensity = VisualDensity.compact;
 
-    // Use the existing compact logic if needed, but user requested to match Expenses table style
-    // If we want to strictly respect compact layout, we might need to adjust, but sticking to the request:
-    final double effectiveIconSize = widget.isCompactLayout ? 20.0 : iconSize;
+    final double effectiveIconSize = widget.isCompactLayout ? 18.0 : iconSize;
     final BoxConstraints effectiveIconConstraints = widget.isCompactLayout
-        ? const BoxConstraints.tightFor(width: 36, height: 36)
+        ? const BoxConstraints.tightFor(width: 34, height: 34)
         : iconConstraints;
 
     return MouseRegion(
@@ -934,7 +931,7 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
           ),
           padding: EdgeInsets.symmetric(
             horizontal: horizontalPadding,
-            vertical: 8,
+            vertical: 6,
           ),
           child: Row(
             children: [

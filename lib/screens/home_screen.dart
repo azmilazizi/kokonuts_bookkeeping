@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
@@ -161,48 +162,65 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final bool isOverviewTabSelected = _controller.index == _tabs.length - 1;
     final _HomeTab currentTab = _tabs[_controller.index];
 
-    return Scaffold(
-      body: SafeArea(
-        top: true,
-        bottom: false,
-        child: TabBarView(
-          controller: _controller,
-          children: _tabs
-              .map(
-                (tab) => tab.builder?.call(context, scopedAppState) ??
-                    _HomeTabPlaceholder(
-                      title: tab.title,
-                      icon: tab.icon,
-                    ),
-              )
-              .toList(growable: false),
-        ),
-      ),
-      bottomNavigationBar: Material(
-        color: theme.colorScheme.surface,
-        child: TabBar(
-          controller: _controller,
-          indicatorColor: theme.colorScheme.primary,
-          labelColor: theme.colorScheme.primary,
-          unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.7),
-          tabs: _tabs
-              .map(
-                (tab) => Tab(
-                  icon: Icon(tab.icon),
-                  iconMargin: const EdgeInsets.only(bottom: 6),
-                  height: 48,
-                ),
-              )
-              .toList(growable: false),
-        ),
-      ),
-      floatingActionButton: isOverviewTabSelected
-          ? null
-          : FloatingActionButton(
-              tooltip: 'Add ${currentTab.title}',
-              onPressed: () => _openAddModal(context, currentTab.title),
-              child: const Icon(Icons.add),
+    final overlayStyle = theme.brightness == Brightness.dark
+        ? SystemUiOverlayStyle.light.copyWith(
+            statusBarColor: theme.colorScheme.surface,
+            statusBarBrightness: Brightness.dark,
+          )
+        : SystemUiOverlayStyle.dark.copyWith(
+            statusBarColor: theme.colorScheme.surface,
+            statusBarBrightness: Brightness.light,
+          );
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: Scaffold(
+        backgroundColor: theme.colorScheme.surface,
+        body: ColoredBox(
+          color: theme.colorScheme.surface,
+          child: SafeArea(
+            top: true,
+            bottom: false,
+            child: TabBarView(
+              controller: _controller,
+              children: _tabs
+                  .map(
+                    (tab) => tab.builder?.call(context, scopedAppState) ??
+                        _HomeTabPlaceholder(
+                          title: tab.title,
+                          icon: tab.icon,
+                        ),
+                  )
+                  .toList(growable: false),
             ),
+          ),
+        ),
+        bottomNavigationBar: Material(
+          color: theme.colorScheme.surface,
+          child: TabBar(
+            controller: _controller,
+            indicatorColor: theme.colorScheme.primary,
+            labelColor: theme.colorScheme.primary,
+            unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.7),
+            tabs: _tabs
+                .map(
+                  (tab) => Tab(
+                    icon: Icon(tab.icon, size: 26),
+                    iconMargin: const EdgeInsets.only(bottom: 8),
+                    height: 60,
+                  ),
+                )
+                .toList(growable: false),
+          ),
+        ),
+        floatingActionButton: isOverviewTabSelected
+            ? null
+            : FloatingActionButton(
+                tooltip: 'Add ${currentTab.title}',
+                onPressed: () => _openAddModal(context, currentTab.title),
+                child: const Icon(Icons.add),
+              ),
+      ),
     );
   }
 }
