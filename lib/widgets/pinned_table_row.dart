@@ -30,6 +30,7 @@ class PinnedTableRow extends StatelessWidget {
         final pinnedIndex = pinnedColumnIndex;
         if (pinnedIndex == null || pinnedIndex < 0 || pinnedIndex >= cells.length) {
           return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (var i = 0; i < cells.length; i++)
                 SizedBox(width: columnWidths[i], child: cells[i]),
@@ -67,16 +68,14 @@ class PinnedTableRow extends StatelessWidget {
         return Stack(
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 SizedBox(width: pinnedWidth),
                 for (var i = 0; i < nonPinnedCells.length; i++)
                   SizedBox(width: nonPinnedWidths[i], child: nonPinnedCells[i]),
               ],
             ),
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
+            Positioned.fill(
               child: AnimatedBuilder(
                 animation: horizontalController,
                 builder: (context, child) {
@@ -87,11 +86,16 @@ class PinnedTableRow extends StatelessWidget {
                     child: child,
                   );
                 },
-                child: ClipRect(
-                  child: Container(
-                    width: pinnedWidth,
-                    decoration: decoration,
-                    child: pinnedCell,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: ClipRect(
+                    child: SizedBox(
+                      width: pinnedWidth,
+                      child: DecoratedBox(
+                        decoration: decoration,
+                        child: SizedBox.expand(child: pinnedCell),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -122,11 +126,25 @@ class PinnedColumnSelector extends StatelessWidget {
     final theme = Theme.of(context);
     return PopupMenuButton<int?>(
       tooltip: 'Pin a column',
+      initialValue: selectedIndex,
       onSelected: onChanged,
       itemBuilder: (context) => [
-        const PopupMenuItem<int?>(
+        PopupMenuItem<int?>(
           value: null,
-          child: Text('None'),
+          child: Row(
+            children: [
+              Icon(
+                selectedIndex == null
+                    ? Icons.check_circle
+                    : Icons.radio_button_unchecked,
+                size: 18,
+                color:
+                    selectedIndex == null ? theme.colorScheme.primary : theme.iconTheme.color,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('None')),
+            ],
+          ),
         ),
         ...List.generate(columns.length, (index) {
           final isSelected = selectedIndex == index;
