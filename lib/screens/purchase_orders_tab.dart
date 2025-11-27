@@ -318,6 +318,7 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                     child: SizedBox(
                       width: tableWidth,
                       child: CustomScrollView(
+                        shrinkWrap: true,
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
                         slivers: [
