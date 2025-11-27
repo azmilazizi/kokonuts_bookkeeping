@@ -35,16 +35,6 @@ class BillsTabState extends State<BillsTab> {
   BillsSortColumn _sortColumn = BillsSortColumn.billDate;
   bool _sortAscending = false;
   String _filterQuery = '';
-  int? _pinnedColumnIndex;
-
-  static const _columnLabels = [
-    'Vendor',
-    'Date',
-    'Due Date',
-    'Status',
-    'Total',
-    'Actions',
-  ];
 
   static const _perPage = 20;
   // The bills table includes action buttons which require extra width; raising
@@ -316,9 +306,6 @@ class BillsTabState extends State<BillsTab> {
                               sortAscending: _sortAscending,
                               onSort: _handleSort,
                               horizontalController: _horizontalController,
-                              pinnedColumnIndex: _pinnedColumnIndex,
-                              onPinnedColumnChanged: _handlePinnedColumnChanged,
-                              columnLabels: _columnLabels,
                             ),
                           ),
                           SliverList(
@@ -335,7 +322,6 @@ class BillsTabState extends State<BillsTab> {
                                 onDelete: () => _deleteBill(bill),
                                 onBillUpdated: _handleBillUpdated,
                                 horizontalController: _horizontalController,
-                                pinnedColumnIndex: _pinnedColumnIndex,
                               );
                             }, childCount: _bills.length),
                           ),
@@ -364,10 +350,6 @@ class BillsTabState extends State<BillsTab> {
       _applySorting();
       _applyFilters();
     });
-  }
-
-  void _handlePinnedColumnChanged(int? columnIndex) {
-    setState(() => _pinnedColumnIndex = columnIndex);
   }
 
   void _handleFilterChanged(String value) {
@@ -723,9 +705,6 @@ class _BillsHeader extends StatelessWidget {
     required this.sortAscending,
     required this.onSort,
     required this.horizontalController,
-    required this.pinnedColumnIndex,
-    required this.onPinnedColumnChanged,
-    required this.columnLabels,
   });
 
   final ThemeData theme;
@@ -733,9 +712,6 @@ class _BillsHeader extends StatelessWidget {
   final bool sortAscending;
   final ValueChanged<BillsSortColumn> onSort;
   final ScrollController horizontalController;
-  final int? pinnedColumnIndex;
-  final ValueChanged<int?> onPinnedColumnChanged;
-  final List<String> columnLabels;
 
   static const _columnFlex = [4, 3, 3, 3, 2, 3];
 
@@ -794,25 +770,12 @@ class _BillsHeader extends StatelessWidget {
       ),
       Align(
         alignment: Alignment.center,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 12),
-              child: Text(
-                'Actions',
-                style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-              ),
-            ),
-            const SizedBox(width: 6),
-            PinnedColumnSelector(
-              columns: columnLabels,
-              selectedIndex: pinnedColumnIndex,
-              onChanged: onPinnedColumnChanged,
-              iconColor: theme.colorScheme.onSurfaceVariant,
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: Text(
+            'Actions',
+            style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+          ),
         ),
       ),
     ];
@@ -823,7 +786,6 @@ class _BillsHeader extends StatelessWidget {
         columnFlex: _columnFlex,
         cells: cells,
         horizontalController: horizontalController,
-        pinnedColumnIndex: pinnedColumnIndex,
         overlayDecoration: BoxDecoration(
           color: headerBackground,
           boxShadow: [
@@ -846,9 +808,6 @@ class _BillsHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.sortAscending,
     required this.onSort,
     required this.horizontalController,
-    required this.pinnedColumnIndex,
-    required this.onPinnedColumnChanged,
-    required this.columnLabels,
   });
 
   final ThemeData theme;
@@ -856,9 +815,6 @@ class _BillsHeaderDelegate extends SliverPersistentHeaderDelegate {
   final bool sortAscending;
   final ValueChanged<BillsSortColumn> onSort;
   final ScrollController horizontalController;
-  final int? pinnedColumnIndex;
-  final ValueChanged<int?> onPinnedColumnChanged;
-  final List<String> columnLabels;
 
   static const double _height = 52;
 
@@ -886,9 +842,6 @@ class _BillsHeaderDelegate extends SliverPersistentHeaderDelegate {
           sortAscending: sortAscending,
           onSort: onSort,
           horizontalController: horizontalController,
-          pinnedColumnIndex: pinnedColumnIndex,
-          onPinnedColumnChanged: onPinnedColumnChanged,
-          columnLabels: columnLabels,
         ),
       ),
     );
@@ -898,7 +851,6 @@ class _BillsHeaderDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant _BillsHeaderDelegate oldDelegate) {
     return sortColumn != oldDelegate.sortColumn ||
         sortAscending != oldDelegate.sortAscending ||
-        pinnedColumnIndex != oldDelegate.pinnedColumnIndex ||
         theme != oldDelegate.theme;
   }
 }
@@ -912,7 +864,6 @@ class _BillRow extends StatefulWidget {
     required this.onDelete,
     this.onBillUpdated,
     required this.horizontalController,
-    required this.pinnedColumnIndex,
   });
 
   final Bill bill;
@@ -922,7 +873,6 @@ class _BillRow extends StatefulWidget {
   final Future<void> Function() onDelete;
   final void Function(Bill bill)? onBillUpdated;
   final ScrollController horizontalController;
-  final int? pinnedColumnIndex;
 
   @override
   State<_BillRow> createState() => _BillRowState();
@@ -966,7 +916,6 @@ class _BillRowState extends State<_BillRow> {
           child: PinnedTableRow(
             columnFlex: _columnFlex,
             horizontalController: widget.horizontalController,
-            pinnedColumnIndex: widget.pinnedColumnIndex,
             overlayDecoration: BoxDecoration(
               color: _hovering ? hoverBackground : baseBackground,
               border: Border(

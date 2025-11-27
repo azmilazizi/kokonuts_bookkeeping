@@ -41,18 +41,6 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   PurchaseOrderSortColumn _sortColumn = PurchaseOrderSortColumn.orderDate;
   bool _sortAscending = false;
   String _filterQuery = '';
-  int? _pinnedColumnIndex;
-
-  static const _columnLabels = [
-    'Order Number',
-    'Order Name',
-    'Vendor',
-    'Order Date',
-    'Payment Progress',
-    'Delivery Status',
-    'Total',
-    'Actions',
-  ];
 
   static const _perPage = 20;
   // A wider minimum width keeps the eight data columns readable on compact
@@ -354,9 +342,6 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                               sortAscending: _sortAscending,
                               onSort: _handleSort,
                               horizontalController: _horizontalController,
-                              pinnedColumnIndex: _pinnedColumnIndex,
-                              onPinnedColumnChanged: _handlePinnedColumnChanged,
-                              columnLabels: _columnLabels,
                             ),
                           ),
                           SliverList(
@@ -373,7 +358,6 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                                 onDelete: () => _confirmDelete(order),
                                 isDeleting: _isDeleting,
                                 horizontalController: _horizontalController,
-                                pinnedColumnIndex: _pinnedColumnIndex,
                               );
                             }, childCount: _orders.length),
                           ),
@@ -402,10 +386,6 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       _applySorting();
       _applyFilters();
     });
-  }
-
-  void _handlePinnedColumnChanged(int? columnIndex) {
-    setState(() => _pinnedColumnIndex = columnIndex);
   }
 
   void _handleFilterChanged(String value) {
@@ -684,9 +664,6 @@ class _PurchaseOrdersHeader extends StatelessWidget {
     required this.sortAscending,
     required this.onSort,
     required this.horizontalController,
-    required this.pinnedColumnIndex,
-    required this.onPinnedColumnChanged,
-    required this.columnLabels,
   });
 
   final ThemeData theme;
@@ -695,9 +672,6 @@ class _PurchaseOrdersHeader extends StatelessWidget {
   final bool sortAscending;
   final ValueChanged<PurchaseOrderSortColumn> onSort;
   final ScrollController horizontalController;
-  final int? pinnedColumnIndex;
-  final ValueChanged<int?> onPinnedColumnChanged;
-  final List<String> columnLabels;
 
   static const _columnFlex = [3, 4, 3, 3, 3, 2, 2, 4];
 
@@ -778,22 +752,9 @@ class _PurchaseOrdersHeader extends StatelessWidget {
         padding: EdgeInsets.only(left: gap),
         child: Align(
           alignment: Alignment.center,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'Actions',
-                style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(width: 6),
-              PinnedColumnSelector(
-                columns: columnLabels,
-                selectedIndex: pinnedColumnIndex,
-                onChanged: onPinnedColumnChanged,
-                iconColor: theme.colorScheme.onSurfaceVariant,
-              ),
-            ],
+          child: Text(
+            'Actions',
+            style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
           ),
         ),
       ),
@@ -805,7 +766,6 @@ class _PurchaseOrdersHeader extends StatelessWidget {
         columnFlex: _columnFlex,
         cells: cells,
         horizontalController: horizontalController,
-        pinnedColumnIndex: pinnedColumnIndex,
         overlayDecoration: BoxDecoration(
           color: headerBackground,
           boxShadow: [
@@ -829,9 +789,6 @@ class _PurchaseOrdersHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.sortAscending,
     required this.onSort,
     required this.horizontalController,
-    required this.pinnedColumnIndex,
-    required this.onPinnedColumnChanged,
-    required this.columnLabels,
   });
 
   final ThemeData theme;
@@ -840,9 +797,6 @@ class _PurchaseOrdersHeaderDelegate extends SliverPersistentHeaderDelegate {
   final bool sortAscending;
   final ValueChanged<PurchaseOrderSortColumn> onSort;
   final ScrollController horizontalController;
-  final int? pinnedColumnIndex;
-  final ValueChanged<int?> onPinnedColumnChanged;
-  final List<String> columnLabels;
 
   static const double _height = 52;
 
@@ -871,9 +825,6 @@ class _PurchaseOrdersHeaderDelegate extends SliverPersistentHeaderDelegate {
           sortAscending: sortAscending,
           onSort: onSort,
           horizontalController: horizontalController,
-          pinnedColumnIndex: pinnedColumnIndex,
-          onPinnedColumnChanged: onPinnedColumnChanged,
-          columnLabels: columnLabels,
         ),
       ),
     );
@@ -883,7 +834,6 @@ class _PurchaseOrdersHeaderDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant _PurchaseOrdersHeaderDelegate oldDelegate) {
     return sortColumn != oldDelegate.sortColumn ||
         sortAscending != oldDelegate.sortAscending ||
-        pinnedColumnIndex != oldDelegate.pinnedColumnIndex ||
         theme != oldDelegate.theme ||
         isCompactLayout != oldDelegate.isCompactLayout;
   }
@@ -898,7 +848,6 @@ class _PurchaseOrderRow extends StatefulWidget {
     required this.onDelete,
     required this.isDeleting,
     required this.horizontalController,
-    required this.pinnedColumnIndex,
   });
 
   final PurchaseOrder order;
@@ -908,7 +857,6 @@ class _PurchaseOrderRow extends StatefulWidget {
   final VoidCallback onDelete;
   final bool isDeleting;
   final ScrollController horizontalController;
-  final int? pinnedColumnIndex;
 
   @override
   State<_PurchaseOrderRow> createState() => _PurchaseOrderRowState();
@@ -1021,7 +969,6 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
           child: PinnedTableRow(
             columnFlex: _columnFlex,
             horizontalController: widget.horizontalController,
-            pinnedColumnIndex: widget.pinnedColumnIndex,
             overlayDecoration: BoxDecoration(
               color: _hovering ? hoverBackground : baseBackground,
               border: Border(
