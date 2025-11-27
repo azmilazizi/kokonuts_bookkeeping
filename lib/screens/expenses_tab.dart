@@ -5,6 +5,7 @@ import '../services/expenses_service.dart';
 import '../widgets/date_range_filter_button.dart';
 import '../widgets/expense_details_dialog.dart';
 import '../widgets/edit_expense_dialog.dart';
+import '../widgets/pinned_table_row.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/tab_page_header.dart';
 import '../widgets/table_filter_bar.dart';
@@ -31,6 +32,17 @@ class ExpensesTabState extends State<ExpensesTab> {
   ExpensesSortColumn _sortColumn = ExpensesSortColumn.date;
   bool _sortAscending = false;
   String _filterQuery = '';
+  int? _pinnedColumnIndex;
+
+  static const _columnLabels = [
+    'Vendor',
+    'Name',
+    'Category',
+    'Amount',
+    'Date',
+    'Payment mode',
+    'Actions',
+  ];
 
   static const _perPage = 20;
   // Provides generous breathing room for the seven expense columns so they do
@@ -216,6 +228,10 @@ class ExpensesTabState extends State<ExpensesTab> {
                               sortColumn: _sortColumn,
                               sortAscending: _sortAscending,
                               onSort: _handleSort,
+                              horizontalController: _horizontalController,
+                              pinnedColumnIndex: _pinnedColumnIndex,
+                              onPinnedColumnChanged: _handlePinnedColumnChanged,
+                              columnLabels: _columnLabels,
                             ),
                           ),
                           SliverList(
@@ -228,6 +244,8 @@ class ExpensesTabState extends State<ExpensesTab> {
                                   showTopBorder: index == 0,
                                   onUpdated: _handleExpenseUpdated,
                                   onDeleted: _handleExpenseDeleted,
+                                  horizontalController: _horizontalController,
+                                  pinnedColumnIndex: _pinnedColumnIndex,
                                 );
                               },
                               childCount: _expenses.length,
@@ -259,6 +277,12 @@ class ExpensesTabState extends State<ExpensesTab> {
       }
       _applySorting();
       _applyFilters();
+    });
+  }
+
+  void _handlePinnedColumnChanged(int? columnIndex) {
+    setState(() {
+      _pinnedColumnIndex = columnIndex;
     });
   }
 
@@ -629,12 +653,20 @@ class _ExpensesHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.sortColumn,
     required this.sortAscending,
     required this.onSort,
+    required this.horizontalController,
+    required this.pinnedColumnIndex,
+    required this.onPinnedColumnChanged,
+    required this.columnLabels,
   });
 
   final ThemeData theme;
   final ExpensesSortColumn sortColumn;
   final bool sortAscending;
   final ValueChanged<ExpensesSortColumn> onSort;
+  final ScrollController horizontalController;
+  final int? pinnedColumnIndex;
+  final ValueChanged<int?> onPinnedColumnChanged;
+  final List<String> columnLabels;
 
   static const double _height = 52;
 
@@ -657,6 +689,10 @@ class _ExpensesHeaderDelegate extends SliverPersistentHeaderDelegate {
           sortColumn: sortColumn,
           sortAscending: sortAscending,
           onSort: onSort,
+          horizontalController: horizontalController,
+          pinnedColumnIndex: pinnedColumnIndex,
+          onPinnedColumnChanged: onPinnedColumnChanged,
+          columnLabels: columnLabels,
         ),
       ),
     );
@@ -666,6 +702,7 @@ class _ExpensesHeaderDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant _ExpensesHeaderDelegate oldDelegate) {
     return sortColumn != oldDelegate.sortColumn ||
         sortAscending != oldDelegate.sortAscending ||
+        pinnedColumnIndex != oldDelegate.pinnedColumnIndex ||
         theme != oldDelegate.theme;
   }
 }
@@ -676,83 +713,123 @@ class _ExpensesHeader extends StatelessWidget {
     required this.sortColumn,
     required this.sortAscending,
     required this.onSort,
+    required this.horizontalController,
+    required this.pinnedColumnIndex,
+    required this.onPinnedColumnChanged,
+    required this.columnLabels,
   });
 
   final ThemeData theme;
   final ExpensesSortColumn sortColumn;
   final bool sortAscending;
   final ValueChanged<ExpensesSortColumn> onSort;
+  final ScrollController horizontalController;
+  final int? pinnedColumnIndex;
+  final ValueChanged<int?> onPinnedColumnChanged;
+  final List<String> columnLabels;
 
   static const _columnFlex = [4, 4, 3, 2, 3, 3, 3];
 
   @override
   Widget build(BuildContext context) {
+    final headerBackground = theme.colorScheme.surfaceVariant.withOpacity(0.6);
+    final cells = [
+      SortableHeaderCell(
+        label: 'Vendor',
+        flex: _columnFlex[0],
+        theme: theme,
+        isActive: sortColumn == ExpensesSortColumn.vendor,
+        ascending: sortAscending,
+        onTap: () => onSort(ExpensesSortColumn.vendor),
+        expand: false,
+      ),
+      SortableHeaderCell(
+        label: 'Name',
+        flex: _columnFlex[1],
+        theme: theme,
+        isActive: sortColumn == ExpensesSortColumn.name,
+        ascending: sortAscending,
+        onTap: () => onSort(ExpensesSortColumn.name),
+        expand: false,
+      ),
+      SortableHeaderCell(
+        label: 'Category',
+        flex: _columnFlex[2],
+        theme: theme,
+        isActive: sortColumn == ExpensesSortColumn.category,
+        ascending: sortAscending,
+        onTap: () => onSort(ExpensesSortColumn.category),
+        expand: false,
+      ),
+      SortableHeaderCell(
+        label: 'Amount',
+        flex: _columnFlex[3],
+        theme: theme,
+        textAlign: TextAlign.end,
+        isActive: sortColumn == ExpensesSortColumn.amount,
+        ascending: sortAscending,
+        onTap: () => onSort(ExpensesSortColumn.amount),
+        expand: false,
+      ),
+      SortableHeaderCell(
+        label: 'Date',
+        flex: _columnFlex[4],
+        theme: theme,
+        textAlign: TextAlign.center,
+        isActive: sortColumn == ExpensesSortColumn.date,
+        ascending: sortAscending,
+        onTap: () => onSort(ExpensesSortColumn.date),
+        expand: false,
+      ),
+      SortableHeaderCell(
+        label: 'Payment mode',
+        flex: _columnFlex[5],
+        theme: theme,
+        textAlign: TextAlign.center,
+        isActive: sortColumn == ExpensesSortColumn.paymentMode,
+        ascending: sortAscending,
+        onTap: () => onSort(ExpensesSortColumn.paymentMode),
+        expand: false,
+      ),
+      Align(
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Actions',
+              style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(width: 6),
+            PinnedColumnSelector(
+              columns: columnLabels,
+              selectedIndex: pinnedColumnIndex,
+              onChanged: onPinnedColumnChanged,
+              iconColor: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    ];
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: Row(
-        children: [
-          SortableHeaderCell(
-            label: 'Vendor',
-            flex: _columnFlex[0],
-            theme: theme,
-            isActive: sortColumn == ExpensesSortColumn.vendor,
-            ascending: sortAscending,
-            onTap: () => onSort(ExpensesSortColumn.vendor),
-          ),
-          SortableHeaderCell(
-            label: 'Name',
-            flex: _columnFlex[1],
-            theme: theme,
-            isActive: sortColumn == ExpensesSortColumn.name,
-            ascending: sortAscending,
-            onTap: () => onSort(ExpensesSortColumn.name),
-          ),
-          SortableHeaderCell(
-            label: 'Category',
-            flex: _columnFlex[2],
-            theme: theme,
-            isActive: sortColumn == ExpensesSortColumn.category,
-            ascending: sortAscending,
-            onTap: () => onSort(ExpensesSortColumn.category),
-          ),
-          SortableHeaderCell(
-            label: 'Amount',
-            flex: _columnFlex[3],
-            theme: theme,
-            textAlign: TextAlign.end,
-            isActive: sortColumn == ExpensesSortColumn.amount,
-            ascending: sortAscending,
-            onTap: () => onSort(ExpensesSortColumn.amount),
-          ),
-          SortableHeaderCell(
-            label: 'Date',
-            flex: _columnFlex[4],
-            theme: theme,
-            textAlign: TextAlign.center,
-            isActive: sortColumn == ExpensesSortColumn.date,
-            ascending: sortAscending,
-            onTap: () => onSort(ExpensesSortColumn.date),
-          ),
-          SortableHeaderCell(
-            label: 'Payment mode',
-            flex: _columnFlex[5],
-            theme: theme,
-            textAlign: TextAlign.center,
-            isActive: sortColumn == ExpensesSortColumn.paymentMode,
-            ascending: sortAscending,
-            onTap: () => onSort(ExpensesSortColumn.paymentMode),
-          ),
-          Expanded(
-            flex: _columnFlex[6],
-            child: Align(
-              alignment: Alignment.center,
-              child: Text(
-                'Actions',
-                style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-              ),
+      child: PinnedTableRow(
+        columnFlex: _columnFlex,
+        cells: cells,
+        horizontalController: horizontalController,
+        pinnedColumnIndex: pinnedColumnIndex,
+        overlayDecoration: BoxDecoration(
+          color: headerBackground,
+          boxShadow: [
+            BoxShadow(
+              color: theme.shadowColor.withOpacity(0.12),
+              blurRadius: 8,
+              offset: const Offset(1, 0),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -765,6 +842,8 @@ class _ExpenseRow extends StatefulWidget {
     required this.showTopBorder,
     required this.onUpdated,
     required this.onDeleted,
+    required this.horizontalController,
+    required this.pinnedColumnIndex,
   });
 
   final Expense expense;
@@ -772,6 +851,8 @@ class _ExpenseRow extends StatefulWidget {
   final bool showTopBorder;
   final ValueChanged<Expense> onUpdated;
   final Future<void> Function(Expense) onDeleted;
+  final ScrollController horizontalController;
+  final int? pinnedColumnIndex;
 
   @override
   State<_ExpenseRow> createState() => _ExpenseRowState();
@@ -805,15 +886,40 @@ class _ExpenseRowState extends State<_ExpenseRow> {
             ),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
-          child: Row(
-            children: [
-              _DataCell(widget.expense.vendor, flex: _columnFlex[0]),
-              _DataCell(widget.expense.name, flex: _columnFlex[1]),
-              _DataCell(widget.expense.categoryName, flex: _columnFlex[2]),
+          child: PinnedTableRow(
+            columnFlex: _columnFlex,
+            horizontalController: widget.horizontalController,
+            pinnedColumnIndex: widget.pinnedColumnIndex,
+            overlayDecoration: BoxDecoration(
+              color: _hovering ? hoverBackground : baseBackground,
+              border: Border(
+                top: widget.showTopBorder
+                    ? BorderSide(color: borderColor)
+                    : BorderSide.none,
+                bottom: BorderSide(color: borderColor),
+              ),
+            ),
+            cells: [
+              _DataCell(
+                widget.expense.vendor,
+                flex: _columnFlex[0],
+                expand: false,
+              ),
+              _DataCell(
+                widget.expense.name,
+                flex: _columnFlex[1],
+                expand: false,
+              ),
+              _DataCell(
+                widget.expense.categoryName,
+                flex: _columnFlex[2],
+                expand: false,
+              ),
               _DataCell(
                 widget.expense.formattedAmountWithoutCurrency,
                 flex: _columnFlex[3],
                 textAlign: TextAlign.end,
+                expand: false,
                 style: widget.theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: widget.theme.colorScheme.error,
@@ -823,40 +929,39 @@ class _ExpenseRowState extends State<_ExpenseRow> {
                 widget.expense.formattedDate,
                 flex: _columnFlex[4],
                 textAlign: TextAlign.center,
+                expand: false,
               ),
               _DataCell(
                 widget.expense.paymentMode,
                 flex: _columnFlex[5],
                 textAlign: TextAlign.center,
+                expand: false,
               ),
-              Expanded(
-                flex: _columnFlex[6],
-                child: Align(
-                  alignment: Alignment.center,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        tooltip: 'Edit',
-                        icon: const Icon(Icons.edit_outlined),
-                        iconSize: 20,
-                        visualDensity: VisualDensity.compact,
-                        constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-                        onPressed: _handleEdit,
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        tooltip: 'Delete',
-                        icon: const Icon(Icons.delete_outline),
-                        iconSize: 20,
-                        visualDensity: VisualDensity.compact,
-                        constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-                        color: widget.theme.colorScheme.error,
-                        onPressed: _handleDelete,
-                      ),
-                    ],
-                  ),
+              Align(
+                alignment: Alignment.center,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      tooltip: 'Edit',
+                      icon: const Icon(Icons.edit_outlined),
+                      iconSize: 20,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                      onPressed: _handleEdit,
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Delete',
+                      icon: const Icon(Icons.delete_outline),
+                      iconSize: 20,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                      color: widget.theme.colorScheme.error,
+                      onPressed: _handleDelete,
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -921,17 +1026,21 @@ class _DataCell extends StatelessWidget {
     required this.flex,
     this.textAlign,
     this.style,
+    this.expand = true,
+    this.padding = EdgeInsets.zero,
   });
 
   final String value;
   final int flex;
   final TextAlign? textAlign;
   final TextStyle? style;
+  final bool expand;
+  final EdgeInsets padding;
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      flex: flex,
+    final text = Padding(
+      padding: padding,
       child: Text(
         value,
         textAlign: textAlign ?? TextAlign.start,
@@ -939,6 +1048,15 @@ class _DataCell extends StatelessWidget {
         maxLines: 1,
         style: style,
       ),
+    );
+
+    if (!expand) {
+      return text;
+    }
+
+    return Expanded(
+      flex: flex,
+      child: text,
     );
   }
 }
