@@ -39,7 +39,8 @@ class OverviewService {
 
     // Attempt to extract the data payload if wrapped
     dynamic data = decoded;
-    if (decoded is Map<String, dynamic>) {
+    // Check key existence on decoded if it's a map
+    if (decoded is Map) {
       if (decoded.containsKey('data')) {
         data = decoded['data'];
       } else if (decoded.containsKey('summary')) {
@@ -71,8 +72,14 @@ class MoneyOutSummary {
   const MoneyOutSummary(this.rawData);
 
   factory MoneyOutSummary.fromJson(dynamic json) {
-    if (json is Map<String, dynamic>) {
-      return MoneyOutSummary(json);
+    if (json is Map) {
+       // Convert to Map<String, dynamic> safely
+       try {
+         return MoneyOutSummary(Map<String, dynamic>.from(json));
+       } catch (_) {
+         // Fallback if conversion fails (e.g. keys are not strings, though unlikely for JSON)
+         return const MoneyOutSummary({});
+       }
     }
     return const MoneyOutSummary({});
   }
@@ -98,14 +105,18 @@ class MoneyOutSummary {
     // Check if 'totals' object exists and search inside it first
     Map<String, dynamic>? searchScope;
     if (rawData.containsKey('totals') && rawData['totals'] is Map) {
-      searchScope = rawData['totals'] as Map<String, dynamic>;
+      try {
+        searchScope = Map<String, dynamic>.from(rawData['totals']);
+      } catch (_) {
+        searchScope = rawData;
+      }
     } else {
       searchScope = rawData;
     }
 
     dynamic categoryData;
     for (final key in keys) {
-      if (searchScope.containsKey(key)) {
+      if (searchScope!.containsKey(key)) {
         categoryData = searchScope[key];
         break;
       }
@@ -121,7 +132,8 @@ class MoneyOutSummary {
       }
     }
 
-    if (categoryData is Map<String, dynamic>) {
+    if (categoryData is Map) {
+      // Safely access keys on generic Map
       final count = _parseInt(categoryData['count']) ?? _parseInt(categoryData['number_of_transaction']) ?? 0;
 
       double? amount;

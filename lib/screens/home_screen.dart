@@ -65,7 +65,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         builder: (_, appState) => OverviewTab(appState: appState),
       ),
     ];
-    _controller = TabController(length: _tabs.length, vsync: this)
+    _controller = TabController(
+        length: _tabs.length, vsync: this, initialIndex: _tabs.length - 1)
       ..addListener(_handleTabSelection);
   }
 
