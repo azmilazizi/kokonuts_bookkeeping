@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'dart:math' as math;
 
 import '../app/app_state.dart';
 import '../services/overview_service.dart';
@@ -20,14 +21,18 @@ class _OverviewTabState extends State<OverviewTab> {
   DateTime _endDate = DateTime.now();
 
   bool _isLoading = false;
+  bool _isChartLoading = false;
   String? _errorMessage;
   MoneyOutSummary? _summary;
+  ExpensesPieChartData? _expensesPercentage;
+  String _accountingMethod = 'created'; // 'created' (Cash) or 'issued' (Accrual)
 
   @override
   void initState() {
     super.initState();
     _service = OverviewService();
     _fetchSummary();
+    _fetchCharts();
   }
 
   Future<void> _fetchSummary() async {
@@ -60,6 +65,37 @@ class _OverviewTabState extends State<OverviewTab> {
     }
   }
 
+  Future<void> _fetchCharts() async {
+    setState(() {
+      _isChartLoading = true;
+    });
+
+    try {
+      final data = await _service.fetchExpensesPercentageByType(
+        startDate: DateFormat('yyyy-MM-dd').format(_startDate),
+        endDate: DateFormat('yyyy-MM-dd').format(_endDate),
+        type: _accountingMethod,
+        headers: {
+          'Authorization': 'Bearer ${widget.appState.authToken}',
+        },
+      );
+      if (mounted) {
+        setState(() {
+          _expensesPercentage = data;
+          _isChartLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        // Silently fail or log error for charts, so it doesn't block the whole UI
+        // or show a small error in the chart section
+        setState(() {
+          _isChartLoading = false;
+        });
+      }
+    }
+  }
+
   Future<void> _selectDateRange() async {
     final picked = await showDateRangePicker(
       context: context,
@@ -74,6 +110,7 @@ class _OverviewTabState extends State<OverviewTab> {
         _endDate = picked.end;
       });
       _fetchSummary();
+      _fetchCharts();
     }
   }
 
@@ -83,7 +120,10 @@ class _OverviewTabState extends State<OverviewTab> {
     final dateFormatter = DateFormat('MMM dd, yyyy');
 
     return RefreshIndicator(
-      onRefresh: _fetchSummary,
+      onRefresh: () async {
+        await _fetchSummary();
+        await _fetchCharts();
+      },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
@@ -101,6 +141,54 @@ class _OverviewTabState extends State<OverviewTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Accounting Method Dropdown
+                  Row(
+                    children: [
+                      Text(
+                        'Accounting Method: ',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      DropdownButton<String>(
+                        value: _accountingMethod,
+                        dropdownColor: theme.colorScheme.primaryContainer,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        underline: Container(
+                          height: 1,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                        icon: Icon(
+                          Icons.arrow_drop_down,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                        onChanged: (String? newValue) {
+                          if (newValue != null) {
+                            setState(() {
+                              _accountingMethod = newValue;
+                            });
+                            _fetchCharts();
+                          }
+                        },
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'created',
+                            child: Text('Cash'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'issued',
+                            child: Text('Accrual'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
                   // Date Range Filter
                   InkWell(
                     onTap: _selectDateRange,
@@ -197,6 +285,23 @@ class _OverviewTabState extends State<OverviewTab> {
               _TransactionSummarySection(summary: _summary!)
             else if (!_isLoading)
               const Center(child: Text('No data available')),
+
+            const SizedBox(height: 32),
+
+            // Expenses by Type Section
+            Text(
+              'Expenses by Type',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (_isChartLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (_expensesPercentage != null)
+              _ExpensesByTypeSection(data: _expensesPercentage!)
+            else
+              const Center(child: Text('No chart data available')),
           ],
         ),
       ),
@@ -337,4 +442,210 @@ class _SummaryCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ExpensesByTypeSection extends StatelessWidget {
+  const _ExpensesByTypeSection({required this.data});
+
+  final ExpensesPieChartData data;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isLargeScreen = constraints.maxWidth > 900;
+        final isMediumScreen = constraints.maxWidth > 600;
+
+        final charts = [
+          _PieChartCard(title: 'Purchase Order by Item', items: data.purchaseOrderByItem),
+          _PieChartCard(title: 'Expenses by Category', items: data.expensesByCategory),
+          _PieChartCard(title: 'Bill by Account', items: data.billByAccount),
+        ];
+
+        if (isLargeScreen) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: charts.map((c) => Expanded(child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: c,
+            ))).toList(),
+          );
+        } else if (isMediumScreen) {
+          // 2 columns
+          return Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: charts.map((c) => SizedBox(
+              width: (constraints.maxWidth - 32) / 2, // 32 = spacing + padding
+              child: c,
+            )).toList(),
+          );
+        } else {
+          return Column(
+            children: charts.map((c) => Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: c,
+            )).toList(),
+          );
+        }
+      },
+    );
+  }
+}
+
+class _PieChartCard extends StatelessWidget {
+  const _PieChartCard({
+    required this.title,
+    required this.items,
+  });
+
+  final String title;
+  final List<ChartItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sortedItems = List<ChartItem>.from(items)
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    // Limit legend to top 5 for better UI, or maybe scrollable
+    final displayItems = sortedItems.take(5).toList();
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Text(
+              title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 200,
+              width: 200,
+              child: items.isEmpty
+                  ? Center(child: Text('No data', style: theme.textTheme.bodyMedium))
+                  : CustomPaint(
+                      painter: _PieChartPainter(
+                        items: items,
+                        colors: [
+                          Colors.blue,
+                          Colors.red,
+                          Colors.green,
+                          Colors.orange,
+                          Colors.purple,
+                          Colors.teal,
+                          Colors.pink,
+                          Colors.amber,
+                          Colors.indigo,
+                          Colors.cyan,
+                        ],
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 24),
+            Column(
+              children: displayItems.asMap().entries.map((entry) {
+                final index = entry.key;
+                final item = entry.value;
+                final color = [
+                  Colors.blue,
+                  Colors.red,
+                  Colors.green,
+                  Colors.orange,
+                  Colors.purple,
+                  Colors.teal,
+                  Colors.pink,
+                  Colors.amber,
+                  Colors.indigo,
+                  Colors.cyan,
+                ][index % 10];
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          item.label.isEmpty ? 'Unknown' : item.label,
+                          style: theme.textTheme.bodySmall,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        '${item.percentage.toStringAsFixed(1)}%',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PieChartPainter extends CustomPainter {
+  final List<ChartItem> items;
+  final List<Color> colors;
+
+  _PieChartPainter({
+    required this.items,
+    required this.colors,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) / 2;
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    double startAngle = -math.pi / 2;
+    double totalValue = items.fold(0, (sum, item) => sum + item.value);
+
+    if (totalValue == 0) return;
+
+    for (var i = 0; i < items.length; i++) {
+      final item = items[i];
+      final sweepAngle = (item.value / totalValue) * 2 * math.pi;
+      paint.color = colors[i % colors.length];
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        sweepAngle,
+        true,
+        paint,
+      );
+
+      startAngle += sweepAngle;
+    }
+
+    // Draw a white circle in the center for donut effect (optional, but looks nice)
+    paint.color = Colors.white;
+    canvas.drawCircle(center, radius * 0.6, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
