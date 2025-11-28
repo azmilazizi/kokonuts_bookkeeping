@@ -17,8 +17,8 @@ class OverviewTab extends StatefulWidget {
 class _OverviewTabState extends State<OverviewTab> {
   late final OverviewService _service;
 
-  DateTime _startDate = DateTime.now().subtract(const Duration(days: 30));
-  DateTime _endDate = DateTime.now();
+  late DateTime _startDate;
+  late DateTime _endDate;
 
   bool _isLoading = false;
   bool _isChartLoading = false;
@@ -30,6 +30,11 @@ class _OverviewTabState extends State<OverviewTab> {
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _startDate = DateTime(now.year, now.month, 1);
+    // Last day of current month: 0th day of next month
+    _endDate = DateTime(now.year, now.month + 1, 0);
+
     _service = OverviewService();
     _fetchSummary();
     _fetchCharts();
@@ -173,6 +178,7 @@ class _OverviewTabState extends State<OverviewTab> {
                               _accountingMethod = newValue;
                             });
                             _fetchCharts();
+                            _fetchSummary();
                           }
                         },
                         items: const [
@@ -300,7 +306,7 @@ class _OverviewTabState extends State<OverviewTab> {
             if (_isChartLoading)
               const Center(child: CircularProgressIndicator())
             else if (_expensesPercentage != null)
-              _ExpensesByTypeSection(data: _expensesPercentage!)
+              _ExpensesByTypeSection(data: _expensesPercentage!, accountingMethod: _accountingMethod)
             else
               const Center(child: Text('No chart data available')),
           ],
@@ -446,9 +452,10 @@ class _SummaryCard extends StatelessWidget {
 }
 
 class _ExpensesByTypeSection extends StatelessWidget {
-  const _ExpensesByTypeSection({required this.data});
+  const _ExpensesByTypeSection({required this.data, required this.accountingMethod});
 
   final ExpensesPieChartData data;
+  final String accountingMethod;
 
   @override
   Widget build(BuildContext context) {
@@ -458,9 +465,21 @@ class _ExpensesByTypeSection extends StatelessWidget {
         final isMediumScreen = constraints.maxWidth > 600;
 
         final charts = [
-          _PieChartCard(title: 'Purchase Order by Item', items: data.purchaseOrderByItem),
-          _PieChartCard(title: 'Expenses by Category', items: data.expensesByCategory),
-          _PieChartCard(title: 'Bill by Account', items: data.billByAccount),
+          _PieChartCard(
+            title: 'Purchase Order by Item',
+            items: data.purchaseOrderByItem,
+            accountingMethod: accountingMethod,
+          ),
+          _PieChartCard(
+            title: 'Expenses by Category',
+            items: data.expensesByCategory,
+            accountingMethod: accountingMethod,
+          ),
+          _PieChartCard(
+            title: 'Bill by Account',
+            items: data.billByAccount,
+            accountingMethod: accountingMethod,
+          ),
         ];
 
         if (isLargeScreen) {
@@ -498,10 +517,12 @@ class _PieChartCard extends StatelessWidget {
   const _PieChartCard({
     required this.title,
     required this.items,
+    required this.accountingMethod,
   });
 
   final String title;
   final List<ChartItem> items;
+  final String accountingMethod;
 
   @override
   Widget build(BuildContext context) {
@@ -512,6 +533,8 @@ class _PieChartCard extends StatelessWidget {
 
     // Limit legend to top 5 for better UI, or maybe scrollable
     final displayItems = sortedItems.take(5).toList();
+
+    final noDataMessage = accountingMethod == 'payment' ? 'No Payment' : 'No Outstanding';
 
     return Card(
       elevation: 2,
@@ -530,9 +553,9 @@ class _PieChartCard extends StatelessWidget {
             const SizedBox(height: 24),
             SizedBox(
               height: 200,
-              width: 200,
+              width: double.infinity,
               child: items.isEmpty
-                  ? Center(child: Text('No data', style: theme.textTheme.bodyMedium))
+                  ? Center(child: Text(noDataMessage, style: theme.textTheme.bodyMedium))
                   : _PieChart(
                       items: items,
                       colors: const [
@@ -550,54 +573,55 @@ class _PieChartCard extends StatelessWidget {
                     ),
             ),
             const SizedBox(height: 24),
-            Column(
-              children: displayItems.asMap().entries.map((entry) {
-                final index = entry.key;
-                final item = entry.value;
-                final color = [
-                  Colors.blue,
-                  Colors.red,
-                  Colors.green,
-                  Colors.orange,
-                  Colors.purple,
-                  Colors.teal,
-                  Colors.pink,
-                  Colors.amber,
-                  Colors.indigo,
-                  Colors.cyan,
-                ][index % 10];
+            if (displayItems.isNotEmpty)
+              Column(
+                children: displayItems.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final item = entry.value;
+                  final color = [
+                    Colors.blue,
+                    Colors.red,
+                    Colors.green,
+                    Colors.orange,
+                    Colors.purple,
+                    Colors.teal,
+                    Colors.pink,
+                    Colors.amber,
+                    Colors.indigo,
+                    Colors.cyan,
+                  ][index % 10];
 
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: color,
-                          shape: BoxShape.circle,
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          item.label.isEmpty ? 'Unknown' : item.label,
-                          style: theme.textTheme.bodySmall,
-                          overflow: TextOverflow.ellipsis,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            item.label.isEmpty ? 'Unknown' : item.label,
+                            style: theme.textTheme.bodySmall,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                      Text(
-                        currencyFormat.format(item.value),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.bold,
+                        Text(
+                          currencyFormat.format(item.value),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
           ],
         ),
       ),
