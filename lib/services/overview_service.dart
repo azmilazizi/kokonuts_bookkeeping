@@ -6,6 +6,7 @@ class OverviewService {
 
   final http.Client _client;
   static const _baseUrl = 'https://crm.kokonuts.my/accounting/api/v1/money_out_summary';
+  static const _expensesByTypeUrl = 'https://crm.kokonuts.my/dashboard/expenses_percentage_by_type';
 
   Future<MoneyOutSummary> fetchMoneyOutSummary({
     required String startDate,
@@ -51,6 +52,41 @@ class OverviewService {
     }
 
     return MoneyOutSummary.fromJson(data);
+  }
+
+  Future<ExpensesPieChartData> fetchExpensesPercentageByType({
+    required String startDate,
+    required String endDate,
+    required String type,
+    required Map<String, String> headers,
+  }) async {
+    final uri = Uri.parse(_expensesByTypeUrl).replace(queryParameters: {
+      'start_date': startDate,
+      'end_date': endDate,
+      'type': type,
+    });
+
+    http.Response response;
+    try {
+      response = await _client.get(uri, headers: headers);
+    } catch (error) {
+      throw OverviewException('Failed to reach server: $error');
+    }
+
+    if (response.statusCode != 200) {
+      throw OverviewException(
+        'Request failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error) {
+      throw OverviewException('Unable to parse response: $error');
+    }
+
+    return ExpensesPieChartData.fromJson(decoded);
   }
 }
 
@@ -155,19 +191,6 @@ class MoneyOutSummary {
     return TransactionCategorySummary.empty();
   }
 
-  int? _parseInt(dynamic value) {
-    if (value is int) return value;
-    if (value is String) return int.tryParse(value);
-    return null;
-  }
-
-  double? _parseDouble(dynamic value) {
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) return double.tryParse(value);
-    return null;
-  }
-
   /// Returns a list of key-value pairs for display.
   /// This attempts to format keys and values into a readable format.
   List<MapEntry<String, String>> get displayItems {
@@ -180,6 +203,91 @@ class MoneyOutSummary {
     }
     return entries;
   }
+}
+
+class ExpensesPieChartData {
+  final List<ChartItem> purchaseOrderByItem;
+  final List<ChartItem> expensesByCategory;
+  final List<ChartItem> billByAccount;
+
+  const ExpensesPieChartData({
+    required this.purchaseOrderByItem,
+    required this.expensesByCategory,
+    required this.billByAccount,
+  });
+
+  factory ExpensesPieChartData.empty() {
+    return const ExpensesPieChartData(
+      purchaseOrderByItem: [],
+      expensesByCategory: [],
+      billByAccount: [],
+    );
+  }
+
+  factory ExpensesPieChartData.fromJson(dynamic json) {
+    if (json is! Map) return ExpensesPieChartData.empty();
+
+    return ExpensesPieChartData(
+      purchaseOrderByItem: _parseList(json['purchase_order_by_item']),
+      expensesByCategory: _parseList(json['expenses_by_category']),
+      billByAccount: _parseList(json['bill_by_account']),
+    );
+  }
+
+  static List<ChartItem> _parseList(dynamic list) {
+    if (list is! List) return [];
+    return list.map((e) => ChartItem.fromJson(e)).toList();
+  }
+}
+
+class ChartItem {
+  final String label;
+  final double value;
+  final double percentage;
+
+  const ChartItem({
+    required this.label,
+    required this.value,
+    required this.percentage,
+  });
+
+  factory ChartItem.fromJson(dynamic json) {
+    if (json is! Map) return const ChartItem(label: '', value: 0, percentage: 0);
+
+    // Try various keys for label
+    String label = '';
+    if (json.containsKey('name')) label = json['name'].toString();
+    else if (json.containsKey('label')) label = json['label'].toString();
+    else if (json.containsKey('category')) label = json['category'].toString();
+    else if (json.containsKey('account')) label = json['account'].toString();
+    else if (json.containsKey('item_name')) label = json['item_name'].toString();
+
+    // Try various keys for value/amount
+    double value = 0;
+    if (json.containsKey('amount')) value = _parseDouble(json['amount']) ?? 0;
+    else if (json.containsKey('value')) value = _parseDouble(json['value']) ?? 0;
+    else if (json.containsKey('total')) value = _parseDouble(json['total']) ?? 0;
+
+    // Try various keys for percentage
+    double percentage = 0;
+    if (json.containsKey('percentage')) percentage = _parseDouble(json['percentage']) ?? 0;
+    else if (json.containsKey('percent')) percentage = _parseDouble(json['percent']) ?? 0;
+
+    return ChartItem(label: label, value: value, percentage: percentage);
+  }
+}
+
+int? _parseInt(dynamic value) {
+  if (value is int) return value;
+  if (value is String) return int.tryParse(value);
+  return null;
+}
+
+double? _parseDouble(dynamic value) {
+  if (value is double) return value;
+  if (value is int) return value.toDouble();
+  if (value is String) return double.tryParse(value);
+  return null;
 }
 
 extension StringExtension on String {
