@@ -916,18 +916,6 @@ class _BillRowState extends State<_BillRow> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.edit_outlined),
-                        tooltip: 'Edit bill',
-                        iconSize: 20,
-                        visualDensity: VisualDensity.compact,
-                        constraints: const BoxConstraints.tightFor(
-                          width: 36,
-                          height: 36,
-                        ),
-                        onPressed: _handleEdit,
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton(
                         icon: const Icon(Icons.delete_outline),
                         tooltip: 'Delete bill',
                         iconSize: 20,
@@ -959,14 +947,6 @@ class _BillRowState extends State<_BillRow> {
         onBillUpdated: widget.onBillUpdated,
       ),
     );
-  }
-
-  void _handleEdit() {
-    final snackBar = SnackBar(
-      content: Text('Edit action for ${widget.vendorName} bill'),
-      duration: const Duration(seconds: 2),
-    );
-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 
   Future<void> _handleDelete() async {
