@@ -505,6 +505,7 @@ class _PieChartCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final currencyFormat = NumberFormat.simpleCurrency(name: ''); // Using '' to avoid symbol if needed or use default
     final sortedItems = List<ChartItem>.from(items)
       ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -531,7 +532,7 @@ class _PieChartCard extends StatelessWidget {
               width: 200,
               child: items.isEmpty
                   ? Center(child: Text('No data', style: theme.textTheme.bodyMedium))
-                  : _InteractivePieChart(
+                  : _PieChart(
                       items: items,
                       colors: const [
                         Colors.blue,
@@ -586,7 +587,7 @@ class _PieChartCard extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '${item.percentage.toStringAsFixed(1)}%',
+                        currencyFormat.format(item.value),
                         style: theme.textTheme.bodySmall?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -603,89 +604,25 @@ class _PieChartCard extends StatelessWidget {
   }
 }
 
-class _InteractivePieChart extends StatefulWidget {
+class _PieChart extends StatelessWidget {
   final List<ChartItem> items;
   final List<Color> colors;
 
-  const _InteractivePieChart({
+  const _PieChart({
     required this.items,
     required this.colors,
   });
-
-  @override
-  State<_InteractivePieChart> createState() => _InteractivePieChartState();
-}
-
-class _InteractivePieChartState extends State<_InteractivePieChart> {
-  int? _hoverIndex;
-
-  void _handleHover(Offset localPosition, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final dx = localPosition.dx - center.dx;
-    final dy = localPosition.dy - center.dy;
-
-    final radius = math.min(size.width, size.height) / 2;
-    final distance = math.sqrt(dx * dx + dy * dy);
-
-    // Only trigger if inside the outer radius and outside the inner hole (donut)
-    // Inner radius is 0.6 * radius in painter
-    if (distance > radius || distance < radius * 0.6) {
-      if (_hoverIndex != null) {
-        setState(() {
-          _hoverIndex = null;
-        });
-      }
-      return;
-    }
-
-    final theta = math.atan2(dy, dx);
-    // Normalize to [0, 2pi] starting from -pi/2
-    double normalizedTheta = theta + math.pi / 2;
-    if (normalizedTheta < 0) {
-      normalizedTheta += 2 * math.pi;
-    }
-
-    double totalValue = widget.items.fold(0, (sum, item) => sum + item.value);
-    double currentAngle = 0;
-
-    for (int i = 0; i < widget.items.length; i++) {
-      final sweep = (widget.items[i].value / totalValue) * 2 * math.pi;
-      if (normalizedTheta >= currentAngle && normalizedTheta < currentAngle + sweep) {
-        if (_hoverIndex != i) {
-          setState(() {
-            _hoverIndex = i;
-          });
-        }
-        return;
-      }
-      currentAngle += sweep;
-    }
-
-    if (_hoverIndex != null) {
-      setState(() {
-        _hoverIndex = null;
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final size = Size(constraints.maxWidth, constraints.maxHeight);
-        return MouseRegion(
-          onHover: (event) => _handleHover(event.localPosition, size),
-          onExit: (_) => setState(() => _hoverIndex = null),
-          child: GestureDetector(
-            onTapDown: (details) => _handleHover(details.localPosition, size),
-            child: CustomPaint(
-              size: size,
-              painter: _PieChartPainter(
-                items: widget.items,
-                colors: widget.colors,
-                hoverIndex: _hoverIndex,
-              ),
-            ),
+        return CustomPaint(
+          size: size,
+          painter: _PieChartPainter(
+            items: items,
+            colors: colors,
           ),
         );
       },
@@ -696,12 +633,10 @@ class _InteractivePieChartState extends State<_InteractivePieChart> {
 class _PieChartPainter extends CustomPainter {
   final List<ChartItem> items;
   final List<Color> colors;
-  final int? hoverIndex;
 
   _PieChartPainter({
     required this.items,
     required this.colors,
-    this.hoverIndex,
   });
 
   @override
@@ -719,13 +654,7 @@ class _PieChartPainter extends CustomPainter {
       final item = items[i];
       final sweepAngle = (item.value / totalValue) * 2 * math.pi;
 
-      final isHovered = (hoverIndex == i);
       paint.color = colors[i % colors.length];
-
-      if (isHovered) {
-         // Highlight effect
-         paint.color = Color.lerp(paint.color, Colors.white, 0.2)!;
-      }
 
       canvas.drawArc(
         Rect.fromCircle(center: center, radius: radius),
@@ -735,51 +664,50 @@ class _PieChartPainter extends CustomPainter {
         paint,
       );
 
+      // Draw percentage text on the slice
+      if (item.percentage >= 5) { // Only draw if slice is big enough
+        final middleAngle = startAngle + sweepAngle / 2;
+        // Position text slightly inwards (0.7 radius)
+        final textRadius = radius * 0.7;
+        final dx = center.dx + textRadius * math.cos(middleAngle);
+        final dy = center.dy + textRadius * math.sin(middleAngle);
+
+        final percentageText = '${item.percentage.toStringAsFixed(0)}%';
+
+        final textSpan = TextSpan(
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            shadows: [
+              Shadow(blurRadius: 2, color: Colors.black45, offset: Offset(1, 1))
+            ],
+          ),
+          text: percentageText,
+        );
+
+        final textPainter = TextPainter(
+          text: textSpan,
+          textAlign: TextAlign.center,
+          textDirection: TextDirection.ltr,
+        );
+
+        textPainter.layout();
+
+        final offset = Offset(
+          dx - textPainter.width / 2,
+          dy - textPainter.height / 2,
+        );
+
+        textPainter.paint(canvas, offset);
+      }
+
       startAngle += sweepAngle;
-    }
-
-    // Draw a white circle in the center for donut effect
-    paint.color = Colors.white;
-    canvas.drawCircle(center, radius * 0.6, paint);
-
-    // Draw percentage in center if hovered
-    if (hoverIndex != null && hoverIndex! < items.length) {
-      final item = items[hoverIndex!];
-
-      final percentageText = '${item.percentage.toStringAsFixed(1)}%';
-
-      final textSpan = TextSpan(
-        style: const TextStyle(
-          color: Colors.black87,
-          fontSize: 24,
-          fontWeight: FontWeight.bold
-        ),
-        text: percentageText,
-      );
-
-      final textPainter = TextPainter(
-        text: textSpan,
-        textAlign: TextAlign.center,
-        textDirection: TextDirection.ltr,
-      );
-
-      textPainter.layout(
-        minWidth: 0,
-        maxWidth: radius * 1.1, // constrained by hole size
-      );
-
-      final offset = Offset(
-        center.dx - textPainter.width / 2,
-        center.dy - textPainter.height / 2,
-      );
-
-      textPainter.paint(canvas, offset);
     }
   }
 
   @override
   bool shouldRepaint(covariant _PieChartPainter oldDelegate) {
-    return oldDelegate.hoverIndex != hoverIndex ||
-           oldDelegate.items != items;
+    return oldDelegate.items != items;
   }
 }
