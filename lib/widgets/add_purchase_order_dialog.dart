@@ -277,7 +277,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         _inventoryItems = results[1] as List<InventoryItem>;
         final options = results[2] as PurchaseOptions;
         _paymentModes = results[3] as List<PaymentMode>;
-        _purchaseOrderPrefix = options.purchaseOrderPrefix;
+        _purchaseOrderPrefix = '#PO-';
         _nextPurchaseOrderNumber = options.nextPurchaseOrderNumber;
         _orderNumberSeed = _buildOrderNumberSeed(
           _purchaseOrderPrefix,
@@ -525,16 +525,15 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   }
 
   String _buildOrderNumber() {
-    final baseOrderNumber = _buildBaseOrderNumber();
-    if (baseOrderNumber.isEmpty) {
-      return '';
-    }
-    final vendorCode = (_selectedVendorCode ?? '').trim();
-    final vendorSegment = vendorCode.isNotEmpty ? '-$vendorCode' : '';
-    return '$baseOrderNumber$vendorSegment';
+    if (_nextPurchaseOrderNumber == null) return '';
+    final datePart = _formatDate(_orderDate);
+    // Format: #PO-{next_po_number}-{DDMMYYYY}
+    return '#PO-$_nextPurchaseOrderNumber-$datePart';
   }
 
   String _buildBaseOrderNumber() {
+    // Legacy method, kept for compatibility if called elsewhere (it isn't)
+    // but replaced implementation in _buildOrderNumber
     final seed = _orderNumberSeed;
     if (seed == null || seed.isEmpty) {
       return '';
@@ -548,7 +547,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     if (nextNumber == null || sanitizedPrefix.isEmpty) {
       return null;
     }
-    return '$sanitizedPrefix-$nextNumber';
+    // Note: This seed might not be used anymore for the final string construction
+    // but we keep it for now or we can update it to match new format
+    return '$sanitizedPrefix$nextNumber';
   }
 
   String _formatDate(DateTime date) {
@@ -907,7 +908,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _orderNumberController,
-                  decoration: const InputDecoration(labelText: 'Order number'),
+                  decoration: const InputDecoration(
+                    labelText: 'Order number',
+                    filled: true,
+                  ),
+                  readOnly: true,
                 ),
                 const SizedBox(height: 12),
                 _OrderDateField(date: _orderDate, onTap: _pickOrderDate),
