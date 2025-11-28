@@ -45,6 +45,8 @@ class OverviewService {
         data = decoded['data'];
       } else if (decoded.containsKey('summary')) {
         data = decoded['summary'];
+      } else if (decoded.containsKey('result')) {
+        data = decoded['result'];
       }
     }
 
