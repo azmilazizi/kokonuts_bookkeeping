@@ -227,16 +227,58 @@ class ExpensesPieChartData {
   factory ExpensesPieChartData.fromJson(dynamic json) {
     if (json is! Map) return ExpensesPieChartData.empty();
 
+    // Check for "data" wrapper as seen in the user provided example
+    dynamic data = json;
+    if (json.containsKey('data') && json['data'] is Map) {
+      data = json['data'];
+    }
+
     return ExpensesPieChartData(
-      purchaseOrderByItem: _parseList(json['purchase_order_by_item']),
-      expensesByCategory: _parseList(json['expenses_by_category']),
-      billByAccount: _parseList(json['bill_by_account']),
+      purchaseOrderByItem: _parseList(data['purchase_orders']),
+      expensesByCategory: _parseList(data['expense_categories']),
+      billByAccount: _parseList(data['bill_debit_accounts']),
     );
   }
 
   static List<ChartItem> _parseList(dynamic list) {
     if (list is! List) return [];
-    return list.map((e) => ChartItem.fromJson(e)).toList();
+
+    final tempItems = list.map((e) {
+      if (e is! Map) return const ChartItem(label: '', value: 0, percentage: 0);
+
+      // Explicit mapping as per API response structure
+      // e.g. { "name": "Coconut Juice", "value": "864.00" }
+      String label = '';
+      if (e.containsKey('name')) {
+        label = e['name'].toString();
+      } else {
+        // Fallback to ChartItem logic if name is missing
+        return ChartItem.fromJson(e);
+      }
+
+      double value = 0;
+      if (e.containsKey('value')) {
+        value = double.tryParse(e['value'].toString()) ?? 0;
+      } else {
+        // Fallback
+        return ChartItem.fromJson(e);
+      }
+
+      return ChartItem(label: label, value: value, percentage: 0);
+    }).toList();
+
+    final totalValue = tempItems.fold(0.0, (sum, item) => sum + item.value);
+
+    if (totalValue == 0) return tempItems;
+
+    return tempItems.map((item) {
+      final percentage = (item.value / totalValue) * 100;
+      return ChartItem(
+        label: item.label,
+        value: item.value,
+        percentage: percentage,
+      );
+    }).toList();
   }
 }
 
