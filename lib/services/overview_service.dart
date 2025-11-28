@@ -11,11 +11,13 @@ class OverviewService {
   Future<MoneyOutSummary> fetchMoneyOutSummary({
     required String startDate,
     required String endDate,
+    required String type,
     required Map<String, String> headers,
   }) async {
     final uri = Uri.parse(_baseUrl).replace(queryParameters: {
       'start_date': startDate,
       'end_date': endDate,
+      'type': type,
     });
 
     http.Response response;
