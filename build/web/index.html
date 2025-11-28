@@ -34,8 +34,38 @@
 
   <title>Kokonuts Bookkeeping</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    .splash {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #FFFFFF;
+    }
+
+    .splash .logo {
+      width: 150px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .splash {
+        background-color: #000000;
+      }
+    }
+  </style>
 </head>
 <body>
+  <div class="splash">
+    <picture>
+      <source srcset="icons/app_logo_dark.png" media="(prefers-color-scheme: dark)">
+      <img class="logo" src="icons/app_logo_light.png" alt="Kokonuts Bookkeeping Logo">
+    </picture>
+  </div>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
