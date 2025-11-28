@@ -25,7 +25,7 @@ class _OverviewTabState extends State<OverviewTab> {
   String? _errorMessage;
   MoneyOutSummary? _summary;
   ExpensesPieChartData? _expensesPercentage;
-  String _accountingMethod = 'created'; // 'created' (Cash) or 'issued' (Accrual)
+  String _accountingMethod = 'payment'; // 'payment' (Cash) or 'issued' (Accrual)
 
   @override
   void initState() {
@@ -45,6 +45,7 @@ class _OverviewTabState extends State<OverviewTab> {
       final summary = await _service.fetchMoneyOutSummary(
         startDate: DateFormat('yyyy-MM-dd').format(_startDate),
         endDate: DateFormat('yyyy-MM-dd').format(_endDate),
+        type: _accountingMethod,
         headers: {
           'Authorization': 'Bearer ${widget.appState.authToken}',
         },
@@ -176,7 +177,7 @@ class _OverviewTabState extends State<OverviewTab> {
                         },
                         items: const [
                           DropdownMenuItem(
-                            value: 'created',
+                            value: 'payment',
                             child: Text('Cash'),
                           ),
                           DropdownMenuItem(
