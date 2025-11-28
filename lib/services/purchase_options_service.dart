@@ -68,6 +68,10 @@ class PurchaseOptionsService {
 
   int? _extractNextPurchaseOrderNumber(dynamic source) {
     if (source is Map<String, dynamic>) {
+      if (source['name'] == 'next_po_number' && source.containsKey('value')) {
+        return _asInt(source['value']);
+      }
+
       for (final entry in source.entries) {
         final key = entry.key.toLowerCase();
         if (key == 'next_po_number' ||
