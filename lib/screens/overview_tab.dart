@@ -72,7 +72,6 @@ class _OverviewTabState extends State<OverviewTab> {
       final toDate = DateFormat('yyyy-MM-dd').format(_endDate);
 
       // Fetch Expenses
-      // Try using date filtering if supported by API convention (from/to) which we added
       final expensesPage = await _expensesService.fetchExpenses(
         page: 1,
         perPage: 50,
@@ -82,7 +81,6 @@ class _OverviewTabState extends State<OverviewTab> {
       );
 
       for (final expense in expensesPage.expenses) {
-        // Filter locally just in case API ignores params
         if (expense.date != null &&
             expense.date!.isAfter(_startDate.subtract(const Duration(days: 1))) &&
             expense.date!.isBefore(_endDate.add(const Duration(days: 1)))) {
@@ -91,22 +89,10 @@ class _OverviewTabState extends State<OverviewTab> {
       }
 
       if (_accountingMethod == 'payment') {
-        // Cash Basis: Expenses + Bill Payments
-        // We can't easily filter bill PAYMENTS by date via the bills API date filter (which filters bill date).
-        // So we might miss payments for old bills if we filter bills by date.
-        // Strategy: Fetch bills with broader range or recent bills?
-        // For now, we use the same date range for bills to at least get payments for *relevant* bills,
-        // but ideally we need a "payments" endpoint.
-        // We will fetch bills without date filter (or wide range) if we want all payments?
-        // No, that's too heavy. We stick to fetching bills in range and checking their payments.
-        // Limitation: Payments for old bills won't show up.
-
         final billsPage = await _billsService.fetchBills(
           page: 1,
           perPage: 50,
           headers: headers,
-          // We don't filter bills by date strictly here because we need payments.
-          // But fetching all is impossible. We compromise by fetching bills in range.
           fromDate: fromDate,
           toDate: toDate,
         );
@@ -125,9 +111,6 @@ class _OverviewTabState extends State<OverviewTab> {
         }
 
       } else {
-        // Accrual Basis: Expenses + Bills + Purchase Orders
-
-        // Bills
         final billsPage = await _billsService.fetchBills(
           page: 1,
           perPage: 50,
@@ -143,7 +126,6 @@ class _OverviewTabState extends State<OverviewTab> {
              }
          }
 
-        // Purchase Orders
         final posPage = await _purchaseOrdersService.fetchPurchaseOrders(
           page: 1,
           perPage: 50,
@@ -160,7 +142,6 @@ class _OverviewTabState extends State<OverviewTab> {
          }
       }
 
-      // Sort descending by date
       transactions.sort((a, b) => b.date.compareTo(a.date));
 
       if (mounted) {
@@ -233,8 +214,6 @@ class _OverviewTabState extends State<OverviewTab> {
       }
     } catch (e) {
       if (mounted) {
-        // Silently fail or log error for charts, so it doesn't block the whole UI
-        // or show a small error in the chart section
         setState(() {
           _isChartLoading = false;
         });
@@ -278,7 +257,6 @@ class _OverviewTabState extends State<OverviewTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Date Range & Total Spent Section
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -289,7 +267,6 @@ class _OverviewTabState extends State<OverviewTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Accounting Method Dropdown
                   Row(
                     children: [
                       Text(
@@ -339,7 +316,6 @@ class _OverviewTabState extends State<OverviewTab> {
                   ),
                   const SizedBox(height: 8),
 
-                  // Date Range Filter
                   InkWell(
                     onTap: _selectDateRange,
                     borderRadius: BorderRadius.circular(8),
@@ -374,7 +350,6 @@ class _OverviewTabState extends State<OverviewTab> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Total Spent Header
                   Text(
                     'Total Spent',
                     style: theme.textTheme.labelLarge?.copyWith(
@@ -415,7 +390,6 @@ class _OverviewTabState extends State<OverviewTab> {
 
             const SizedBox(height: 24),
 
-            // Transaction Summary Section
             Text(
               'Transaction Summary',
               style: theme.textTheme.titleLarge?.copyWith(
@@ -442,9 +416,8 @@ class _OverviewTabState extends State<OverviewTab> {
 
             const SizedBox(height: 32),
 
-            // Expenses by Type Section
             Text(
-              'Expenses by Type',
+              'Transactions by Type',
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -459,9 +432,8 @@ class _OverviewTabState extends State<OverviewTab> {
 
             const SizedBox(height: 32),
 
-            // Transactions Table Section
             Text(
-              _accountingMethod == 'payment' ? 'Recent Payments' : 'Recent Transactions',
+              'Transaction Details',
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -495,32 +467,96 @@ class _TransactionsTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // We use a LayoutBuilder or just SingleChildScrollView for horizontal scrolling if needed
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 800), // Ensure min width for readability
-        child: DataTable(
-          headingRowColor: MaterialStateProperty.all(theme.colorScheme.surfaceVariant.withOpacity(0.3)),
-          columns: const [
-            DataColumn(label: Text('Date')),
-            DataColumn(label: Text('Number')),
-            DataColumn(label: Text('Vendor')),
-            DataColumn(label: Text('Type')),
-            DataColumn(label: Text('Mode / Status')),
-            DataColumn(label: Text('Amount')),
-          ],
-          rows: transactions.map((t) {
-             return DataRow(cells: [
-               DataCell(Text(t.formattedDate)),
-               DataCell(Text(t.number)),
-               DataCell(Text(t.vendor)),
-               DataCell(Text(t.type)),
-               DataCell(Text(t.paymentMode ?? t.status)),
-               DataCell(Text(t.formattedAmount)),
-             ]);
-          }).toList(),
-        ),
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const double minWidth = 900;
+        final double contentWidth = math.max(constraints.maxWidth, minWidth);
+
+        final double rowHeight = 52.0;
+        final double headerHeight = 56.0;
+        final double calculatedHeight = headerHeight + (transactions.length * rowHeight);
+        final double maxHeight = 500.0;
+        final double containerHeight = math.min(calculatedHeight, maxHeight);
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: contentWidth,
+            height: containerHeight,
+            child: Column(
+              children: [
+                _TableHeader(theme: theme),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: transactions.length,
+                    itemBuilder: (context, index) {
+                      return _TransactionRow(
+                        transaction: transactions[index],
+                        theme: theme,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TableHeader extends StatelessWidget {
+  const _TableHeader({required this.theme});
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 56,
+      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: const [
+          Expanded(flex: 2, child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(flex: 2, child: Text('Number', style: TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(flex: 3, child: Text('Vendor', style: TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(flex: 2, child: Text('Type', style: TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(flex: 2, child: Text('Mode / Status', style: TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(flex: 2, child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold))),
+        ],
+      ),
+    );
+  }
+}
+
+class _TransactionRow extends StatelessWidget {
+  const _TransactionRow({
+    required this.transaction,
+    required this.theme,
+  });
+
+  final OverviewTransaction transaction;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 52,
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: theme.dividerColor.withOpacity(0.5))),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Expanded(flex: 2, child: Text(transaction.formattedDate, style: theme.textTheme.bodyMedium)),
+          Expanded(flex: 2, child: Text(transaction.number, style: theme.textTheme.bodyMedium)),
+          Expanded(flex: 3, child: Text(transaction.vendor, style: theme.textTheme.bodyMedium)),
+          Expanded(flex: 2, child: Text(transaction.type, style: theme.textTheme.bodyMedium)),
+          Expanded(flex: 2, child: Text(transaction.paymentMode ?? transaction.status, style: theme.textTheme.bodyMedium)),
+          Expanded(flex: 2, child: Text(transaction.formattedAmount, style: theme.textTheme.bodyMedium)),
+        ],
       ),
     );
   }
@@ -535,7 +571,6 @@ class _TransactionSummarySection extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Simple breakpoint logic: if width > 600, use Row, else Column
         final isLargeScreen = constraints.maxWidth > 600;
 
         final cards = [
@@ -693,20 +728,21 @@ class _ExpensesByTypeSection extends StatelessWidget {
         ];
 
         if (isLargeScreen) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: charts.map((c) => Expanded(child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              child: c,
-            ))).toList(),
+          return IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: charts.map((c) => Expanded(child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: c,
+              ))).toList(),
+            ),
           );
         } else if (isMediumScreen) {
-          // 2 columns
           return Wrap(
             spacing: 16,
             runSpacing: 16,
             children: charts.map((c) => SizedBox(
-              width: (constraints.maxWidth - 32) / 2, // 32 = spacing + padding
+              width: (constraints.maxWidth - 32) / 2,
               child: c,
             )).toList(),
           );
@@ -737,11 +773,10 @@ class _PieChartCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final currencyFormat = NumberFormat.simpleCurrency(name: ''); // Using '' to avoid symbol if needed or use default
+    final currencyFormat = NumberFormat.simpleCurrency(name: '');
     final sortedItems = List<ChartItem>.from(items)
       ..sort((a, b) => b.value.compareTo(a.value));
 
-    // Limit legend to top 5 for better UI, or maybe scrollable
     final displayItems = sortedItems.take(5).toList();
 
     final noDataMessage = accountingMethod == 'payment' ? 'No Payment' : 'No Outstanding';
@@ -899,10 +934,8 @@ class _PieChartPainter extends CustomPainter {
         paint,
       );
 
-      // Draw percentage text on the slice
-      if (item.percentage >= 5) { // Only draw if slice is big enough
+      if (item.percentage >= 5) {
         final middleAngle = startAngle + sweepAngle / 2;
-        // Position text slightly inwards (0.7 radius)
         final textRadius = radius * 0.7;
         final dx = center.dx + textRadius * math.cos(middleAngle);
         final dy = center.dy + textRadius * math.sin(middleAngle);
