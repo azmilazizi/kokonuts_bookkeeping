@@ -4,7 +4,6 @@ import '../app/app_state_scope.dart';
 import '../services/purchase_orders_service.dart';
 import '../widgets/alert_banner.dart';
 import '../widgets/date_range_filter_button.dart';
-import '../widgets/edit_purchase_order_dialog.dart';
 import '../widgets/purchase_order_details_dialog.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/table_filter_bar.dart';
@@ -14,8 +13,7 @@ enum PurchaseOrderSortColumn {
   name,
   vendor,
   orderDate,
-  paymentProgress,
-  total,
+  deliveryDate,
 }
 
 class PurchaseOrdersTab extends StatefulWidget {
@@ -34,7 +32,6 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   final _filterController = TextEditingController();
   DateTime? _filterStartDate;
   DateTime? _filterEndDate;
-  bool _isDeleting = false;
 
   PurchaseOrderSortColumn _sortColumn = PurchaseOrderSortColumn.orderDate;
   bool _sortAscending = false;
@@ -194,86 +191,6 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
     };
   }
 
-  Future<void> _confirmDelete(PurchaseOrder order) async {
-    final confirmed =
-        await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Delete purchase order?'),
-            content: Text(
-              'Are you sure you want to delete purchase order "${order.number}"?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Delete'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-
-    if (confirmed) {
-      await _deletePurchaseOrder(order);
-    }
-  }
-
-  Future<void> _deletePurchaseOrder(PurchaseOrder order) async {
-    if (_isDeleting) {
-      return;
-    }
-
-    final headers = await _buildAuthHeaders();
-    if (!mounted || headers == null) {
-      return;
-    }
-
-    setState(() {
-      _isDeleting = true;
-    });
-
-    try {
-      await _service.deletePurchaseOrder(id: order.id, headers: headers);
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _allOrders.removeWhere((element) => element.id == order.id);
-        _applyFilters();
-        _error = null;
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Purchase order "${order.number}" deleted.')),
-        );
-      }
-    } on PurchaseOrdersException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete purchase order: $error')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isDeleting = false;
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -345,8 +262,6 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                                 theme: theme,
                                 showTopBorder: index == 0,
                                 isCompactLayout: isCompactLayout,
-                                onDelete: () => _confirmDelete(order),
-                                isDeleting: _isDeleting,
                               );
                             }, childCount: _orders.length),
                           ),
@@ -470,12 +385,7 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
     if (date.contains(query)) {
       return true;
     }
-    final total = order.totalLabel.toLowerCase();
-    if (total.contains(query)) {
-      return true;
-    }
-    final progress = '0/${order.totalLabel}'.toLowerCase();
-    return progress.contains(query);
+    return false;
   }
 
   bool _isWithinDateRange(DateTime? value) {
@@ -535,34 +445,20 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
           return 1;
         }
         return left.compareTo(right);
-      case PurchaseOrderSortColumn.paymentProgress:
-        final left = _paymentProgressValue(a);
-        final right = _paymentProgressValue(b);
-        if (left == right) {
+      case PurchaseOrderSortColumn.deliveryDate:
+        final left = a.deliveryDate;
+        final right = b.deliveryDate;
+        if (left == null && right == null) {
           return 0;
         }
-        return left < right ? -1 : 1;
-      case PurchaseOrderSortColumn.total:
-        final left = a.totalAmount ?? 0;
-        final right = b.totalAmount ?? 0;
-        if (left == right) {
-          return 0;
+        if (left == null) {
+          return -1;
         }
-        return left < right ? -1 : 1;
+        if (right == null) {
+          return 1;
+        }
+        return left.compareTo(right);
     }
-  }
-
-  double _paymentProgressValue(PurchaseOrder order) {
-    final total = order.totalAmount ?? 0;
-    final paidAmount = order.totalPaid ?? 0;
-    if (total <= 0) {
-      return 0;
-    }
-    final progress = paidAmount / total;
-    if (!progress.isFinite) {
-      return 0;
-    }
-    return progress.clamp(0, double.infinity);
   }
 
   Widget _buildFooter(ThemeData theme) {
@@ -660,7 +556,7 @@ class _PurchaseOrdersHeader extends StatelessWidget {
   final bool sortAscending;
   final ValueChanged<PurchaseOrderSortColumn> onSort;
 
-  static const _columnFlex = [3, 4, 3, 3, 3, 2, 2, 4];
+  static const _columnFlex = [3, 4, 3, 3, 3, 3];
 
   @override
   Widget build(BuildContext context) {
@@ -708,37 +604,19 @@ class _PurchaseOrdersHeader extends StatelessWidget {
             onTap: () => onSort(PurchaseOrderSortColumn.orderDate),
           ),
           SortableHeaderCell(
-            label: 'Payment Progress',
+            label: 'Delivery Date',
             flex: _columnFlex[4],
             theme: theme,
             textAlign: TextAlign.center,
-            isActive: sortColumn == PurchaseOrderSortColumn.paymentProgress,
+            isActive: sortColumn == PurchaseOrderSortColumn.deliveryDate,
             ascending: sortAscending,
-            onTap: () => onSort(PurchaseOrderSortColumn.paymentProgress),
+            onTap: () => onSort(PurchaseOrderSortColumn.deliveryDate),
           ),
-          SizedBox(width: gap),
           SortableHeaderCell(
             label: 'Delivery Status',
             flex: _columnFlex[5],
             theme: theme,
             textAlign: TextAlign.center,
-          ),
-          SortableHeaderCell(
-            label: 'Total',
-            flex: _columnFlex[6],
-            theme: theme,
-            textAlign: TextAlign.end,
-            isActive: sortColumn == PurchaseOrderSortColumn.total,
-            ascending: sortAscending,
-            onTap: () => onSort(PurchaseOrderSortColumn.total),
-          ),
-          SizedBox(width: gap),
-          SortableHeaderCell(
-            label: 'Actions',
-            flex: _columnFlex[7],
-            theme: theme,
-            textAlign: TextAlign.center,
-            ascending: sortAscending,
           ),
         ],
       ),
@@ -807,16 +685,12 @@ class _PurchaseOrderRow extends StatefulWidget {
     required this.theme,
     required this.showTopBorder,
     required this.isCompactLayout,
-    required this.onDelete,
-    required this.isDeleting,
   });
 
   final PurchaseOrder order;
   final ThemeData theme;
   final bool showTopBorder;
   final bool isCompactLayout;
-  final VoidCallback onDelete;
-  final bool isDeleting;
 
   @override
   State<_PurchaseOrderRow> createState() => _PurchaseOrderRowState();
@@ -825,26 +699,7 @@ class _PurchaseOrderRow extends StatefulWidget {
 class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
   bool _hovering = false;
 
-  static const _columnFlex = [3, 4, 3, 3, 3, 2, 2, 4];
-
-  void _showEditDialog(BuildContext context) {
-    final tabState = context.findAncestorStateOfType<PurchaseOrdersTabState>();
-    showDialog(
-      context: context,
-      builder: (context) => EditPurchaseOrderDialog(orderId: widget.order.id),
-    ).then((value) {
-      if (value is PurchaseOrder) {
-        final normalizedNumber = value.number.trim();
-        final orderLabel =
-            (normalizedNumber.isEmpty ? value.name.trim() : normalizedNumber)
-                .trim();
-        final message = orderLabel.isEmpty
-            ? 'Purchase order updated.'
-            : 'Purchase order $orderLabel updated.';
-        tabState?.insertCreatedPurchaseOrder(value, successMessage: message);
-      }
-    });
-  }
+  static const _columnFlex = [3, 4, 3, 3, 3, 3];
 
   void _showDetails(BuildContext context) {
     showDialog(
@@ -852,19 +707,6 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
       builder: (context) =>
           PurchaseOrderDetailsDialog(orderId: widget.order.id),
     );
-  }
-
-  double _paymentProgressValue(PurchaseOrder order) {
-    final total = order.totalAmount ?? 0;
-    final paidAmount = order.totalPaid ?? 0;
-    if (total <= 0) {
-      return 0;
-    }
-    final progress = paidAmount / total;
-    if (!progress.isFinite) {
-      return 0;
-    }
-    return progress.clamp(0, double.infinity);
   }
 
   @override
@@ -877,33 +719,8 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
       0.45,
     );
 
-    final totalAmount = widget.order.totalAmount;
-    final totalLabel = widget.order.totalLabel;
-    final progressRatio = _paymentProgressValue(widget.order);
-    final hasTotal = totalAmount != null && totalAmount > 0;
-    final displayedPercent = hasTotal
-        ? (progressRatio * 100).clamp(0, 100)
-        : null;
-    final paymentProgress = displayedPercent != null
-        ? '${displayedPercent.toStringAsFixed(0)}%'
-        : '—';
-    final isComplete = hasTotal && progressRatio >= 1;
-
     final double horizontalPadding = widget.isCompactLayout ? 16.0 : 24.0;
     final double columnGap = widget.isCompactLayout ? 8.0 : 12.0;
-    final double actionSpacing = widget.isCompactLayout ? 4.0 : 8.0;
-
-    const double iconSize = 20.0;
-    const BoxConstraints iconConstraints = BoxConstraints.tightFor(
-      width: 36,
-      height: 36,
-    );
-    const VisualDensity iconDensity = VisualDensity.compact;
-
-    final double effectiveIconSize = widget.isCompactLayout ? 18.0 : iconSize;
-    final BoxConstraints effectiveIconConstraints = widget.isCompactLayout
-        ? const BoxConstraints.tightFor(width: 34, height: 34)
-        : iconConstraints;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -938,59 +755,13 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
                 textAlign: TextAlign.center,
               ),
               _DataCell(
-                paymentProgress,
+                widget.order.formattedDeliveryDate,
                 flex: _columnFlex[4],
                 textAlign: TextAlign.center,
-                style: isComplete
-                    ? widget.theme.textTheme.bodyMedium?.copyWith(
-                        color: widget.theme.colorScheme.primary,
-                      )
-                    : null,
               ),
               _DeliveryStatusCell(
                 status: widget.order.deliveryStatus,
                 flex: _columnFlex[5],
-              ),
-              _DataCell(
-                totalLabel,
-                flex: _columnFlex[6],
-                textAlign: TextAlign.end,
-                style: widget.theme.textTheme.bodyMedium?.copyWith(
-                  color: widget.theme.colorScheme.error,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(width: columnGap),
-              Expanded(
-                flex: _columnFlex[7],
-                child: Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined),
-                        tooltip: 'Edit',
-                        iconSize: effectiveIconSize,
-                        constraints: effectiveIconConstraints,
-                        visualDensity: iconDensity,
-                        onPressed: () => _showEditDialog(context),
-                      ),
-                      SizedBox(width: actionSpacing),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        tooltip: 'Delete',
-                        style: IconButton.styleFrom(
-                          foregroundColor: widget.theme.colorScheme.error,
-                        ),
-                        iconSize: effectiveIconSize,
-                        constraints: effectiveIconConstraints,
-                        visualDensity: iconDensity,
-                        onPressed: widget.isDeleting ? null : widget.onDelete,
-                      ),
-                    ],
-                  ),
-                ),
               ),
             ],
           ),
