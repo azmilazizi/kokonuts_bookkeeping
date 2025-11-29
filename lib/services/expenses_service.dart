@@ -17,10 +17,16 @@ class ExpensesService {
     required int page,
     required int perPage,
     required Map<String, String> headers,
+    String? fromDate,
+    String? toDate,
   }) async {
+    final params = {'page': '$page', 'per_page': '$perPage'};
+    if (fromDate != null) params['from'] = fromDate;
+    if (toDate != null) params['to'] = toDate;
+
     final uri = Uri.parse(
       _baseUrl,
-    ).replace(queryParameters: {'page': '$page', 'per_page': '$perPage'});
+    ).replace(queryParameters: params);
 
     http.Response response;
     try {
