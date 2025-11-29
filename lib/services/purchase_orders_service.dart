@@ -759,6 +759,7 @@ class PurchaseOrder {
     required this.name,
     required this.vendorName,
     required this.orderDate,
+    required this.deliveryDate,
     required this.totalAmount,
     required this.totalLabel,
     required this.currencySymbol,
@@ -794,6 +795,7 @@ class PurchaseOrder {
             _stringValue(json['created_at']) ??
             '',
       ),
+      deliveryDate: _parseDateString(_stringValue(json['delivery_date']) ?? ''),
       totalAmount: totalAmount,
       totalLabel:
           totalAmount != null ? totalAmount.toStringAsFixed(2) : _formatAmount(totalValue),
@@ -808,6 +810,7 @@ class PurchaseOrder {
   final String name;
   final String vendorName;
   final DateTime? orderDate;
+  final DateTime? deliveryDate;
   final double? totalAmount;
   final String totalLabel;
   final String currencySymbol;
@@ -816,6 +819,17 @@ class PurchaseOrder {
 
   String get formattedDate {
     final date = orderDate;
+    if (date == null) {
+      return '—';
+    }
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString().padLeft(4, '0');
+    return '$day-$month-$year';
+  }
+
+  String get formattedDeliveryDate {
+    final date = deliveryDate;
     if (date == null) {
       return '—';
     }
