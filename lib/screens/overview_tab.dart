@@ -3,7 +3,11 @@ import 'package:intl/intl.dart' hide TextDirection;
 import 'dart:math' as math;
 
 import '../app/app_state.dart';
+import '../models/overview_transaction.dart';
+import '../services/bills_service.dart';
+import '../services/expenses_service.dart';
 import '../services/overview_service.dart';
+import '../services/purchase_orders_service.dart';
 
 class OverviewTab extends StatefulWidget {
   const OverviewTab({super.key, required this.appState});
@@ -16,16 +20,22 @@ class OverviewTab extends StatefulWidget {
 
 class _OverviewTabState extends State<OverviewTab> {
   late final OverviewService _service;
+  late final ExpensesService _expensesService;
+  late final BillsService _billsService;
+  late final PurchaseOrdersService _purchaseOrdersService;
 
   late DateTime _startDate;
   late DateTime _endDate;
 
   bool _isLoading = false;
   bool _isChartLoading = false;
+  bool _isTransactionsLoading = false;
   String? _errorMessage;
+  String? _transactionsError;
   MoneyOutSummary? _summary;
   ExpensesPieChartData? _expensesPercentage;
   String _accountingMethod = 'payment'; // 'payment' (Cash) or 'issued' (Accrual)
+  List<OverviewTransaction> _transactions = [];
 
   @override
   void initState() {
@@ -36,8 +46,138 @@ class _OverviewTabState extends State<OverviewTab> {
     _endDate = DateTime(now.year, now.month + 1, 0);
 
     _service = OverviewService();
+    _expensesService = ExpensesService();
+    _billsService = BillsService();
+    _purchaseOrdersService = PurchaseOrdersService();
+
     _fetchSummary();
     _fetchCharts();
+    _fetchTransactions();
+  }
+
+  Future<void> _fetchTransactions() async {
+    setState(() {
+      _isTransactionsLoading = true;
+      _transactionsError = null;
+    });
+
+    try {
+      final headers = {
+        'Authorization': 'Bearer ${widget.appState.authToken}',
+      };
+
+      final transactions = <OverviewTransaction>[];
+
+      final fromDate = DateFormat('yyyy-MM-dd').format(_startDate);
+      final toDate = DateFormat('yyyy-MM-dd').format(_endDate);
+
+      // Fetch Expenses
+      // Try using date filtering if supported by API convention (from/to) which we added
+      final expensesPage = await _expensesService.fetchExpenses(
+        page: 1,
+        perPage: 50,
+        headers: headers,
+        fromDate: fromDate,
+        toDate: toDate,
+      );
+
+      for (final expense in expensesPage.expenses) {
+        // Filter locally just in case API ignores params
+        if (expense.date != null &&
+            expense.date!.isAfter(_startDate.subtract(const Duration(days: 1))) &&
+            expense.date!.isBefore(_endDate.add(const Duration(days: 1)))) {
+           transactions.add(OverviewTransaction.fromExpense(expense));
+        }
+      }
+
+      if (_accountingMethod == 'payment') {
+        // Cash Basis: Expenses + Bill Payments
+        // We can't easily filter bill PAYMENTS by date via the bills API date filter (which filters bill date).
+        // So we might miss payments for old bills if we filter bills by date.
+        // Strategy: Fetch bills with broader range or recent bills?
+        // For now, we use the same date range for bills to at least get payments for *relevant* bills,
+        // but ideally we need a "payments" endpoint.
+        // We will fetch bills without date filter (or wide range) if we want all payments?
+        // No, that's too heavy. We stick to fetching bills in range and checking their payments.
+        // Limitation: Payments for old bills won't show up.
+
+        final billsPage = await _billsService.fetchBills(
+          page: 1,
+          perPage: 50,
+          headers: headers,
+          // We don't filter bills by date strictly here because we need payments.
+          // But fetching all is impossible. We compromise by fetching bills in range.
+          fromDate: fromDate,
+          toDate: toDate,
+        );
+
+        for (final bill in billsPage.bills) {
+          for (final payment in bill.payments) {
+             if (payment.date != null &&
+                payment.date!.isAfter(_startDate.subtract(const Duration(days: 1))) &&
+                payment.date!.isBefore(_endDate.add(const Duration(days: 1)))) {
+                transactions.add(OverviewTransaction.fromBillPayment(
+                  payment,
+                  bill.vendorName ?? 'Unknown'
+                ));
+             }
+          }
+        }
+
+      } else {
+        // Accrual Basis: Expenses + Bills + Purchase Orders
+
+        // Bills
+        final billsPage = await _billsService.fetchBills(
+          page: 1,
+          perPage: 50,
+          headers: headers,
+          fromDate: fromDate,
+          toDate: toDate,
+        );
+         for (final bill in billsPage.bills) {
+             if (bill.billDate != null &&
+                bill.billDate!.isAfter(_startDate.subtract(const Duration(days: 1))) &&
+                bill.billDate!.isBefore(_endDate.add(const Duration(days: 1)))) {
+                transactions.add(OverviewTransaction.fromBill(bill));
+             }
+         }
+
+        // Purchase Orders
+        final posPage = await _purchaseOrdersService.fetchPurchaseOrders(
+          page: 1,
+          perPage: 50,
+          headers: headers,
+          fromDate: fromDate,
+          toDate: toDate,
+        );
+        for (final po in posPage.orders) {
+             if (po.orderDate != null &&
+                po.orderDate!.isAfter(_startDate.subtract(const Duration(days: 1))) &&
+                po.orderDate!.isBefore(_endDate.add(const Duration(days: 1)))) {
+                transactions.add(OverviewTransaction.fromPurchaseOrder(po));
+             }
+         }
+      }
+
+      // Sort descending by date
+      transactions.sort((a, b) => b.date.compareTo(a.date));
+
+      if (mounted) {
+        setState(() {
+          _transactions = transactions;
+          _isTransactionsLoading = false;
+        });
+      }
+
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _transactionsError = e.toString();
+          _isTransactionsLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _fetchSummary() async {
@@ -117,6 +257,7 @@ class _OverviewTabState extends State<OverviewTab> {
       });
       _fetchSummary();
       _fetchCharts();
+      _fetchTransactions();
     }
   }
 
@@ -129,6 +270,7 @@ class _OverviewTabState extends State<OverviewTab> {
       onRefresh: () async {
         await _fetchSummary();
         await _fetchCharts();
+        await _fetchTransactions();
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -179,6 +321,7 @@ class _OverviewTabState extends State<OverviewTab> {
                             });
                             _fetchCharts();
                             _fetchSummary();
+                            _fetchTransactions();
                           }
                         },
                         items: const [
@@ -240,11 +383,15 @@ class _OverviewTabState extends State<OverviewTab> {
                   ),
                   const SizedBox(height: 4),
                   if (_isLoading)
-                     SizedBox(
-                       height: 40,
-                       width: 40,
-                       child: CircularProgressIndicator(
-                         color: theme.colorScheme.onPrimaryContainer,
+                     Padding(
+                       padding: const EdgeInsets.all(8.0),
+                       child: SizedBox(
+                         height: 24,
+                         width: 24,
+                         child: CircularProgressIndicator(
+                           strokeWidth: 2,
+                           color: theme.colorScheme.onPrimaryContainer,
+                         ),
                        ),
                      )
                   else if (_summary != null)
@@ -309,7 +456,70 @@ class _OverviewTabState extends State<OverviewTab> {
               _ExpensesByTypeSection(data: _expensesPercentage!, accountingMethod: _accountingMethod)
             else
               const Center(child: Text('No chart data available')),
+
+            const SizedBox(height: 32),
+
+            // Transactions Table Section
+            Text(
+              _accountingMethod == 'payment' ? 'Recent Payments' : 'Recent Transactions',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (_isTransactionsLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (_transactionsError != null)
+               Text(
+                'Failed to load transactions: $_transactionsError',
+                style: TextStyle(color: theme.colorScheme.error),
+               )
+            else if (_transactions.isNotEmpty)
+              _TransactionsTable(transactions: _transactions)
+            else
+               const Text('No transactions found in this period.'),
+
+             const SizedBox(height: 32),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TransactionsTable extends StatelessWidget {
+  const _TransactionsTable({required this.transactions});
+
+  final List<OverviewTransaction> transactions;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // We use a LayoutBuilder or just SingleChildScrollView for horizontal scrolling if needed
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 800), // Ensure min width for readability
+        child: DataTable(
+          headingRowColor: MaterialStateProperty.all(theme.colorScheme.surfaceVariant.withOpacity(0.3)),
+          columns: const [
+            DataColumn(label: Text('Date')),
+            DataColumn(label: Text('Number')),
+            DataColumn(label: Text('Vendor')),
+            DataColumn(label: Text('Type')),
+            DataColumn(label: Text('Mode / Status')),
+            DataColumn(label: Text('Amount')),
+          ],
+          rows: transactions.map((t) {
+             return DataRow(cells: [
+               DataCell(Text(t.formattedDate)),
+               DataCell(Text(t.number)),
+               DataCell(Text(t.vendor)),
+               DataCell(Text(t.type)),
+               DataCell(Text(t.paymentMode ?? t.status)),
+               DataCell(Text(t.formattedAmount)),
+             ]);
+          }).toList(),
         ),
       ),
     );
