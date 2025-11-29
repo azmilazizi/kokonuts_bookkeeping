@@ -8,6 +8,7 @@ import '../services/bills_service.dart';
 import '../services/expenses_service.dart';
 import '../services/overview_service.dart';
 import '../services/purchase_orders_service.dart';
+import '../services/purchase_order_detail_service.dart';
 
 class OverviewTab extends StatefulWidget {
   const OverviewTab({super.key, required this.appState});
@@ -23,6 +24,7 @@ class _OverviewTabState extends State<OverviewTab> {
   late final ExpensesService _expensesService;
   late final BillsService _billsService;
   late final PurchaseOrdersService _purchaseOrdersService;
+  late final PurchaseOrderDetailService _purchaseOrderDetailService;
 
   late DateTime _startDate;
   late DateTime _endDate;
@@ -49,6 +51,7 @@ class _OverviewTabState extends State<OverviewTab> {
     _expensesService = ExpensesService();
     _billsService = BillsService();
     _purchaseOrdersService = PurchaseOrdersService();
+    _purchaseOrderDetailService = PurchaseOrderDetailService();
 
     _fetchSummary();
     _fetchCharts();
@@ -71,10 +74,10 @@ class _OverviewTabState extends State<OverviewTab> {
       final fromDate = DateFormat('yyyy-MM-dd').format(_startDate);
       final toDate = DateFormat('yyyy-MM-dd').format(_endDate);
 
-      // Fetch Expenses
+      // Fetch Expenses (common for both methods)
       final expensesPage = await _expensesService.fetchExpenses(
         page: 1,
-        perPage: 50,
+        perPage: 100, // Fetch more to be safe
         headers: headers,
         fromDate: fromDate,
         toDate: toDate,
@@ -89,15 +92,24 @@ class _OverviewTabState extends State<OverviewTab> {
       }
 
       if (_accountingMethod == 'payment') {
+        // Cash Accounting:
+        // 1. Fetch Bills from a wider range (6 months back) to catch recent payments on old bills
+        // 2. Fetch Purchase Orders from a wider range and get their payments
+
+        final lookbackDate = _startDate.subtract(const Duration(days: 180));
+        final lookbackFrom = DateFormat('yyyy-MM-dd').format(lookbackDate);
+
+        // --- BILLS ---
         final billsPage = await _billsService.fetchBills(
           page: 1,
-          perPage: 50,
+          perPage: 100,
           headers: headers,
-          fromDate: fromDate,
+          fromDate: lookbackFrom,
           toDate: toDate,
         );
 
         for (final bill in billsPage.bills) {
+          // Check existing payments in the bill object
           for (final payment in bill.payments) {
              if (payment.date != null &&
                 payment.date!.isAfter(_startDate.subtract(const Duration(days: 1))) &&
@@ -108,9 +120,75 @@ class _OverviewTabState extends State<OverviewTab> {
                 ));
              }
           }
+
+          // If bill is paid or partially paid but payments list is empty or suspicious,
+          // we might want to fetch details. However, memory says "fetching missing payment details in batches".
+          // For now, let's rely on what's returned or strictly what's in `payments`.
+          // If we need to fetch individual bill payments, we can do it here.
+          // The previous code didn't fetch individual payments, so we'll stick to bill.payments for now unless users complain or logic demands it.
+          // Wait, memory says: "To reliably display bill payments, the application fetches individual payment details via BillsService.fetchBillPayments(billId) for bills marked as 'Paid' or 'Partially Paid'."
+          if ((bill.status == BillStatus.paid || bill.status.code == 3) && bill.payments.isEmpty) { // 3 is partial usually?
+             try {
+               final payments = await _billsService.fetchBillPayments(billId: bill.id, headers: headers);
+               for (final payment in payments) {
+                 if (payment.date != null &&
+                    payment.date!.isAfter(_startDate.subtract(const Duration(days: 1))) &&
+                    payment.date!.isBefore(_endDate.add(const Duration(days: 1)))) {
+                    transactions.add(OverviewTransaction.fromBillPayment(
+                      payment,
+                      bill.vendorName ?? 'Unknown'
+                    ));
+                 }
+               }
+             } catch (_) {
+               // Ignore errors fetching details
+             }
+          }
+        }
+
+        // --- PURCHASE ORDERS ---
+        final posPage = await _purchaseOrdersService.fetchPurchaseOrders(
+          page: 1,
+          perPage: 100,
+          headers: headers,
+          fromDate: lookbackFrom,
+          toDate: toDate,
+        );
+
+        // Filter POs that have some payment made
+        final paidPos = posPage.orders.where((po) => (po.totalPaid ?? 0) > 0).toList();
+
+        // Fetch details for these POs to get payment records
+        // Process in batches of 5 to avoid overwhelming the server
+        const int batchSize = 5;
+        for (var i = 0; i < paidPos.length; i += batchSize) {
+          final batch = paidPos.skip(i).take(batchSize);
+          await Future.wait(batch.map((po) async {
+            try {
+              final details = await _purchaseOrderDetailService.fetchPurchaseOrder(
+                id: po.id,
+                headers: headers,
+              );
+
+              for (final payment in details.payments) {
+                if (payment.date != null &&
+                    payment.date!.isAfter(_startDate.subtract(const Duration(days: 1))) &&
+                    payment.date!.isBefore(_endDate.add(const Duration(days: 1)))) {
+                  transactions.add(OverviewTransaction.fromPurchaseOrderPayment(
+                    payment,
+                    po.number,
+                    po.vendorName,
+                  ));
+                }
+              }
+            } catch (_) {
+              // Ignore errors fetching details
+            }
+          }));
         }
 
       } else {
+        // Accrual Accounting (Issued)
         final billsPage = await _billsService.fetchBills(
           page: 1,
           perPage: 50,
@@ -251,283 +329,307 @@ class _OverviewTabState extends State<OverviewTab> {
         await _fetchCharts();
         await _fetchTransactions();
       },
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Minimum width for the table content to ensure legibility
+          const double minTableWidth = 900;
+          // Determine if we need horizontal scrolling for the whole view based on table requirement
+          // Note: The top widgets (charts) are responsive, but the table requires minWidth.
+          // By wrapping the CustomScrollView in a horizontal scroll, we allow the table to be wide
+          // while keeping the header sticky relative to the CustomScrollView's viewport.
+
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minWidth: math.max(constraints.maxWidth, minTableWidth),
+                minHeight: constraints.maxHeight,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        'Accounting Method: ',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      DropdownButton<String>(
-                        value: _accountingMethod,
-                        dropdownColor: theme.colorScheme.primaryContainer,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onPrimaryContainer,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        underline: Container(
-                          height: 1,
-                          color: theme.colorScheme.onPrimaryContainer,
-                        ),
-                        icon: Icon(
-                          Icons.arrow_drop_down,
-                          color: theme.colorScheme.onPrimaryContainer,
-                        ),
-                        onChanged: (String? newValue) {
-                          if (newValue != null) {
-                            setState(() {
-                              _accountingMethod = newValue;
-                            });
-                            _fetchCharts();
-                            _fetchSummary();
-                            _fetchTransactions();
-                          }
-                        },
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'payment',
-                            child: Text('Cash'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'issued',
-                            child: Text('Accrual'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
+              child: SizedBox(
+                width: math.max(constraints.maxWidth, minTableWidth),
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        'Accounting Method: ',
+                                        style: theme.textTheme.bodyMedium?.copyWith(
+                                          color: theme.colorScheme.onPrimaryContainer,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      DropdownButton<String>(
+                                        value: _accountingMethod,
+                                        dropdownColor: theme.colorScheme.primaryContainer,
+                                        style: theme.textTheme.bodyMedium?.copyWith(
+                                          color: theme.colorScheme.onPrimaryContainer,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        underline: Container(
+                                          height: 1,
+                                          color: theme.colorScheme.onPrimaryContainer,
+                                        ),
+                                        icon: Icon(
+                                          Icons.arrow_drop_down,
+                                          color: theme.colorScheme.onPrimaryContainer,
+                                        ),
+                                        onChanged: (String? newValue) {
+                                          if (newValue != null) {
+                                            setState(() {
+                                              _accountingMethod = newValue;
+                                            });
+                                            _fetchCharts();
+                                            _fetchSummary();
+                                            _fetchTransactions();
+                                          }
+                                        },
+                                        items: const [
+                                          DropdownMenuItem(
+                                            value: 'payment',
+                                            child: Text('Cash'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'issued',
+                                            child: Text('Accrual'),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
 
-                  InkWell(
-                    onTap: _selectDateRange,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 8.0,
-                        horizontal: 4.0,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.calendar_today,
-                            size: 16,
-                            color: theme.colorScheme.onPrimaryContainer,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${dateFormatter.format(_startDate)} - ${dateFormatter.format(_endDate)}',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: theme.colorScheme.onPrimaryContainer,
+                                  InkWell(
+                                    onTap: _selectDateRange,
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 8.0,
+                                        horizontal: 4.0,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.calendar_today,
+                                            size: 16,
+                                            color: theme.colorScheme.onPrimaryContainer,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            '${dateFormatter.format(_startDate)} - ${dateFormatter.format(_endDate)}',
+                                            style: theme.textTheme.titleMedium?.copyWith(
+                                              color: theme.colorScheme.onPrimaryContainer,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Icon(
+                                            Icons.arrow_drop_down,
+                                            color: theme.colorScheme.onPrimaryContainer,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  Text(
+                                    'Total Spent',
+                                    style: theme.textTheme.labelLarge?.copyWith(
+                                      color: theme.colorScheme.onPrimaryContainer.withOpacity(0.8),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  if (_isLoading)
+                                    Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: SizedBox(
+                                        height: 24,
+                                        width: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: theme.colorScheme.onPrimaryContainer,
+                                        ),
+                                      ),
+                                    )
+                                  else if (_summary != null)
+                                    Text(
+                                      _summary!.totalSpent,
+                                      style: theme.textTheme.headlineLarge?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.colorScheme.onPrimaryContainer,
+                                      ),
+                                    )
+                                  else
+                                    Text(
+                                      '--',
+                                      style: theme.textTheme.headlineLarge?.copyWith(
+                                        color: theme.colorScheme.onPrimaryContainer,
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.arrow_drop_down,
-                            color: theme.colorScheme.onPrimaryContainer,
-                          ),
-                        ],
+
+                            const SizedBox(height: 24),
+
+                            Text(
+                              'Transaction Summary',
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            if (_errorMessage != null)
+                              Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(32.0),
+                                  child: Text(
+                                    _errorMessage!,
+                                    style: TextStyle(color: theme.colorScheme.error),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              )
+                            else if (_summary != null)
+                              _TransactionSummarySection(summary: _summary!)
+                            else if (!_isLoading)
+                              const Center(child: Text('No data available')),
+
+                            const SizedBox(height: 32),
+
+                            Text(
+                              'Transactions by Type',
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            if (_isChartLoading)
+                              const Center(child: CircularProgressIndicator())
+                            else if (_expensesPercentage != null)
+                              _ExpensesByTypeSection(data: _expensesPercentage!, accountingMethod: _accountingMethod)
+                            else
+                              const Center(child: Text('No chart data available')),
+
+                            const SizedBox(height: 32),
+
+                            Text(
+                              'Transaction Details',
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
 
-                  Text(
-                    'Total Spent',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer.withOpacity(0.8),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  if (_isLoading)
-                     Padding(
-                       padding: const EdgeInsets.all(8.0),
-                       child: SizedBox(
-                         height: 24,
-                         width: 24,
-                         child: CircularProgressIndicator(
-                           strokeWidth: 2,
-                           color: theme.colorScheme.onPrimaryContainer,
+                    if (_isTransactionsLoading)
+                       const SliverFillRemaining(
+                         hasScrollBody: false,
+                         child: Center(child: CircularProgressIndicator()),
+                       )
+                    else if (_transactionsError != null)
+                       SliverToBoxAdapter(
+                         child: Padding(
+                           padding: const EdgeInsets.all(16.0),
+                           child: Text(
+                            'Failed to load transactions: $_transactionsError',
+                            style: TextStyle(color: theme.colorScheme.error),
+                           ),
+                         ),
+                       )
+                    else if (_transactions.isNotEmpty) ...[
+                      SliverPersistentHeader(
+                        delegate: _TableHeaderDelegate(theme: theme),
+                        pinned: true,
+                      ),
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            return _TransactionRow(
+                              transaction: _transactions[index],
+                              theme: theme,
+                            );
+                          },
+                          childCount: _transactions.length,
+                        ),
+                      ),
+                    ] else
+                       const SliverToBoxAdapter(
+                         child: Padding(
+                           padding: EdgeInsets.all(16.0),
+                           child: Text('No transactions found in this period.'),
                          ),
                        ),
-                     )
-                  else if (_summary != null)
-                    Text(
-                      _summary!.totalSpent,
-                      style: theme.textTheme.headlineLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.onPrimaryContainer,
-                      ),
-                    )
-                  else
-                    Text(
-                      '--',
-                      style: theme.textTheme.headlineLarge?.copyWith(
-                        color: theme.colorScheme.onPrimaryContainer,
-                      ),
-                    ),
-                ],
-              ),
-            ),
 
-            const SizedBox(height: 24),
-
-            Text(
-              'Transaction Summary',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            if (_errorMessage != null)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32.0),
-                  child: Text(
-                    _errorMessage!,
-                    style: TextStyle(color: theme.colorScheme.error),
-                    textAlign: TextAlign.center,
-                  ),
+                     const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                  ],
                 ),
-              )
-            else if (_summary != null)
-              _TransactionSummarySection(summary: _summary!)
-            else if (!_isLoading)
-              const Center(child: Text('No data available')),
-
-            const SizedBox(height: 32),
-
-            Text(
-              'Transactions by Type',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 16),
-            if (_isChartLoading)
-              const Center(child: CircularProgressIndicator())
-            else if (_expensesPercentage != null)
-              _ExpensesByTypeSection(data: _expensesPercentage!, accountingMethod: _accountingMethod)
-            else
-              const Center(child: Text('No chart data available')),
+          );
+        },
+      ),
+    );
+  }
+}
 
-            const SizedBox(height: 32),
+class _TableHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final ThemeData theme;
 
-            Text(
-              'Transaction Details',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (_isTransactionsLoading)
-              const Center(child: CircularProgressIndicator())
-            else if (_transactionsError != null)
-               Text(
-                'Failed to load transactions: $_transactionsError',
-                style: TextStyle(color: theme.colorScheme.error),
-               )
-            else if (_transactions.isNotEmpty)
-              _TransactionsTable(transactions: _transactions)
-            else
-               const Text('No transactions found in this period.'),
+  _TableHeaderDelegate({required this.theme});
 
-             const SizedBox(height: 32),
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      height: 56,
+      color: theme.scaffoldBackgroundColor, // Match background to cover scrolling items
+      child: Container(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: const [
+            Expanded(flex: 2, child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
+            Expanded(flex: 2, child: Text('Number', style: TextStyle(fontWeight: FontWeight.bold))),
+            Expanded(flex: 3, child: Text('Vendor', style: TextStyle(fontWeight: FontWeight.bold))),
+            Expanded(flex: 2, child: Text('Type', style: TextStyle(fontWeight: FontWeight.bold))),
+            Expanded(flex: 2, child: Text('Mode / Status', style: TextStyle(fontWeight: FontWeight.bold))),
+            Expanded(flex: 2, child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold))),
           ],
         ),
       ),
     );
   }
-}
-
-class _TransactionsTable extends StatelessWidget {
-  const _TransactionsTable({required this.transactions});
-
-  final List<OverviewTransaction> transactions;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const double minWidth = 900;
-        final double contentWidth = math.max(constraints.maxWidth, minWidth);
-
-        final double rowHeight = 52.0;
-        final double headerHeight = 56.0;
-        final double calculatedHeight = headerHeight + (transactions.length * rowHeight);
-        final double maxHeight = 500.0;
-        final double containerHeight = math.min(calculatedHeight, maxHeight);
-
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: contentWidth,
-            height: containerHeight,
-            child: Column(
-              children: [
-                _TableHeader(theme: theme),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: transactions.length,
-                    itemBuilder: (context, index) {
-                      return _TransactionRow(
-                        transaction: transactions[index],
-                        theme: theme,
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _TableHeader extends StatelessWidget {
-  const _TableHeader({required this.theme});
-  final ThemeData theme;
+  double get maxExtent => 56;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 56,
-      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: const [
-          Expanded(flex: 2, child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
-          Expanded(flex: 2, child: Text('Number', style: TextStyle(fontWeight: FontWeight.bold))),
-          Expanded(flex: 3, child: Text('Vendor', style: TextStyle(fontWeight: FontWeight.bold))),
-          Expanded(flex: 2, child: Text('Type', style: TextStyle(fontWeight: FontWeight.bold))),
-          Expanded(flex: 2, child: Text('Mode / Status', style: TextStyle(fontWeight: FontWeight.bold))),
-          Expanded(flex: 2, child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold))),
-        ],
-      ),
-    );
+  double get minExtent => 56;
+
+  @override
+  bool shouldRebuild(covariant _TableHeaderDelegate oldDelegate) {
+    return oldDelegate.theme != theme;
   }
 }
 

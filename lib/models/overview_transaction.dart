@@ -2,6 +2,7 @@ import 'package:intl/intl.dart';
 
 import '../services/bills_service.dart';
 import '../services/expenses_service.dart';
+import '../services/purchase_order_detail_service.dart';
 import '../services/purchase_orders_service.dart';
 
 class OverviewTransaction {
@@ -80,6 +81,19 @@ class OverviewTransaction {
       type: 'Purchase Order',
       amount: po.totalAmount ?? 0.0,
       status: _mapDeliveryStatus(po.deliveryStatus),
+    );
+  }
+
+  factory OverviewTransaction.fromPurchaseOrderPayment(PurchaseOrderPayment payment, String poNumber, String vendorName) {
+    return OverviewTransaction(
+      id: payment.id ?? '',
+      date: payment.date ?? DateTime.now(),
+      number: payment.reference,
+      vendor: vendorName,
+      type: 'Purchase Order Payment',
+      amount: payment.amountValue ?? 0.0,
+      status: 'Paid',
+      paymentMode: payment.method,
     );
   }
 
