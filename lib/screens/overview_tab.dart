@@ -3,7 +3,11 @@ import 'package:intl/intl.dart' hide TextDirection;
 import 'dart:math' as math;
 
 import '../app/app_state.dart';
+import '../models/overview_transaction.dart';
+import '../services/bills_service.dart';
+import '../services/expenses_service.dart';
 import '../services/overview_service.dart';
+import '../services/purchase_orders_service.dart';
 
 class OverviewTab extends StatefulWidget {
   const OverviewTab({super.key, required this.appState});
@@ -16,16 +20,22 @@ class OverviewTab extends StatefulWidget {
 
 class _OverviewTabState extends State<OverviewTab> {
   late final OverviewService _service;
+  late final ExpensesService _expensesService;
+  late final BillsService _billsService;
+  late final PurchaseOrdersService _purchaseOrdersService;
 
   late DateTime _startDate;
   late DateTime _endDate;
 
   bool _isLoading = false;
   bool _isChartLoading = false;
+  bool _isTransactionsLoading = false;
   String? _errorMessage;
+  String? _transactionsError;
   MoneyOutSummary? _summary;
   ExpensesPieChartData? _expensesPercentage;
   String _accountingMethod = 'payment'; // 'payment' (Cash) or 'issued' (Accrual)
+  List<OverviewTransaction> _transactions = [];
 
   @override
   void initState() {
@@ -36,8 +46,221 @@ class _OverviewTabState extends State<OverviewTab> {
     _endDate = DateTime(now.year, now.month + 1, 0);
 
     _service = OverviewService();
+    _expensesService = ExpensesService();
+    _billsService = BillsService();
+    _purchaseOrdersService = PurchaseOrdersService();
+
     _fetchSummary();
     _fetchCharts();
+    _fetchTransactions();
+  }
+
+  Future<void> _fetchTransactions() async {
+    setState(() {
+      _isTransactionsLoading = true;
+      _transactionsError = null;
+    });
+
+    try {
+      final headers = {
+        'Authorization': 'Bearer ${widget.appState.authToken}',
+      };
+
+      final transactions = <OverviewTransaction>[];
+      final fromDate = DateFormat('yyyy-MM-dd').format(_startDate);
+      final toDate = DateFormat('yyyy-MM-dd').format(_endDate);
+
+      // --- Expenses ---
+      final expenses = await _fetchExpensesInRange(headers, fromDate, toDate);
+      transactions.addAll(expenses.map(OverviewTransaction.fromExpense));
+
+      if (_accountingMethod == 'payment') {
+        // --- Cash Basis: Expenses + Bill Payments ---
+
+        // We need to fetch bills to find their payments.
+        // Problem: If we filter bills by date (issue date), we miss payments for OLD bills.
+        // Solution: Fetch bills with a much wider range (e.g. 6 months back) to catch recent payments for old bills.
+        // This is an approximation as we cannot fetch *all* bills.
+        final extendedFromDate = DateFormat('yyyy-MM-dd').format(_startDate.subtract(const Duration(days: 180)));
+        // We use the same end date.
+
+        final bills = await _fetchBillsInRange(headers, extendedFromDate, toDate);
+
+        // Parallelize fetching details if needed, but limit concurrency.
+        // We iterate bills and identify those needing payment details.
+        final billsWithMissingPayments = bills.where((b) {
+          // Check if bill is potentially relevant (Paid/Partial) and missing payment details
+          // Note: bills fetched with 'extendedFromDate' might be very old, but if they have recent payments, we want them.
+          return b.payments.isEmpty && (b.status == BillStatus.paid || b.status == BillStatus.notApproved);
+          // Assuming 'notApproved' or other statuses might have partial payments?
+          // Usually 'Paid' (2) is the main one. Let's stick to Paid for safety to avoid too many requests.
+        }).toList();
+
+        // Limit to max 20 requests to avoid spamming the server
+        final limitedMissingBills = billsWithMissingPayments.take(20).toList();
+
+        if (limitedMissingBills.isNotEmpty) {
+           // Fetch payments sequentially or in small batches
+           for (final bill in limitedMissingBills) {
+             try {
+                final payments = await _billsService.fetchBillPayments(
+                  billId: bill.id,
+                  headers: headers
+                );
+                for (final payment in payments) {
+                   if (_isDateInRange(payment.date)) {
+                      transactions.add(OverviewTransaction.fromBillPayment(
+                        payment,
+                        bill.vendorName ?? 'Unknown'
+                      ));
+                   }
+                }
+             } catch (_) {
+               // Ignore errors
+             }
+           }
+        }
+
+        // Add payments from bills that HAD payments in the list response
+        for (final bill in bills) {
+          if (!limitedMissingBills.contains(bill)) {
+             for (final payment in bill.payments) {
+                if (_isDateInRange(payment.date)) {
+                   transactions.add(OverviewTransaction.fromBillPayment(
+                     payment,
+                     bill.vendorName ?? 'Unknown'
+                   ));
+                }
+             }
+          }
+        }
+
+      } else {
+        // --- Accrual Basis: Expenses + Bills + Purchase Orders ---
+
+        // Bills
+        final bills = await _fetchBillsInRange(headers, fromDate, toDate);
+        transactions.addAll(bills.map(OverviewTransaction.fromBill));
+
+        // Purchase Orders
+        final pos = await _fetchPOsInRange(headers, fromDate, toDate);
+        transactions.addAll(pos.map(OverviewTransaction.fromPurchaseOrder));
+      }
+
+      // Sort descending by date
+      transactions.sort((a, b) => b.date.compareTo(a.date));
+
+      if (mounted) {
+        setState(() {
+          _transactions = transactions;
+          _isTransactionsLoading = false;
+        });
+      }
+
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _transactionsError = e.toString();
+          _isTransactionsLoading = false;
+        });
+      }
+    }
+  }
+
+  bool _isDateInRange(DateTime? date) {
+    if (date == null) return false;
+    // Inclusive check
+    return !date.isBefore(_startDate) && !date.isAfter(_endDate.add(const Duration(days: 1) - const Duration(seconds: 1)));
+  }
+
+  Future<List<Expense>> _fetchExpensesInRange(Map<String, String> headers, String from, String to) async {
+    final allItems = <Expense>[];
+    int page = 1;
+    bool hasMore = true;
+    const int maxPages = 5;
+
+    while (hasMore && page <= maxPages) {
+      final response = await _expensesService.fetchExpenses(
+        page: page,
+        perPage: 50,
+        headers: headers,
+        fromDate: from,
+        toDate: to
+      );
+
+      final filtered = response.expenses.where((e) => _isDateInRange(e.date)).toList();
+      allItems.addAll(filtered);
+
+      if (!response.hasMore) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+    }
+    return allItems;
+  }
+
+  Future<List<Bill>> _fetchBillsInRange(Map<String, String> headers, String from, String to) async {
+    final allItems = <Bill>[];
+    int page = 1;
+    bool hasMore = true;
+    const int maxPages = 5;
+
+    while (hasMore && page <= maxPages) {
+      final response = await _billsService.fetchBills(
+        page: page,
+        perPage: 50,
+        headers: headers,
+        fromDate: from,
+        toDate: to
+      );
+
+      // Filter logic differs by mode, but here we just return what the API gave us (potentially filtered by date).
+      // If Cash mode, we used a wide date range, so 'response.bills' contains old bills too.
+      // We return them all; logic in _fetchTransactions handles filtering payments.
+      // If Accrual mode, we used specific date range.
+
+      if (_accountingMethod == 'payment') {
+         allItems.addAll(response.bills);
+      } else {
+         final filtered = response.bills.where((b) => _isDateInRange(b.billDate)).toList();
+         allItems.addAll(filtered);
+      }
+
+      if (!response.hasMore) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+    }
+    return allItems;
+  }
+
+  Future<List<PurchaseOrder>> _fetchPOsInRange(Map<String, String> headers, String from, String to) async {
+    final allItems = <PurchaseOrder>[];
+    int page = 1;
+    bool hasMore = true;
+    const int maxPages = 5;
+
+    while (hasMore && page <= maxPages) {
+      final response = await _purchaseOrdersService.fetchPurchaseOrders(
+        page: page,
+        perPage: 50,
+        headers: headers,
+        fromDate: from,
+        toDate: to
+      );
+
+      final filtered = response.orders.where((o) => _isDateInRange(o.orderDate)).toList();
+      allItems.addAll(filtered);
+
+      if (!response.hasMore) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+    }
+    return allItems;
   }
 
   Future<void> _fetchSummary() async {
@@ -93,8 +316,6 @@ class _OverviewTabState extends State<OverviewTab> {
       }
     } catch (e) {
       if (mounted) {
-        // Silently fail or log error for charts, so it doesn't block the whole UI
-        // or show a small error in the chart section
         setState(() {
           _isChartLoading = false;
         });
@@ -117,6 +338,7 @@ class _OverviewTabState extends State<OverviewTab> {
       });
       _fetchSummary();
       _fetchCharts();
+      _fetchTransactions();
     }
   }
 
@@ -129,6 +351,7 @@ class _OverviewTabState extends State<OverviewTab> {
       onRefresh: () async {
         await _fetchSummary();
         await _fetchCharts();
+        await _fetchTransactions();
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -179,6 +402,7 @@ class _OverviewTabState extends State<OverviewTab> {
                             });
                             _fetchCharts();
                             _fetchSummary();
+                            _fetchTransactions();
                           }
                         },
                         items: const [
@@ -240,11 +464,15 @@ class _OverviewTabState extends State<OverviewTab> {
                   ),
                   const SizedBox(height: 4),
                   if (_isLoading)
-                     SizedBox(
-                       height: 40,
-                       width: 40,
-                       child: CircularProgressIndicator(
-                         color: theme.colorScheme.onPrimaryContainer,
+                     Padding(
+                       padding: const EdgeInsets.all(8.0),
+                       child: SizedBox(
+                         height: 24,
+                         width: 24,
+                         child: CircularProgressIndicator(
+                           strokeWidth: 2,
+                           color: theme.colorScheme.onPrimaryContainer,
+                         ),
                        ),
                      )
                   else if (_summary != null)
@@ -309,7 +537,70 @@ class _OverviewTabState extends State<OverviewTab> {
               _ExpensesByTypeSection(data: _expensesPercentage!, accountingMethod: _accountingMethod)
             else
               const Center(child: Text('No chart data available')),
+
+            const SizedBox(height: 32),
+
+            // Transactions Table Section
+            Text(
+              _accountingMethod == 'payment' ? 'Recent Payments' : 'Recent Transactions',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (_isTransactionsLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (_transactionsError != null)
+               Text(
+                'Failed to load transactions: $_transactionsError',
+                style: TextStyle(color: theme.colorScheme.error),
+               )
+            else if (_transactions.isNotEmpty)
+              _TransactionsTable(transactions: _transactions)
+            else
+               const Text('No transactions found in this period.'),
+
+             const SizedBox(height: 32),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TransactionsTable extends StatelessWidget {
+  const _TransactionsTable({required this.transactions});
+
+  final List<OverviewTransaction> transactions;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // We use a LayoutBuilder or just SingleChildScrollView for horizontal scrolling if needed
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 800), // Ensure min width for readability
+        child: DataTable(
+          headingRowColor: MaterialStateProperty.all(theme.colorScheme.surfaceVariant.withOpacity(0.3)),
+          columns: const [
+            DataColumn(label: Text('Date')),
+            DataColumn(label: Text('Number')),
+            DataColumn(label: Text('Vendor')),
+            DataColumn(label: Text('Type')),
+            DataColumn(label: Text('Mode / Status')),
+            DataColumn(label: Text('Amount')),
+          ],
+          rows: transactions.map((t) {
+             return DataRow(cells: [
+               DataCell(Text(t.formattedDate)),
+               DataCell(Text(t.number)),
+               DataCell(Text(t.vendor)),
+               DataCell(Text(t.type)),
+               DataCell(Text(t.paymentMode ?? t.status)),
+               DataCell(Text(t.formattedAmount)),
+             ]);
+          }).toList(),
         ),
       ),
     );
