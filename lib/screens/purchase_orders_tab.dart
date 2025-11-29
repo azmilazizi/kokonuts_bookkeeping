@@ -4,6 +4,7 @@ import '../app/app_state_scope.dart';
 import '../services/purchase_orders_service.dart';
 import '../widgets/alert_banner.dart';
 import '../widgets/date_range_filter_button.dart';
+import '../widgets/edit_purchase_order_dialog.dart';
 import '../widgets/purchase_order_details_dialog.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/table_filter_bar.dart';
@@ -42,7 +43,7 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   // layouts and prevents them from collapsing into each other on small
   // screens. The wider width ensures horizontal scrolling kicks in before the
   // table gets cramped.
-  static const double _minTableWidth = 1100;
+  static const double _minTableWidth = 1200;
 
   bool _isLoading = false;
   bool _hasMore = true;
@@ -262,6 +263,8 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                                 theme: theme,
                                 showTopBorder: index == 0,
                                 isCompactLayout: isCompactLayout,
+                                onEdit: () => _handleEdit(order),
+                                onDelete: () => _handleDelete(order),
                               );
                             }, childCount: _orders.length),
                           ),
@@ -337,6 +340,85 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(successMessage)));
+    }
+  }
+
+  Future<void> _handleEdit(PurchaseOrder order) async {
+    final result = await showDialog<PurchaseOrder?>(
+      context: context,
+      builder: (context) => EditPurchaseOrderDialog(orderId: order.id),
+    );
+
+    if (result != null) {
+      insertCreatedPurchaseOrder(
+        result,
+        successMessage: 'Purchase order updated successfully.',
+      );
+    }
+  }
+
+  Future<void> _handleDelete(PurchaseOrder order) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Purchase Order'),
+        content: Text(
+          'Are you sure you want to delete purchase order ${order.number}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) {
+      return;
+    }
+
+    final headers = await _buildAuthHeaders();
+    if (headers == null || !mounted) {
+      return;
+    }
+
+    try {
+      await _service.deletePurchaseOrder(id: order.id, headers: headers);
+      if (mounted) {
+        setState(() {
+          _allOrders.removeWhere((element) => element.id == order.id);
+          _applySorting();
+          _applyFilters();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Purchase order deleted successfully.')),
+        );
+      }
+    } on PurchaseOrdersException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'An unexpected error occurred while deleting the purchase order.',
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -556,7 +638,7 @@ class _PurchaseOrdersHeader extends StatelessWidget {
   final bool sortAscending;
   final ValueChanged<PurchaseOrderSortColumn> onSort;
 
-  static const _columnFlex = [3, 4, 3, 3, 3, 3];
+  static const _columnFlex = [3, 4, 3, 3, 3, 3, 2];
 
   @override
   Widget build(BuildContext context) {
@@ -617,6 +699,17 @@ class _PurchaseOrdersHeader extends StatelessWidget {
             flex: _columnFlex[5],
             theme: theme,
             textAlign: TextAlign.center,
+          ),
+          Expanded(
+            flex: _columnFlex[6],
+            child: Text(
+              'Actions',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -685,12 +778,16 @@ class _PurchaseOrderRow extends StatefulWidget {
     required this.theme,
     required this.showTopBorder,
     required this.isCompactLayout,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   final PurchaseOrder order;
   final ThemeData theme;
   final bool showTopBorder;
   final bool isCompactLayout;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   State<_PurchaseOrderRow> createState() => _PurchaseOrderRowState();
@@ -699,7 +796,7 @@ class _PurchaseOrderRow extends StatefulWidget {
 class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
   bool _hovering = false;
 
-  static const _columnFlex = [3, 4, 3, 3, 3, 3];
+  static const _columnFlex = [3, 4, 3, 3, 3, 3, 2];
 
   void _showDetails(BuildContext context) {
     showDialog(
@@ -762,6 +859,38 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
               _DeliveryStatusCell(
                 status: widget.order.deliveryStatus,
                 flex: _columnFlex[5],
+              ),
+              Expanded(
+                flex: _columnFlex[6],
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit, size: 22.0),
+                      onPressed: widget.onEdit,
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
+                      splashRadius: 20,
+                      tooltip: 'Edit',
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.delete_outline,
+                        size: 22.0,
+                        color: widget.theme.colorScheme.error,
+                      ),
+                      onPressed: widget.onDelete,
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
+                      splashRadius: 20,
+                      tooltip: 'Delete',
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
