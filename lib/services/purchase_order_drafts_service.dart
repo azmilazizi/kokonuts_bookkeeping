@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
@@ -288,6 +289,7 @@ class CreatePurchaseOrderDraftRequest {
     this.items = const [],
     this.payments = const [],
     this.attachments = const [],
+    this.attachmentFiles = const {},
   });
 
   final String? vendorId;
@@ -307,6 +309,7 @@ class CreatePurchaseOrderDraftRequest {
   final List<PurchaseOrderDraftItem> items;
   final List<PurchaseOrderDraftPayment> payments;
   final List<PurchaseOrderDraftAttachment> attachments;
+  final Map<String, PlatformFile> attachmentFiles;
 
   Map<String, dynamic> toJson() {
     return {
@@ -443,37 +446,12 @@ class PurchaseOrderDraftsService {
     required Map<String, String> headers,
     required CreatePurchaseOrderDraftRequest request,
   }) async {
-    http.Response response;
-    try {
-      response = await _client.post(
-        Uri.parse(_baseUrl),
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          ...headers,
-        },
-        body: jsonEncode(request.toJson()),
-      );
-    } catch (_) {
-      throw PurchaseOrderDraftsException(
-        'We could not create the draft right now. Please try again in a moment.',
-      );
-    }
-
-    if (response.statusCode != 200 && response.statusCode != 201) {
-      throw PurchaseOrderDraftsException(
-        'The draft could not be created right now. Please try again later.',
-      );
-    }
-
-    dynamic decoded;
-    try {
-      decoded = jsonDecode(response.body);
-    } catch (_) {
-      throw PurchaseOrderDraftsException(
-        'We could not read the server response after creating the draft.',
-      );
-    }
+    final decoded = await _sendMultipartDraft(
+      uri: Uri.parse(_baseUrl),
+      headers: headers,
+      request: request,
+      method: 'POST',
+    );
 
     final draftMap = _extractDraft(decoded);
     if (draftMap == null) {
@@ -490,37 +468,12 @@ class PurchaseOrderDraftsService {
     required Map<String, String> headers,
     required CreatePurchaseOrderDraftRequest request,
   }) async {
-    http.Response response;
-    try {
-      response = await _client.put(
-        Uri.parse('$_baseUrl/$id'),
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          ...headers,
-        },
-        body: jsonEncode(request.toJson()),
-      );
-    } catch (_) {
-      throw PurchaseOrderDraftsException(
-        'We could not update the draft right now. Please try again.',
-      );
-    }
-
-    if (response.statusCode != 200) {
-      throw PurchaseOrderDraftsException(
-        'The draft could not be updated right now. Please try again later.',
-      );
-    }
-
-    dynamic decoded;
-    try {
-      decoded = jsonDecode(response.body);
-    } catch (_) {
-      throw PurchaseOrderDraftsException(
-        'We could not read the server response after updating the draft.',
-      );
-    }
+    final decoded = await _sendMultipartDraft(
+      uri: Uri.parse('$_baseUrl/$id'),
+      headers: headers,
+      request: request,
+      method: 'PUT',
+    );
 
     final draftMap = _extractDraft(decoded);
     if (draftMap == null) {
@@ -556,6 +509,104 @@ class PurchaseOrderDraftsService {
         'The draft could not be deleted right now. Please try again later.',
       );
     }
+  }
+
+  Future<Map<String, dynamic>> _sendMultipartDraft({
+    required Uri uri,
+    required Map<String, String> headers,
+    required CreatePurchaseOrderDraftRequest request,
+    required String method,
+  }) async {
+    final requestFiles = await Future.wait(
+      request.attachmentFiles.entries
+          .map((entry) => _buildMultipartFile(entry.key, entry.value)),
+      eagerError: false,
+    );
+
+    final uploadFiles =
+        requestFiles.whereType<http.MultipartFile>().toList(growable: false);
+
+    final multipartRequest = http.MultipartRequest(method, uri)
+      ..headers.addAll({
+        'Accept': 'application/json',
+        ...headers,
+      })
+      ..fields['metadata'] = jsonEncode(request.toJson());
+
+    if (uploadFiles.isNotEmpty) {
+      multipartRequest.files.addAll(uploadFiles);
+    }
+
+    http.StreamedResponse response;
+    try {
+      response = await _client.send(multipartRequest);
+    } catch (_) {
+      final actionVerb = method.toUpperCase() == 'POST' ? 'create' : 'update';
+      throw PurchaseOrderDraftsException(
+        'We could not $actionVerb the draft right now. Please try again.',
+      );
+    }
+
+    final resolved = await http.Response.fromStream(response);
+    if (resolved.statusCode != 200 && resolved.statusCode != 201) {
+      final actionVerb = method.toUpperCase() == 'POST' ? 'created' : 'updated';
+      throw PurchaseOrderDraftsException(
+        'The draft could not be $actionVerb right now. Please try again later.',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(resolved.body);
+    } catch (_) {
+      throw PurchaseOrderDraftsException(
+        'We could not read the server response. Please try again.',
+      );
+    }
+
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+
+    throw PurchaseOrderDraftsException(
+      'The server response did not include purchase order draft details.',
+    );
+  }
+
+  Future<http.MultipartFile?> _buildMultipartFile(
+    String attachmentId,
+    PlatformFile file,
+  ) async {
+    if (file.bytes != null) {
+      return http.MultipartFile.fromBytes(
+        'files[$attachmentId]',
+        file.bytes!,
+        filename: file.name,
+      );
+    }
+
+    if (file.readStream != null) {
+      return http.MultipartFile(
+        'files[$attachmentId]',
+        file.readStream!,
+        file.size,
+        filename: file.name,
+      );
+    }
+
+    if (file.path != null) {
+      try {
+        return await http.MultipartFile.fromPath(
+          'files[$attachmentId]',
+          file.path!,
+          filename: file.name,
+        );
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return null;
   }
 
   Map<String, dynamic>? _extractDraft(dynamic decoded) {
