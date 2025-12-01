@@ -334,12 +334,15 @@ class CreatePurchaseOrderDraftRequest {
 
 /// Provides CRUD access to purchase order drafts.
 class PurchaseOrderDraftsService {
-  PurchaseOrderDraftsService({http.Client? client}) : _client = client ?? http.Client();
+  PurchaseOrderDraftsService({
+    http.Client? client,
+    String baseUrl =
+        'https://crm.kokonuts.my/purchase/api/v1/purchase_order_drafts',
+  })  : _client = client ?? http.Client(),
+        _baseUrl = baseUrl;
 
   final http.Client _client;
-
-  static const _baseUrl =
-      'https://crm.kokonuts.my/purchase/api/v1/purchase_order_drafts';
+  final String _baseUrl;
 
   Future<PurchaseOrderDraftsPage> fetchDrafts({
     required Map<String, String> headers,
@@ -375,6 +378,13 @@ class PurchaseOrderDraftsService {
     } catch (_) {
       throw PurchaseOrderDraftsException(
         'We could not read the server response. Please try again.',
+      );
+    }
+
+    if (_isApiDirectory(decoded)) {
+      throw PurchaseOrderDraftsException(
+        'The purchase order drafts endpoint is not yet available on the server. '
+        'Please confirm the correct drafts URL or deploy the drafts API.',
       );
     }
 
@@ -423,6 +433,13 @@ class PurchaseOrderDraftsService {
     } catch (_) {
       throw PurchaseOrderDraftsException(
         'We could not read the server response. Please try again.',
+      );
+    }
+
+    if (_isApiDirectory(decoded)) {
+      throw PurchaseOrderDraftsException(
+        'The purchase order drafts endpoint is not yet available on the server. '
+        'Please confirm the correct drafts URL or deploy the drafts API.',
       );
     }
 
@@ -617,6 +634,24 @@ class PurchaseOrderDraftsService {
 
   bool _looksLikeDraft(Map<String, dynamic> map) {
     return map.containsKey('order_name') && map.containsKey('order_number');
+  }
+
+  bool _isApiDirectory(dynamic decoded) {
+    if (decoded is Map<String, dynamic>) {
+      final endpoints = decoded['endpoints'];
+      final message = decoded['message']?.toString().toLowerCase();
+      if (endpoints is List && endpoints.isNotEmpty) {
+        return true;
+      }
+      if (decoded['result'] is Map<String, dynamic>) {
+        return _isApiDirectory(decoded['result']);
+      }
+      if (message != null && message.contains('api is available')) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   int? _resolveNextPage(
