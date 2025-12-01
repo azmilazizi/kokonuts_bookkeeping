@@ -11,6 +11,7 @@ import '../services/payment_modes_service.dart';
 import '../services/purchase_options_service.dart';
 import '../services/purchase_orders_service.dart';
 import '../services/purchase_order_detail_service.dart';
+import '../services/purchase_order_drafts_service.dart';
 import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
@@ -19,10 +20,16 @@ import 'searchable_dropdown_form_field.dart';
 enum DiscountType { percentage, amount }
 
 class AddPurchaseOrderDialog extends StatefulWidget {
-  const AddPurchaseOrderDialog({super.key, this.initialDetail, this.orderId});
+  const AddPurchaseOrderDialog({
+    super.key,
+    this.initialDetail,
+    this.orderId,
+    this.draftId,
+  });
 
   final PurchaseOrderDetail? initialDetail;
   final String? orderId;
+  final String? draftId;
 
   @override
   State<AddPurchaseOrderDialog> createState() => _AddPurchaseOrderDialogState();
@@ -35,6 +42,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   final _service = PurchaseOrdersService();
   final _vendorsService = VendorsService();
   final _purchaseOptionsService = PurchaseOptionsService();
+  final _draftsService = PurchaseOrderDraftsService();
   final _inventoryItemsService = InventoryItemsService();
   final _paymentModesService = PaymentModesService();
   final TextEditingController _itemSearchController = TextEditingController();
@@ -54,6 +62,14 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   final List<_PurchaseOrderItemDraft> _items = [];
   DiscountType _orderDiscountType = DiscountType.amount;
   bool _isPaid = false;
+
+  bool _isSavingDraft = false;
+  String? _draftStatusMessage;
+  bool _isLoadingDraft = false;
+  String? _draftLoadError;
+  String? _activeDraftId;
+  bool _hasEditedForm = false;
+  bool _isRestoringDraft = false;
 
   bool _isSubmitting = false;
   String? _submitError;
@@ -100,9 +116,13 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     }
     _orderDiscountController.addListener(_handleItemsChanged);
     _shippingFeeController.addListener(_handleItemsChanged);
+    _orderNameController.addListener(_markDirty);
+    _orderDiscountController.addListener(_markDirty);
+    _shippingFeeController.addListener(_markDirty);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _loadReferenceData();
+        _loadDraftIfNeeded();
       }
     });
   }
@@ -124,7 +144,58 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     super.dispose();
   }
 
+  Future<void> _loadDraftIfNeeded() async {
+    if (widget.draftId == null || widget.draftId!.trim().isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingDraft = true;
+      _draftLoadError = null;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _draftLoadError = 'You are not logged in.';
+        _isLoadingDraft = false;
+      });
+      return;
+    }
+
+    try {
+      final draft = await _draftsService.fetchDraft(
+        id: widget.draftId!,
+        headers: _buildAuthHeaders(appState, token),
+      );
+      if (!mounted) {
+        return;
+      }
+      _prefillFromDraft(draft);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _draftLoadError = 'Failed to load draft: $error';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingDraft = false;
+        });
+      }
+    }
+  }
+
   void _prefillFromDetail(PurchaseOrderDetail detail) {
+    _isRestoringDraft = true;
     _orderNameController.text = detail.name;
     _orderNumberController.text = detail.number;
     _selectedVendorName = detail.vendorName;
@@ -169,6 +240,79 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _prefillPayments(detail);
 
     _handleItemsChanged();
+    _hasEditedForm = false;
+    _isRestoringDraft = false;
+  }
+
+  void _prefillFromDraft(PurchaseOrderDraft draft) {
+    _isRestoringDraft = true;
+    _activeDraftId = draft.id;
+    _orderNameController.text = draft.orderName;
+    _orderNumberController.text = draft.orderNumber;
+    _orderDate = draft.orderDate;
+    _selectedVendorName = draft.vendorName;
+    _selectedVendorId = draft.vendorId;
+    _selectedVendorCode = draft.vendorCode;
+    _isPaid = draft.isPaid;
+    _orderDiscountController.text =
+        CurrencyInputFormatter.normalizeExistingValue(
+      _formatDouble(draft.discountValue),
+    );
+    _shippingFeeController.text = CurrencyInputFormatter.normalizeExistingValue(
+      _formatDouble(draft.shippingFee),
+    );
+    _orderDiscountType =
+        draft.discountType == 'percentage' ? DiscountType.percentage : DiscountType.amount;
+
+    for (final existing in _items) {
+      existing.dispose();
+    }
+
+    _items
+      ..clear()
+      ..addAll(
+        draft.items
+            .map(
+              (item) => _PurchaseOrderItemDraft(
+                onChanged: _handleItemsChanged,
+                initialItemId: item.inventoryItemId,
+                initialItemName: item.inventoryItemName,
+                initialLineItemId: item.lineItemId,
+                initialDescription: item.description ?? '',
+                initialQuantity: _formatDouble(item.quantity),
+                initialSubtotal: CurrencyInputFormatter.normalizeExistingValue(
+                  _formatDouble(item.subtotal),
+                ),
+                initialDiscount: CurrencyInputFormatter.normalizeExistingValue(
+                  _formatDouble(item.discount),
+                ),
+              ),
+            )
+            .toList(growable: false),
+      );
+
+    for (final payment in _payments) {
+      payment.dispose();
+    }
+    _payments
+      ..clear()
+      ..addAll(
+        draft.payments
+            .map(
+              (payment) => _PaymentEntryDraft(
+                paymentId: payment.paymentId,
+                onChanged: _handlePaymentChanged,
+                initialAmount: _formatDouble(payment.amount),
+                initialDate: payment.paymentDate,
+                initialPaymentModeLabel: payment.initialPaymentModeLabel,
+              )..setPaymentModeId(payment.paymentModeId),
+            )
+            .toList(growable: false),
+      );
+
+    _handleItemsChanged();
+    _hasEditedForm = false;
+    _isRestoringDraft = false;
   }
 
   void _prefillPayments(PurchaseOrderDetail detail) {
@@ -187,7 +331,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     for (final payment in detail.payments) {
       final entry = _PaymentEntryDraft(
         paymentId: payment.id,
-        onChanged: () => setState(() {}),
+        onChanged: _handlePaymentChanged,
         initialAmount: _resolvePrefillPaymentAmount(payment),
         initialDate: payment.date ?? DateTime.now(),
         initialPaymentModeLabel: payment.method,
@@ -235,6 +379,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         _removedLineItemIds.add(removedLineItemId);
       }
       removed.dispose();
+      _markDirty();
     });
   }
 
@@ -322,6 +467,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           : _formatInventoryItemName(item);
       _pendingItem.setItem(itemName: formattedName, itemId: item?.id);
       _pendingItemError = null;
+      _markDirty();
     });
   }
 
@@ -377,6 +523,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   }
 
   void _handleItemsChanged() {
+    if (!_isRestoringDraft) {
+      _markDirty();
+    }
     setState(() {});
   }
 
@@ -419,7 +568,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
   void _addPaymentEntry() {
     setState(() {
-      final entry = _PaymentEntryDraft(onChanged: () => setState(() {}));
+      final entry = _PaymentEntryDraft(onChanged: _handlePaymentChanged);
       if (_paymentModes.isNotEmpty) {
         entry.setPaymentModeId(_paymentModes.first.id);
       }
@@ -451,6 +600,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         }
       }
       removed.dispose();
+      _markDirty();
     });
   }
 
@@ -465,8 +615,21 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     if (selected != null) {
       setState(() {
         entry.setDate(selected);
+        _markDirty();
       });
     }
+  }
+
+  void _markDirty() {
+    if (_isRestoringDraft) {
+      return;
+    }
+    _hasEditedForm = true;
+    _draftStatusMessage = null;
+  }
+
+  void _handlePaymentChanged() {
+    setState(_markDirty);
   }
 
   Map<String, String> _buildAuthHeaders(AppState appState, String token) {
@@ -499,6 +662,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       setState(() {
         _orderDate = selected;
         _updateOrderNumber();
+        _markDirty();
       });
     }
   }
@@ -769,6 +933,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         }
       }
 
+      await _deleteDraftIfNeeded(headers);
+
       Navigator.of(context).pop(created);
     } on PurchaseOrdersException catch (error) {
       setState(() {
@@ -788,6 +954,216 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     }
   }
 
+  Future<void> _handleCancel() async {
+    final shouldClose = await _confirmExitWithDraftPrompt();
+    if (shouldClose && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<bool> _confirmExitWithDraftPrompt() async {
+    if (_isEditing) {
+      return true;
+    }
+
+    if (!_hasEditedForm || _isSubmitting || _isSavingDraft) {
+      return true;
+    }
+
+    final theme = Theme.of(context);
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Save draft before exiting?'),
+          content: const Text(
+            'You have unsaved changes. Save a draft so you can continue later.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Discard',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(null),
+              child: const Text('Keep editing'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.of(context).pop(true);
+                await _saveDraft(closeAfterSave: true);
+              },
+              child: const Text('Save Draft'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == true && mounted) {
+      return false;
+    }
+
+    return result == false;
+  }
+
+  Future<void> _saveDraft({bool closeAfterSave = false}) async {
+    FocusScope.of(context).unfocus();
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _draftStatusMessage = 'You are not logged in.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isSavingDraft = true;
+      _draftStatusMessage = null;
+    });
+
+    final headers = _buildAuthHeaders(appState, token);
+    final request = _buildDraftRequest();
+
+    try {
+      final draft = _activeDraftId == null
+          ? await _draftsService.createDraft(headers: headers, request: request)
+          : await _draftsService.updateDraft(
+              id: _activeDraftId!,
+              headers: headers,
+              request: request,
+            );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _activeDraftId = draft.id;
+        _hasEditedForm = false;
+        _draftStatusMessage = 'Draft saved at ${DateFormat.Hm().format(DateTime.now())}';
+      });
+
+      if (closeAfterSave && mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _draftStatusMessage = 'Failed to save draft: $error';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingDraft = false;
+        });
+      }
+    }
+  }
+
+  CreatePurchaseOrderDraftRequest _buildDraftRequest() {
+    final sanitizedOrderName = _orderNameController.text.trim().isEmpty
+        ? 'Draft purchase order'
+        : _orderNameController.text.trim();
+    final discountTypeValue =
+        _orderDiscountType == DiscountType.percentage ? 'percentage' : 'amount';
+
+    final draftItems = _items
+        .where((item) => item.hasContent)
+        .map(
+          (item) => PurchaseOrderDraftItem(
+            id: item.lineItemId ?? '',
+            draftId: _activeDraftId ?? '',
+            quantity: item.quantity,
+            subtotal: item.subtotal,
+            discount: item.discount,
+            total: item.total,
+            lineItemId: item.lineItemId,
+            inventoryItemId: item.itemId,
+            inventoryItemName: item.itemName,
+            description: item.descriptionController.text.trim().isEmpty
+                ? null
+                : item.descriptionController.text.trim(),
+          ),
+        )
+        .toList(growable: false);
+
+    final draftPayments = _payments
+        .where((payment) =>
+            payment.amountController.text.trim().isNotEmpty ||
+            (payment.paymentModeId ?? '').isNotEmpty)
+        .map(
+          (payment) => PurchaseOrderDraftPayment(
+            id: payment.paymentId ?? '',
+            draftId: _activeDraftId ?? '',
+            amount: double.tryParse(payment.amountController.text) ?? 0,
+            paymentDate: payment.date,
+            paymentId: payment.paymentId,
+            paymentModeId: payment.paymentModeId,
+            initialPaymentModeLabel: payment.initialPaymentModeLabel,
+          ),
+        )
+        .toList(growable: false);
+
+    return CreatePurchaseOrderDraftRequest(
+      vendorId: _selectedVendorId,
+      vendorName: _selectedVendorName,
+      vendorCode: _selectedVendorCode,
+      orderName: sanitizedOrderName,
+      orderNumber: _orderNumberController.text.trim(),
+      orderDate: _orderDate,
+      isPaid: _isPaid,
+      discountType: discountTypeValue,
+      discountValue: _orderDiscountValue,
+      shippingFee: _shippingFee,
+      itemsSubtotal: _itemsSubtotal,
+      totalDiscount: _totalDiscount,
+      grandTotal: _grandTotal,
+      pendingDeletionAttachments: _attachmentsMarkedForDeletion.toList(),
+      items: draftItems,
+      payments: draftPayments,
+      attachments: const [],
+    );
+  }
+
+  Future<void> _deleteDraftIfNeeded(Map<String, String> headers) async {
+    final draftId = _activeDraftId;
+    if (draftId == null || draftId.trim().isEmpty) {
+      return;
+    }
+
+    try {
+      await _draftsService.deleteDraft(id: draftId, headers: headers);
+      if (mounted) {
+        setState(() {
+          _activeDraftId = null;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Purchase order created but failed to delete draft: $error'),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -797,30 +1173,47 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       1200.0,
     );
 
-    return AlertDialog(
-      title: Text(_isEditing ? 'Edit Purchase Order' : 'Add Purchase Order'),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
-      content: SizedBox(
-        width: dialogWidth,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(right: 8),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Attachments', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 12),
+    return WillPopScope(
+      onWillPop: _confirmExitWithDraftPrompt,
+      child: AlertDialog(
+        title: Text(_isEditing ? 'Edit Purchase Order' : 'Add Purchase Order'),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
+        content: SizedBox(
+          width: dialogWidth,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(right: 8),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_isLoadingDraft) ...[
+                    const LinearProgressIndicator(),
+                    const SizedBox(height: 12),
+                  ] else if (_draftLoadError != null) ...[
+                    Text(
+                      _draftLoadError!,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  Text('Attachments', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 12),
                 AttachmentPicker(
                   description:
                       'Drag and drop files or tap to browse for invoice or payment receipt documents.',
                   files: _supportingAttachments,
                   onPick: _pickAttachment,
-                  onFilesSelected: (files) =>
-                      setState(() => _supportingAttachments = files),
+                  onFilesSelected: (files) => setState(() {
+                    _supportingAttachments = files;
+                    _markDirty();
+                  }),
                   onFileRemoved: (file) => setState(() {
                     _supportingAttachments = List.of(_supportingAttachments)
                       ..remove(file);
+                    _markDirty();
                   }),
                 ),
                 if (_isEditing) ...[
@@ -838,6 +1231,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                     onRemove: (file) => setState(() {
                       _supportingAttachments = List.of(_supportingAttachments)
                         ..remove(file);
+                      _markDirty();
                     }),
                   ),
                 ],
@@ -867,6 +1261,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                           } else if (_payments.isEmpty) {
                             _addPaymentEntry();
                           }
+                          _markDirty();
                         });
                       },
                     ),
@@ -958,6 +1353,13 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   },
                   shippingFeeController: _shippingFeeController,
                 ),
+                if (_draftStatusMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _draftStatusMessage!,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
                 if (_submitError != null) ...[
                   const SizedBox(height: 16),
                   Text(
@@ -974,9 +1376,20 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          onPressed: _isSubmitting ? null : _handleCancel,
           child: const Text('Cancel'),
         ),
+        if (!_isEditing)
+          TextButton(
+            onPressed: _isSubmitting || _isSavingDraft ? null : _saveDraft,
+            child: _isSavingDraft
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Save Draft'),
+          ),
         FilledButton(
           onPressed: _isSubmitting ? null : _submit,
           child: _isSubmitting
@@ -988,6 +1401,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
               : Text(_isEditing ? 'Save Changes' : 'Create'),
         ),
       ],
+      ),
     );
   }
 
@@ -1018,6 +1432,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
     setState(() {
       _supportingAttachments = [..._supportingAttachments, ...newFiles];
+      _markDirty();
     });
   }
 
@@ -1029,6 +1444,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       } else {
         _attachmentsMarkedForDeletion.add(removed.fileName);
       }
+      _markDirty();
     });
   }
 
@@ -1088,6 +1504,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           _selectedVendorCode = selectedVendor?.code;
           _selectedVendorId = selectedVendor?.id;
           _updateOrderNumber();
+          _markDirty();
         });
       },
       validator: (value) {
