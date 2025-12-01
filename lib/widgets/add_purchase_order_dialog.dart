@@ -65,6 +65,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
   bool _isSavingDraft = false;
   String? _draftStatusMessage;
+  bool _isDraftStatusError = false;
   bool _isLoadingDraft = false;
   String? _draftLoadError;
   String? _activeDraftId;
@@ -999,7 +1000,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
             FilledButton(
               onPressed: () async {
                 Navigator.of(context).pop(true);
-                await _saveDraft(closeAfterSave: true);
+                await _saveDraft(
+                  closeAfterSave: true,
+                  showSuccessSnackbar: true,
+                );
               },
               child: const Text('Save Draft'),
             ),
@@ -1035,7 +1039,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
   Future<void> _saveDraft({
     bool closeAfterSave = false,
-    bool showResultSnackbar = false,
+    bool showSuccessSnackbar = false,
+    bool showFailureSnackbar = false,
   }) async {
     FocusScope.of(context).unfocus();
 
@@ -1044,14 +1049,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       if (mounted) {
         setState(() {
           _draftStatusMessage = validationError;
+          _isDraftStatusError = true;
         });
       }
 
-      if (showResultSnackbar && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(validationError)),
-        );
-      }
       return;
     }
 
@@ -1065,9 +1066,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     if (token == null || token.trim().isEmpty) {
       setState(() {
         _draftStatusMessage = 'You are not logged in.';
+        _isDraftStatusError = true;
       });
 
-      if (showResultSnackbar) {
+      if (showFailureSnackbar) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('You are not logged in.')),
         );
@@ -1075,9 +1077,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       return;
     }
 
+    final messenger = ScaffoldMessenger.of(context);
     setState(() {
       _isSavingDraft = true;
       _draftStatusMessage = null;
+      _isDraftStatusError = false;
     });
 
     final headers = _buildAuthHeaders(appState, token);
@@ -1100,17 +1104,21 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         _activeDraftId = draft.id;
         _hasEditedForm = false;
         _draftStatusMessage = 'Draft saved at ${DateFormat.Hm().format(DateTime.now())}';
+        _isDraftStatusError = false;
       });
 
       final message = 'Purchase order draft saved successfully.';
-      if (showResultSnackbar && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+      if (closeAfterSave) {
+        Navigator.of(context).pop();
+        if (showSuccessSnackbar) {
+          messenger.showSnackBar(
+            SnackBar(content: Text(message)),
+          );
+        }
+      } else if (showSuccessSnackbar && mounted) {
+        messenger.showSnackBar(
           SnackBar(content: Text(message)),
         );
-      }
-
-      if (closeAfterSave && mounted) {
-        Navigator.of(context).pop();
       }
     } catch (error) {
       if (!mounted) {
@@ -1119,16 +1127,13 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       final failureMessage = 'Failed to save draft: $error';
       setState(() {
         _draftStatusMessage = failureMessage;
+        _isDraftStatusError = true;
       });
 
-      if (showResultSnackbar) {
-        ScaffoldMessenger.of(context).showSnackBar(
+      if (showFailureSnackbar) {
+        messenger.showSnackBar(
           SnackBar(content: Text(failureMessage)),
         );
-      }
-
-      if (closeAfterSave && mounted) {
-        Navigator.of(context).pop();
       }
     } finally {
       if (mounted) {
@@ -1422,7 +1427,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   const SizedBox(height: 12),
                   Text(
                     _draftStatusMessage!,
-                    style: theme.textTheme.bodyMedium,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color:
+                          _isDraftStatusError ? theme.colorScheme.error : null,
+                    ),
                   ),
                 ],
                 if (_submitError != null) ...[
@@ -1450,7 +1458,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                 ? null
                 : () => _saveDraft(
                       closeAfterSave: true,
-                      showResultSnackbar: true,
+                      showSuccessSnackbar: true,
                     ),
             child: _isSavingDraft
                 ? const SizedBox(
