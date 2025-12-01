@@ -2,8 +2,11 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'auth_http_client.dart';
+
 class InventoryItemsService {
-  InventoryItemsService({http.Client? client}) : _client = client ?? http.Client();
+  InventoryItemsService({http.Client? client})
+      : _client = client ?? createAuthAwareClient();
 
   final http.Client _client;
 

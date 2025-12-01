@@ -2,9 +2,12 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'auth_http_client.dart';
+
 /// Fetches a single purchase order and maps it to strongly typed classes.
 class PurchaseOrderDetailService {
-  PurchaseOrderDetailService({http.Client? client}) : _client = client ?? http.Client();
+  PurchaseOrderDetailService({http.Client? client})
+      : _client = client ?? createAuthAwareClient();
 
   final http.Client _client;
 

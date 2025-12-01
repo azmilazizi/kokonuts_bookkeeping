@@ -4,8 +4,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
+import 'auth_http_client.dart';
+
 class BillsService {
-  BillsService({http.Client? client}) : _client = client ?? http.Client();
+  BillsService({http.Client? client})
+      : _client = client ?? createAuthAwareClient();
 
   final http.Client _client;
 
