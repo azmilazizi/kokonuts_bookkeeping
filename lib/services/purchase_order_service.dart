@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'auth_http_client.dart';
+
 /// Represents a single purchase order entry returned from the API.
 class PurchaseOrder {
   PurchaseOrder({
@@ -141,7 +143,8 @@ class PurchaseOrderException implements Exception {
 
 /// Handles retrieving purchase orders from the backend service with pagination.
 class PurchaseOrderService {
-  PurchaseOrderService({http.Client? client}) : _client = client ?? http.Client();
+  PurchaseOrderService({http.Client? client})
+      : _client = client ?? createAuthAwareClient();
 
   static const _baseUrl = 'https://crm.kokonuts.my/api/v1/purchase/orders';
 

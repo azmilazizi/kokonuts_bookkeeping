@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import 'auth_http_client.dart';
+
 class OverviewService {
-  OverviewService({http.Client? client}) : _client = client ?? http.Client();
+  OverviewService({http.Client? client})
+      : _client = client ?? createAuthAwareClient();
 
   final http.Client _client;
   static const _baseUrl = 'https://crm.kokonuts.my/accounting/api/v1/money_out_summary';

@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'auth_http_client.dart';
+
 /// Exception thrown when purchase order draft operations fail.
 class PurchaseOrderDraftsException implements Exception {
   PurchaseOrderDraftsException(this.message);
@@ -334,7 +336,8 @@ class CreatePurchaseOrderDraftRequest {
 
 /// Provides CRUD access to purchase order drafts.
 class PurchaseOrderDraftsService {
-  PurchaseOrderDraftsService({http.Client? client}) : _client = client ?? http.Client();
+  PurchaseOrderDraftsService({http.Client? client})
+      : _client = client ?? createAuthAwareClient();
 
   final http.Client _client;
 

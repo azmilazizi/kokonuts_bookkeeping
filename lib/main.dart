@@ -8,6 +8,7 @@ import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/auth_service.dart';
+import 'services/auth_expiration_handler.dart';
 import 'services/session_manager.dart';
 
 void main() {
@@ -30,10 +31,12 @@ class KokonutsBookkeepingApp extends StatefulWidget {
 
 class _KokonutsBookkeepingAppState extends State<KokonutsBookkeepingApp> {
   late final AppState _appState = widget.appState;
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
     super.initState();
+    AuthExpirationHandler.instance.navigatorKey = _navigatorKey;
     unawaited(_appState.initialize());
   }
 
@@ -47,6 +50,7 @@ class _KokonutsBookkeepingAppState extends State<KokonutsBookkeepingApp> {
           return MaterialApp(
             title: 'Kokonuts Bookkeeping',
             debugShowCheckedModeBanner: false,
+            navigatorKey: _navigatorKey,
             theme: ThemeData(
               colorScheme: ColorScheme.fromSeed(
                 seedColor: Colors.teal,
