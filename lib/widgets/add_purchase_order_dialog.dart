@@ -91,10 +91,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   List<PaymentMode> _paymentModes = const [];
   final List<_PaymentEntryDraft> _payments = [];
   List<PlatformFile> _supportingAttachments = const [];
+  List<PurchaseOrderDraftAttachment> _draftAttachments = const [];
   List<PurchaseOrderAttachment> _existingAttachments = const [];
   final Set<String> _attachmentsMarkedForDeletion = {};
   final Set<String> _removedLineItemIds = {};
   final Set<String> _removedPaymentIds = {};
+  int _attachmentIdCounter = 0;
 
   String _vendorLabel(String name) => name;
 
@@ -238,6 +240,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _removedPaymentIds.clear();
 
     _existingAttachments = List.of(detail.attachments);
+    _draftAttachments = const [];
     _prefillPayments(detail);
 
     _handleItemsChanged();
@@ -310,6 +313,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
             )
             .toList(growable: false),
       );
+
+    _draftAttachments = draft.attachments;
+    _attachmentsMarkedForDeletion.clear();
+    _supportingAttachments = const [];
 
     _handleItemsChanged();
     _hasEditedForm = false;
@@ -1103,6 +1110,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       setState(() {
         _activeDraftId = draft.id;
         _hasEditedForm = false;
+        _draftAttachments = draft.attachments;
+        _supportingAttachments = const [];
+        _attachmentsMarkedForDeletion.clear();
         _draftStatusMessage = 'Draft saved at ${DateFormat.Hm().format(DateTime.now())}';
         _isDraftStatusError = false;
       });
@@ -1186,6 +1196,34 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         )
         .toList(growable: false);
 
+    final sanitizedAttachments = _supportingAttachments
+        .map(_ensureAttachmentIdentifier)
+        .toList(growable: false);
+
+    final attachmentFiles = <String, PlatformFile>{};
+    final attachmentMetadata = <PurchaseOrderDraftAttachment>[
+      ..._draftAttachments.where(
+        (attachment) => !_attachmentsMarkedForDeletion.contains(attachment.id),
+      ),
+    ];
+
+    for (final file in sanitizedAttachments) {
+      final id = file.identifier ?? _generateAttachmentId();
+      attachmentFiles[id] = file;
+      attachmentMetadata.add(
+        PurchaseOrderDraftAttachment(
+          id: id,
+          draftId: _activeDraftId ?? '',
+          fileName: file.name,
+          sizeBytes: file.size,
+          uploadedBy: null,
+          isExisting: false,
+        ),
+      );
+    }
+
+    _supportingAttachments = sanitizedAttachments;
+
     return CreatePurchaseOrderDraftRequest(
       vendorId: _selectedVendorId,
       vendorName: _selectedVendorName,
@@ -1203,7 +1241,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       pendingDeletionAttachments: _attachmentsMarkedForDeletion.toList(),
       items: draftItems,
       payments: draftPayments,
-      attachments: const [],
+      attachments: attachmentMetadata,
+      attachmentFiles: attachmentFiles,
     );
   }
 
@@ -1283,6 +1322,14 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                     _markDirty();
                   }),
                 ),
+                if (_draftAttachments.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _DraftAttachmentsList(
+                    attachments: _draftAttachments,
+                    pendingDeletionCount: _attachmentsMarkedForDeletion.length,
+                    onRemove: _removeDraftAttachment,
+                  ),
+                ],
                 if (_isEditing) ...[
                   const SizedBox(height: 12),
                   _ExistingAttachmentsList(
@@ -1508,10 +1555,40 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       return;
     }
 
+    final preparedFiles = newFiles
+        .map(_ensureAttachmentIdentifier)
+        .toList(growable: false);
+
     setState(() {
-      _supportingAttachments = [..._supportingAttachments, ...newFiles];
+      _supportingAttachments = [
+        ..._supportingAttachments.map(_ensureAttachmentIdentifier),
+        ...preparedFiles,
+      ];
       _markDirty();
     });
+  }
+
+  PlatformFile _ensureAttachmentIdentifier(PlatformFile file) {
+    final existingId = file.identifier;
+    if (existingId != null && existingId.trim().isNotEmpty) {
+      return file;
+    }
+
+    final generatedId = _generateAttachmentId();
+    return PlatformFile(
+      name: file.name,
+      size: file.size,
+      path: file.path,
+      bytes: file.bytes,
+      readStream: file.readStream,
+      identifier: generatedId,
+    );
+  }
+
+  String _generateAttachmentId() {
+    _attachmentIdCounter += 1;
+    final timestamp = DateTime.now().microsecondsSinceEpoch;
+    return 'draft-attachment-$timestamp-$_attachmentIdCounter';
   }
 
   void _scheduleExistingAttachmentRemoval(int index) {
@@ -1519,6 +1596,18 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       final removed = _existingAttachments.removeAt(index);
       if (removed.id != null && removed.id!.isNotEmpty) {
         _attachmentsMarkedForDeletion.add(removed.id!);
+      } else {
+        _attachmentsMarkedForDeletion.add(removed.fileName);
+      }
+      _markDirty();
+    });
+  }
+
+  void _removeDraftAttachment(int index) {
+    setState(() {
+      final removed = _draftAttachments.removeAt(index);
+      if (removed.id.isNotEmpty) {
+        _attachmentsMarkedForDeletion.add(removed.id);
       } else {
         _attachmentsMarkedForDeletion.add(removed.fileName);
       }
@@ -2397,6 +2486,78 @@ class _ExistingAttachmentsList extends StatelessWidget {
               );
             },
           ),
+      ],
+    );
+  }
+}
+
+class _DraftAttachmentsList extends StatelessWidget {
+  const _DraftAttachmentsList({
+    required this.attachments,
+    required this.onRemove,
+    required this.pendingDeletionCount,
+  });
+
+  final List<PurchaseOrderDraftAttachment> attachments;
+  final ValueChanged<int> onRemove;
+  final int pendingDeletionCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('Draft attachments', style: theme.textTheme.titleSmall),
+            if (pendingDeletionCount > 0) ...[
+              const SizedBox(width: 8),
+              Chip(
+                label: Text('Deleting on save: $pendingDeletionCount'),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 8),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: attachments.length,
+          itemBuilder: (context, index) {
+            final attachment = attachments[index];
+            final subtitleParts = <String>[];
+            if (attachment.sizeBytes != null) {
+              subtitleParts.add(_formatSize(attachment.sizeBytes!));
+            }
+            final uploadedBy = attachment.uploadedBy?.trim();
+            if (uploadedBy != null && uploadedBy.isNotEmpty) {
+              subtitleParts.add('Uploaded by $uploadedBy');
+            }
+
+            final subtitle = subtitleParts.isEmpty
+                ? null
+                : subtitleParts.join(' • ');
+
+            return Card(
+              key: ValueKey(
+                'draft-attachment-$index-${attachment.id}-${attachment.fileName}',
+              ),
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              child: ListTile(
+                leading: const Icon(Icons.attach_email_outlined),
+                title: Text(attachment.fileName),
+                subtitle: subtitle == null ? null : Text(subtitle),
+                trailing: IconButton(
+                  tooltip: 'Remove attachment',
+                  icon: const Icon(Icons.close),
+                  onPressed: () => onRemove(index),
+                ),
+              ),
+            );
+          },
+        ),
       ],
     );
   }
