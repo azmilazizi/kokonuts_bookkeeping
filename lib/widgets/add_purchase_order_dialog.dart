@@ -57,7 +57,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       widget.initialDetail != null &&
       (widget.orderId?.trim().isNotEmpty ?? false);
 
-  late DateTime _orderDate;
+  DateTime? _orderDate;
   late _PurchaseOrderItemDraft _pendingItem;
   final List<_PurchaseOrderItemDraft> _items = [];
   DiscountType _orderDiscountType = DiscountType.amount;
@@ -655,7 +655,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       context: context,
       firstDate: DateTime(now.year - 10),
       lastDate: DateTime(now.year + 10),
-      initialDate: _orderDate,
+      initialDate: _orderDate ?? now,
     );
 
     if (selected != null) {
@@ -689,8 +689,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   }
 
   String _buildOrderNumber() {
-    if (_nextPurchaseOrderNumber == null) return '';
-    final datePart = _formatDate(_orderDate);
+    if (_nextPurchaseOrderNumber == null || _orderDate == null) return '';
+    final datePart = _formatDate(_orderDate!);
     // Format: #PO-{next_po_number}-{DDMMYYYY}
     return '#PO-$_nextPurchaseOrderNumber-$datePart';
   }
@@ -702,7 +702,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     if (seed == null || seed.isEmpty) {
       return '';
     }
-    final datePart = _formatDate(_orderDate);
+    if (_orderDate == null) {
+      return '';
+    }
+    final datePart = _formatDate(_orderDate!);
     return '$seed-$datePart';
   }
 
@@ -833,7 +836,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       vendorId: _selectedVendorId,
       orderName: _orderNameController.text.trim(),
       orderNumber: _orderNumberController.text.trim(),
-      orderDate: _orderDate,
+      orderDate: _orderDate ?? DateTime.now(),
       items: items,
       subtotal: _itemsSubtotal,
       total: _grandTotal,
@@ -1012,8 +1015,45 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     return result == false;
   }
 
-  Future<void> _saveDraft({bool closeAfterSave = false}) async {
+  String? _validateDraftRequirements() {
+    if (_orderNameController.text.trim().isEmpty) {
+      return 'Order name is required to save a draft.';
+    }
+
+    if (_orderDate == null) {
+      return 'Order date is required to save a draft.';
+    }
+
+    final vendorName = (_selectedVendorName ?? '').trim();
+    final vendorId = (_selectedVendorId ?? '').trim();
+    if (vendorName.isEmpty || vendorId.isEmpty) {
+      return 'Select a vendor before saving a draft.';
+    }
+
+    return null;
+  }
+
+  Future<void> _saveDraft({
+    bool closeAfterSave = false,
+    bool showResultSnackbar = false,
+  }) async {
     FocusScope.of(context).unfocus();
+
+    final validationError = _validateDraftRequirements();
+    if (validationError != null) {
+      if (mounted) {
+        setState(() {
+          _draftStatusMessage = validationError;
+        });
+      }
+
+      if (showResultSnackbar && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(validationError)),
+        );
+      }
+      return;
+    }
 
     final appState = AppStateScope.of(context);
     final token = await appState.getValidAuthToken();
@@ -1026,6 +1066,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       setState(() {
         _draftStatusMessage = 'You are not logged in.';
       });
+
+      if (showResultSnackbar) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You are not logged in.')),
+        );
+      }
       return;
     }
 
@@ -1056,6 +1102,13 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         _draftStatusMessage = 'Draft saved at ${DateFormat.Hm().format(DateTime.now())}';
       });
 
+      final message = 'Purchase order draft saved successfully.';
+      if (showResultSnackbar && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
+
       if (closeAfterSave && mounted) {
         Navigator.of(context).pop();
       }
@@ -1063,9 +1116,20 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       if (!mounted) {
         return;
       }
+      final failureMessage = 'Failed to save draft: $error';
       setState(() {
-        _draftStatusMessage = 'Failed to save draft: $error';
+        _draftStatusMessage = failureMessage;
       });
+
+      if (showResultSnackbar) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(failureMessage)),
+        );
+      }
+
+      if (closeAfterSave && mounted) {
+        Navigator.of(context).pop();
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -1076,9 +1140,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   }
 
   CreatePurchaseOrderDraftRequest _buildDraftRequest() {
-    final sanitizedOrderName = _orderNameController.text.trim().isEmpty
-        ? 'Draft purchase order'
-        : _orderNameController.text.trim();
+    final sanitizedOrderName = _orderNameController.text.trim();
     final discountTypeValue =
         _orderDiscountType == DiscountType.percentage ? 'percentage' : 'amount';
 
@@ -1125,7 +1187,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       vendorCode: _selectedVendorCode,
       orderName: sanitizedOrderName,
       orderNumber: _orderNumberController.text.trim(),
-      orderDate: _orderDate,
+      orderDate: _orderDate!,
       isPaid: _isPaid,
       discountType: discountTypeValue,
       discountValue: _orderDiscountValue,
@@ -1310,7 +1372,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   readOnly: true,
                 ),
                 const SizedBox(height: 12),
-                _OrderDateField(date: _orderDate, onTap: _pickOrderDate),
+                _OrderDateField(
+                  date: _orderDate ?? DateTime.now(),
+                  onTap: _pickOrderDate,
+                ),
                 const SizedBox(height: 24),
                 Text('Items', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 12),
@@ -1381,7 +1446,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         ),
         if (!_isEditing)
           TextButton(
-            onPressed: _isSubmitting || _isSavingDraft ? null : _saveDraft,
+            onPressed: _isSubmitting || _isSavingDraft
+                ? null
+                : () => _saveDraft(
+                      closeAfterSave: true,
+                      showResultSnackbar: true,
+                    ),
             child: _isSavingDraft
                 ? const SizedBox(
                     width: 18,
