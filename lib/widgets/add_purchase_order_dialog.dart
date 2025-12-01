@@ -15,6 +15,7 @@ import '../services/purchase_order_drafts_service.dart';
 import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
+import 'form_error_banner.dart';
 import 'searchable_dropdown_form_field.dart';
 
 enum DiscountType { percentage, amount }
@@ -1297,13 +1298,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                     const LinearProgressIndicator(),
                     const SizedBox(height: 12),
                   ] else if (_draftLoadError != null) ...[
-                    Text(
-                      _draftLoadError!,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
+                    FormErrorBanner(message: _draftLoadError!),
                     const SizedBox(height: 12),
+                  ],
+                  if (_submitError != null) ...[
+                    FormErrorBanner(message: _submitError!),
+                    const SizedBox(height: 16),
                   ],
                   Text('Attachments', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 12),
@@ -1477,15 +1477,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color:
                           _isDraftStatusError ? theme.colorScheme.error : null,
-                    ),
-                  ),
-                ],
-                if (_submitError != null) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    _submitError!,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.error,
                     ),
                   ),
                 ],
