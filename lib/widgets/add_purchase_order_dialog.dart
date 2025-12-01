@@ -1086,6 +1086,15 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     }
 
     final messenger = ScaffoldMessenger.of(context);
+    final sanitizedAttachments = _supportingAttachments
+        .map(_ensureAttachmentIdentifier)
+        .toList(growable: false);
+    final attachmentsToDelete =
+        _attachmentsMarkedForDeletion.toList(growable: false);
+
+    setState(() {
+      _supportingAttachments = sanitizedAttachments;
+    });
     setState(() {
       _isSavingDraft = true;
       _draftStatusMessage = null;
@@ -1104,6 +1113,60 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
               request: request,
             );
 
+      if (_isEditing && attachmentsToDelete.isNotEmpty) {
+        try {
+          await _draftsService.deleteAttachments(
+            id: draft.id,
+            headers: headers,
+            attachmentIds: attachmentsToDelete,
+          );
+        } catch (error) {
+          if (mounted) {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text('Failed to delete some draft attachments: $error'),
+              ),
+            );
+          }
+        }
+      }
+
+      if (sanitizedAttachments.isNotEmpty) {
+        try {
+          await _draftsService.uploadAttachments(
+            id: draft.id,
+            headers: headers,
+            attachments: sanitizedAttachments,
+          );
+        } catch (error) {
+          if (mounted) {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text('Draft saved but failed to upload attachments: $error'),
+              ),
+            );
+          }
+        }
+      }
+
+      PurchaseOrderDraft? refreshedDraft;
+      try {
+        refreshedDraft = await _draftsService.fetchDraft(
+          id: draft.id,
+          headers: headers,
+        );
+      } catch (error) {
+        if (mounted) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                'Draft saved but failed to refresh attachments: $error',
+              ),
+            ),
+          );
+        }
+      }
+
       if (!mounted) {
         return;
       }
@@ -1111,7 +1174,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       setState(() {
         _activeDraftId = draft.id;
         _hasEditedForm = false;
-        _draftAttachments = draft.attachments;
+        _draftAttachments = refreshedDraft?.attachments ?? draft.attachments;
         _supportingAttachments = const [];
         _attachmentsMarkedForDeletion.clear();
         _draftStatusMessage = 'Draft saved at ${DateFormat.Hm().format(DateTime.now())}';
@@ -1197,33 +1260,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         )
         .toList(growable: false);
 
-    final sanitizedAttachments = _supportingAttachments
-        .map(_ensureAttachmentIdentifier)
-        .toList(growable: false);
-
-    final attachmentFiles = <String, PlatformFile>{};
     final attachmentMetadata = <PurchaseOrderDraftAttachment>[
       ..._draftAttachments.where(
         (attachment) => !_attachmentsMarkedForDeletion.contains(attachment.id),
       ),
     ];
-
-    for (final file in sanitizedAttachments) {
-      final id = file.identifier ?? _generateAttachmentId();
-      attachmentFiles[id] = file;
-      attachmentMetadata.add(
-        PurchaseOrderDraftAttachment(
-          id: id,
-          draftId: _activeDraftId ?? '',
-          fileName: file.name,
-          sizeBytes: file.size,
-          uploadedBy: null,
-          isExisting: false,
-        ),
-      );
-    }
-
-    _supportingAttachments = sanitizedAttachments;
 
     return CreatePurchaseOrderDraftRequest(
       vendorId: _selectedVendorId,
@@ -1243,7 +1284,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       items: draftItems,
       payments: draftPayments,
       attachments: attachmentMetadata,
-      attachmentFiles: attachmentFiles,
+      attachmentFiles: const {},
     );
   }
 

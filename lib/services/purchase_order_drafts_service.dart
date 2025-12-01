@@ -344,6 +344,8 @@ class PurchaseOrderDraftsService {
 
   final http.Client _client;
 
+  static const _attachmentFieldName = 'file';
+
   static const _baseUrl =
       'https://crm.kokonuts.my/purchase/api/v1/purchase_order_drafts';
 
@@ -489,6 +491,12 @@ class PurchaseOrderDraftsService {
     required String id,
     required Map<String, String> headers,
   }) async {
+    await deleteAttachments(
+      id: id,
+      headers: headers,
+      deleteAll: true,
+    );
+
     http.Response response;
     try {
       response = await _client.delete(
@@ -507,6 +515,95 @@ class PurchaseOrderDraftsService {
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw PurchaseOrderDraftsException(
         'The draft could not be deleted right now. Please try again later.',
+      );
+    }
+  }
+
+  Future<void> uploadAttachments({
+    required String id,
+    required Map<String, String> headers,
+    required List<PlatformFile> attachments,
+  }) async {
+    if (attachments.isEmpty) {
+      return;
+    }
+
+    final files = await Future.wait(
+      attachments.map(_buildAttachmentUploadFile),
+      eagerError: false,
+    );
+
+    final uploadFiles =
+        files.whereType<http.MultipartFile>().toList(growable: false);
+    if (uploadFiles.isEmpty) {
+      return;
+    }
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$_baseUrl/$id/attachments'),
+    )
+      ..headers.addAll({
+        'Accept': 'application/json',
+        ...headers,
+      })
+      ..files.addAll(uploadFiles);
+
+    http.StreamedResponse response;
+    try {
+      response = await _client.send(request);
+    } catch (_) {
+      throw PurchaseOrderDraftsException(
+        'We couldn\'t upload the attachments. Please try again.',
+      );
+    }
+
+    final resolved = await http.Response.fromStream(response);
+    if (resolved.statusCode != 200 &&
+        resolved.statusCode != 201 &&
+        resolved.statusCode != 204) {
+      throw PurchaseOrderDraftsException(
+        'The attachments couldn\'t be uploaded right now. Please try again later.',
+      );
+    }
+  }
+
+  Future<void> deleteAttachments({
+    required String id,
+    required Map<String, String> headers,
+    List<String> attachmentIds = const [],
+    bool deleteAll = false,
+  }) async {
+    if (!deleteAll && attachmentIds.isEmpty) {
+      return;
+    }
+
+    final request = http.Request(
+      'DELETE',
+      Uri.parse('$_baseUrl/$id/attachments'),
+    )..headers.addAll({
+        'Accept': 'application/json',
+        ...headers,
+      });
+
+    if (!deleteAll) {
+      request.headers['Content-Type'] = 'application/json';
+      request.body = jsonEncode({'ids': attachmentIds});
+    }
+
+    http.StreamedResponse response;
+    try {
+      response = await _client.send(request);
+    } catch (_) {
+      throw PurchaseOrderDraftsException(
+        'We couldn\'t delete the attachments right now. Please try again.',
+      );
+    }
+
+    final resolved = await http.Response.fromStream(response);
+    if (resolved.statusCode != 200 && resolved.statusCode != 204) {
+      throw PurchaseOrderDraftsException(
+        'The attachments couldn\'t be deleted right now. Please try again later.',
       );
     }
   }
@@ -604,6 +701,42 @@ class PurchaseOrderDraftsService {
       } catch (_) {
         return null;
       }
+    }
+
+    return null;
+  }
+
+  Future<http.MultipartFile?> _buildAttachmentUploadFile(
+      PlatformFile file) async {
+    final sanitizedName = file.name.trim();
+    if (sanitizedName.isEmpty) {
+      return null;
+    }
+
+    if (file.readStream != null) {
+      return http.MultipartFile(
+        _attachmentFieldName,
+        file.readStream!,
+        file.size,
+        filename: sanitizedName,
+      );
+    }
+
+    if (file.bytes != null) {
+      return http.MultipartFile.fromBytes(
+        _attachmentFieldName,
+        file.bytes!,
+        filename: sanitizedName,
+      );
+    }
+
+    final path = file.path?.trim();
+    if (path != null && path.isNotEmpty) {
+      return http.MultipartFile.fromPath(
+        _attachmentFieldName,
+        path,
+        filename: sanitizedName,
+      );
     }
 
     return null;
