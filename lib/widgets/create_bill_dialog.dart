@@ -9,6 +9,7 @@ import '../services/bills_service.dart';
 import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
+import 'form_error_banner.dart';
 import 'searchable_dropdown_form_field.dart';
 
 class CreateBillDialog extends StatefulWidget {
@@ -188,6 +189,10 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (_submitError != null) ...[
+                  FormErrorBanner(message: _submitError!),
+                  const SizedBox(height: 16),
+                ],
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final isNarrow = constraints.maxWidth < 680;
@@ -280,15 +285,6 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
                 const SizedBox(height: 20),
                 Text('Expenses', style: theme.textTheme.titleMedium),
                 _buildExpensesTab(),
-                if (_submitError != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _submitError!,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),

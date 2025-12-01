@@ -7,6 +7,7 @@ import 'package:kokonuts_bookkeeping/widgets/authenticated_image.dart';
 import 'attachment_pdf_preview.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
+import 'form_error_banner.dart';
 import 'searchable_dropdown_form_field.dart';
 
 import '../services/accounts_service.dart';
@@ -1917,7 +1918,7 @@ class _AddAttachmentDialogState extends State<_AddAttachmentDialog> {
               ),
               const SizedBox(height: 16),
               if (_submitError != null) ...[
-                Text(_submitError!, style: const TextStyle(color: Colors.red)),
+                FormErrorBanner(message: _submitError!),
                 const SizedBox(height: 12),
               ],
               AttachmentPicker(
@@ -2821,14 +2822,10 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                 ],
               ),
               const SizedBox(height: 16),
-              if (_loadError != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    _loadError!,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                ),
+              if (_loadError != null) ...[
+                FormErrorBanner(message: _loadError!),
+                const SizedBox(height: 12),
+              ],
               if (_isLoadingOptions)
                 const Padding(
                   padding: EdgeInsets.only(bottom: 12),
@@ -2848,10 +2845,7 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (_submitError != null) ...[
-                      Text(
-                        _submitError!,
-                        style: const TextStyle(color: Colors.red),
-                      ),
+                      FormErrorBanner(message: _submitError!),
                       const SizedBox(height: 12),
                     ],
                     AttachmentPicker(

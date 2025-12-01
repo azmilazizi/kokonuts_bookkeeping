@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app/app_state_scope.dart';
 import '../services/auth_service.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/form_error_banner.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -148,6 +149,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (_error != null) ...[
+                    FormErrorBanner(message: _error!),
+                    const SizedBox(height: 16),
+                  ],
                   const Align(
                     alignment: Alignment.center,
                     child: AppLogo(size: 96),
@@ -222,13 +227,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  if (_error != null) ...[
-                    Text(
-                      _error!,
-                      style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
                   FilledButton(
                     onPressed: _isSubmitting ? null : _handleLogin,
                     child: _isSubmitting

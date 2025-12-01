@@ -11,6 +11,7 @@ import '../services/payment_modes_service.dart';
 import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
+import 'form_error_banner.dart';
 import 'searchable_dropdown_form_field.dart';
 
 class AddExpenseDialog extends StatefulWidget {
@@ -194,14 +195,18 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
         width: dialogWidth,
         child: SingleChildScrollView(
           padding: const EdgeInsets.only(right: 8),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildVendorField(),
-                const SizedBox(height: 12),
-                _buildExpenseNameField(),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_submitError != null) ...[
+                    FormErrorBanner(message: _submitError!),
+                    const SizedBox(height: 16),
+                  ],
+                  _buildVendorField(),
+                  const SizedBox(height: 12),
+                  _buildExpenseNameField(),
                 const SizedBox(height: 12),
                 _buildCategoryDropdown(),
                 const SizedBox(height: 12),
@@ -233,15 +238,6 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                     _attachments = List.of(_attachments)..remove(file);
                   }),
                 ),
-                if (_submitError != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _submitError!,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
