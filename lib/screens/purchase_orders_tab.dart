@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../app/app_state_scope.dart';
 import '../services/purchase_orders_service.dart';
 import '../widgets/alert_banner.dart';
+import '../widgets/add_purchase_order_dialog.dart';
 import '../widgets/date_range_filter_button.dart';
 import '../widgets/edit_purchase_order_dialog.dart';
 import '../widgets/purchase_order_details_dialog.dart';
+import '../widgets/purchase_order_drafts_dialog.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/table_filter_bar.dart';
 
@@ -33,6 +35,7 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   final _filterController = TextEditingController();
   DateTime? _filterStartDate;
   DateTime? _filterEndDate;
+  bool _isViewingDrafts = false;
 
   PurchaseOrderSortColumn _sortColumn = PurchaseOrderSortColumn.orderDate;
   bool _sortAscending = false;
@@ -233,12 +236,31 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
                               hintText: 'Search by number, vendor, or total',
                               isFiltering: _filterController.text.isNotEmpty,
                               horizontalController: _horizontalController,
-                              trailing: DateRangeFilterButton(
-                                label: 'Order date',
-                                startDate: _filterStartDate,
-                                endDate: _filterEndDate,
-                                onRangeSelected: _handleDateRangeSelected,
-                                onClear: _clearDateRange,
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    onPressed: _showDraftsDialog,
+                                    tooltip: 'View drafts',
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: _isViewingDrafts
+                                          ? theme.colorScheme.primaryContainer
+                                          : null,
+                                      foregroundColor: _isViewingDrafts
+                                          ? theme.colorScheme.onPrimaryContainer
+                                          : null,
+                                    ),
+                                    icon: const Icon(Icons.assignment_outlined),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  DateRangeFilterButton(
+                                    label: 'Order date',
+                                    startDate: _filterStartDate,
+                                    endDate: _filterEndDate,
+                                    onRangeSelected: _handleDateRangeSelected,
+                                    onClear: _clearDateRange,
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -316,6 +338,58 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
       _filterEndDate = null;
       _applyFilters();
     });
+  }
+
+  Future<void> _showDraftsDialog() async {
+    final headers = await _buildAuthHeaders();
+
+    if (!mounted || headers == null) {
+      return;
+    }
+
+    setState(() {
+      _isViewingDrafts = true;
+    });
+
+    final draftId = await showDialog<String>(
+      context: context,
+      builder: (context) => PurchaseOrderDraftsDialog(headers: headers),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isViewingDrafts = false;
+    });
+
+    if (draftId != null && draftId.trim().isNotEmpty) {
+      await _openPurchaseOrderDialog(draftId: draftId);
+    }
+  }
+
+  Future<void> _openPurchaseOrderDialog({String? draftId}) async {
+    final createdOrder = await showDialog<PurchaseOrder?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AddPurchaseOrderDialog(draftId: draftId),
+    );
+
+    if (!mounted || createdOrder == null) {
+      return;
+    }
+
+    final normalizedNumber = createdOrder.number.trim();
+    final orderLabel = normalizedNumber.isEmpty || normalizedNumber == '—'
+        ? createdOrder.name
+        : normalizedNumber;
+    insertCreatedPurchaseOrder(
+      createdOrder,
+      successMessage: orderLabel.trim().isEmpty
+          ? 'Purchase order created.'
+          : 'Purchase order $orderLabel created.',
+    );
   }
 
   void insertCreatedPurchaseOrder(
