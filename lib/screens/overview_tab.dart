@@ -565,16 +565,11 @@ class _OverviewTabState extends State<OverviewTab> {
                         child: Column(
                           children: [
                             _TableHeaderRow(theme: theme),
-                            ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: _transactions.length,
-                              itemBuilder: (context, index) {
-                                return _TransactionRow(
-                                  transaction: _transactions[index],
-                                  theme: theme,
-                                );
-                              },
+                            ..._transactions.map(
+                              (transaction) => _TransactionRow(
+                                transaction: transaction,
+                                theme: theme,
+                              ),
                             ),
                           ],
                         ),
