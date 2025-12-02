@@ -1144,6 +1144,7 @@ class _PaymentsTabState extends State<_PaymentsTab> {
             Text(
               'No payments recorded for this purchase order.',
               style: theme.textTheme.bodyMedium,
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
             addPaymentButton,
@@ -1170,10 +1171,9 @@ class _PaymentsTabState extends State<_PaymentsTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Align(alignment: Alignment.centerRight, child: addPaymentButton),
         if (_paymentModesError != null)
           Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 8),
+            padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               'Failed to load payment methods: $_paymentModesError',
               style: theme.textTheme.bodySmall?.copyWith(
@@ -1332,6 +1332,8 @@ class _PaymentsTabState extends State<_PaymentsTab> {
             },
           ),
         ),
+        const SizedBox(height: 12),
+        Align(alignment: Alignment.centerRight, child: addPaymentButton),
       ],
     );
   }
@@ -1354,8 +1356,27 @@ class _AddPaymentDialog extends StatefulWidget {
 
 class _AddPaymentDialogState extends State<_AddPaymentDialog> {
   final _formKey = GlobalKey<FormState>();
+  late final String? _defaultPaymentModeId;
   final List<_PaymentFormEntry> _entries = [_PaymentFormEntry()];
   String? _submitError;
+
+  @override
+  void initState() {
+    super.initState();
+    _defaultPaymentModeId = _findDefaultPaymentModeId();
+    if (_defaultPaymentModeId != null) {
+      _entries.first.paymentModeId = _defaultPaymentModeId;
+    }
+  }
+
+  String? _findDefaultPaymentModeId() {
+    for (final mode in widget.paymentModes) {
+      if (mode.name.toLowerCase() == 'bank transfer') {
+        return mode.id;
+      }
+    }
+    return null;
+  }
 
   @override
   void dispose() {
@@ -1382,7 +1403,11 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
 
   void _addEntry() {
     setState(() {
-      _entries.add(_PaymentFormEntry());
+      _entries.add(
+        _PaymentFormEntry(
+          paymentModeId: _defaultPaymentModeId,
+        ),
+      );
     });
   }
 
@@ -1488,10 +1513,10 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                             children: [
                               TextFormField(
                                 controller: _entries[i].amountController,
-                                decoration: InputDecoration(
-                                  labelText:
-                                      'Amount (${widget.currencySymbol})',
-                                  border: const OutlineInputBorder(),
+                                decoration: const InputDecoration(
+                                  labelText: 'Amount (RM)',
+                                  border: OutlineInputBorder(),
+                                  prefixText: 'RM ',
                                 ),
                                 keyboardType:
                                     const TextInputType.numberWithOptions(
@@ -1500,6 +1525,7 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                                 inputFormatters: const [
                                   CurrencyInputFormatter(),
                                 ],
+                                textAlign: TextAlign.right,
                                 validator: (value) {
                                   final parsed =
                                       double.tryParse(
@@ -1593,9 +1619,11 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
 }
 
 class _PaymentFormEntry {
-  _PaymentFormEntry({DateTime? initialDate})
+  _PaymentFormEntry({DateTime? initialDate, this.paymentModeId})
     : date = initialDate ?? DateTime.now(),
-      amountController = TextEditingController();
+      amountController = TextEditingController(
+        text: CurrencyInputFormatter.normalizeExistingValue(null),
+      );
 
   final TextEditingController amountController;
   DateTime date;
@@ -1893,6 +1921,7 @@ class _AttachmentsTabState extends State<_AttachmentsTab> {
             Text(
               'No attachments uploaded for this purchase order.',
               style: theme.textTheme.bodyMedium,
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
@@ -1924,20 +1953,6 @@ class _AttachmentsTabState extends State<_AttachmentsTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: ElevatedButton.icon(
-            onPressed: _isUploading ? null : _openAddAttachmentDialog,
-            icon: _isUploading
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.attach_file),
-            label: const Text('Add Attachment'),
-          ),
-        ),
         if (_uploadError != null) ...[
           const SizedBox(height: 8),
           Text(
@@ -1961,6 +1976,21 @@ class _AttachmentsTabState extends State<_AttachmentsTab> {
                 apiHeaders: widget.apiHeaders,
               );
             },
+          ),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: ElevatedButton.icon(
+            onPressed: _isUploading ? null : _openAddAttachmentDialog,
+            icon: _isUploading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.attach_file),
+            label: const Text('Add Attachment'),
           ),
         ),
       ],
@@ -2071,17 +2101,14 @@ class _PurchaseOrderAttachmentCard extends StatelessWidget {
       ]);
     }
 
-    if (previewType != null) {
-      const baseUrl = 'https://crm.kokonuts.my/purchase/api/v1/purchase_order';
-      final previewApiUrl = '$baseUrl/$orderId/attachments/${attachment.id}';
-
+    if (previewType != null && normalizedDownloadUrl != null) {
       children.addAll([
         const SizedBox(height: 16),
         Align(
           alignment: Alignment.centerRight,
           child: _PreviewButton(
             fileName: attachment.fileName,
-            downloadUrl: previewApiUrl,
+            downloadUrl: normalizedDownloadUrl!,
             previewType: previewType,
             apiHeaders: apiHeaders,
           ),

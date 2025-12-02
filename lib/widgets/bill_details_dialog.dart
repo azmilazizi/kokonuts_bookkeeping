@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -1284,33 +1286,43 @@ class _PaymentsTab extends StatelessWidget {
             ),
           ),
         Expanded(
-          child: Scrollbar(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (isLoading)
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 8),
-                      child: Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(),
+          child: Column(
+            children: [
+              if (isLoading)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final minWidth = math.max(constraints.maxWidth, 720.0);
+                    return Scrollbar(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minWidth: minWidth),
+                          child: _PaymentsTable(
+                            bill: bill,
+                            payments: payments,
+                            attachments: attachments,
+                            resolveAccountName: resolveAccountName,
+                            onDeletePayment: onDeletePayment,
+                            onPreviewPaymentAttachment: onPreviewPaymentAttachment,
+                          ),
                         ),
                       ),
-                    ),
-                  _PaymentsTable(
-                    bill: bill,
-                    payments: payments,
-                    attachments: attachments,
-                    resolveAccountName: resolveAccountName,
-                    onDeletePayment: onDeletePayment,
-                    onPreviewPaymentAttachment: onPreviewPaymentAttachment,
-                  ),
-                ],
+                    );
+                  },
+                ),
               ),
-            ),
+            ],
           ),
         ),
         const SizedBox(height: 12),
@@ -1390,146 +1402,138 @@ class _PaymentsTable extends StatelessWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
 
-    return Scrollbar(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 720),
-          child: Table(
-            columnWidths: const {
-              0: FlexColumnWidth(2),
-              1: FlexColumnWidth(3),
-              2: FlexColumnWidth(2),
-              3: IntrinsicColumnWidth(),
-            },
-            border: TableBorder.all(
-              color: theme.dividerColor,
-              width: 1,
-              borderRadius: BorderRadius.circular(8),
+    return Table(
+      columnWidths: const {
+        0: FlexColumnWidth(2),
+        1: FlexColumnWidth(3),
+        2: FlexColumnWidth(2),
+        3: IntrinsicColumnWidth(),
+      },
+      border: TableBorder.all(
+        color: theme.dividerColor,
+        width: 1,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: [
+        TableRow(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(8),
             ),
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: 10,
+                horizontal: 12,
+              ),
+              child: Text('Date', style: headerStyle),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: 10,
+                horizontal: 12,
+              ),
+              child: Text('Payment Account', style: headerStyle),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: 10,
+                horizontal: 12,
+              ),
+              child: Text('Amount', style: headerStyle),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: 10,
+                horizontal: 12,
+              ),
+              child: Text(
+                'Options',
+                style: headerStyle,
+                textAlign: TextAlign.end,
+              ),
+            ),
+          ],
+        ),
+        ...payments.map((payment) {
+          final attachment = _findAttachment(payment);
+          final dateLabel = payment.date != null
+              ? DateFormat.yMMMd().format(payment.date!)
+              : '—';
+          final paymentAccountLabel = resolveAccountName(
+            accountId: payment.paymentAccountId,
+            fallbackLabel: payment.paymentAccount,
+          );
+          final canPreviewAttachment = payment.hasEmptyAttachment
+              ? false
+              : payment.hasAttachmentString || attachment != null;
+          return TableRow(
             children: [
-              TableRow(
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(8),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 12,
+                ),
+                child: Text(dateLabel),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 12,
+                ),
+                child: Text(
+                  paymentAccountLabel.trim().isNotEmpty
+                      ? paymentAccountLabel
+                      : '—',
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 12,
+                ),
+                child: Text(
+                  _formatAmount(payment.amount),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 10,
-                      horizontal: 12,
-                    ),
-                    child: Text('Date', style: headerStyle),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 10,
-                      horizontal: 12,
-                    ),
-                    child: Text('Payment Account', style: headerStyle),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 10,
-                      horizontal: 12,
-                    ),
-                    child: Text('Amount', style: headerStyle),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 10,
-                      horizontal: 12,
-                    ),
-                    child: Text(
-                      'Options',
-                      style: headerStyle,
-                      textAlign: TextAlign.end,
-                    ),
-                  ),
-                ],
               ),
-              ...payments.map((payment) {
-                final attachment = _findAttachment(payment);
-                final dateLabel = payment.date != null
-                    ? DateFormat.yMMMd().format(payment.date!)
-                    : '—';
-                final paymentAccountLabel = resolveAccountName(
-                  accountId: payment.paymentAccountId,
-                  fallbackLabel: payment.paymentAccount,
-                );
-                final canPreviewAttachment = payment.hasEmptyAttachment
-                    ? false
-                    : payment.hasAttachmentString || attachment != null;
-                return TableRow(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 10,
-                        horizontal: 12,
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8,
+                  horizontal: 12,
+                ),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'View attachment',
+                        icon: const Icon(Icons.visibility_outlined),
+                        onPressed: canPreviewAttachment
+                            ? () => onPreviewPaymentAttachment(payment)
+                            : null,
                       ),
-                      child: Text(dateLabel),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 10,
-                        horizontal: 12,
+                      const SizedBox(width: 4),
+                      IconButton(
+                        tooltip: 'Delete payment',
+                        icon: const Icon(Icons.delete_outline),
+                        color: theme.colorScheme.error,
+                        onPressed: () => onDeletePayment(payment),
                       ),
-                      child: Text(
-                        paymentAccountLabel.trim().isNotEmpty
-                            ? paymentAccountLabel
-                            : '—',
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 10,
-                        horizontal: 12,
-                      ),
-                      child: Text(
-                        _formatAmount(payment.amount),
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 8,
-                        horizontal: 12,
-                      ),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              tooltip: 'View attachment',
-                              icon: const Icon(Icons.visibility_outlined),
-                              onPressed: canPreviewAttachment
-                                  ? () => onPreviewPaymentAttachment(payment)
-                                  : null,
-                            ),
-                            const SizedBox(width: 4),
-                            IconButton(
-                              tooltip: 'Delete payment',
-                              icon: const Icon(Icons.delete_outline),
-                              color: theme.colorScheme.error,
-                              onPressed: () => onDeletePayment(payment),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              }),
+                    ],
+                  ),
+                ),
+              ),
             ],
-          ),
-        ),
-      ),
+          );
+        }),
+      ],
     );
   }
 }
