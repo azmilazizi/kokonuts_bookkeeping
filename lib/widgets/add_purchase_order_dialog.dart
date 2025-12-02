@@ -1114,7 +1114,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
               request: request,
             );
 
-      if (_isEditing && attachmentsToDelete.isNotEmpty) {
+      if (attachmentsToDelete.isNotEmpty) {
         try {
           await _draftsService.deleteAttachments(
             id: draft.id,
@@ -1263,12 +1263,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         )
         .toList(growable: false);
 
-    final attachmentMetadata = <PurchaseOrderDraftAttachment>[
-      ..._draftAttachments.where(
-        (attachment) => !_attachmentsMarkedForDeletion.contains(attachment.id),
-      ),
-    ];
-
     return CreatePurchaseOrderDraftRequest(
       vendorId: _selectedVendorId,
       vendorName: _selectedVendorName,
@@ -1283,11 +1277,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       itemsSubtotal: _itemsSubtotal,
       totalDiscount: _totalDiscount,
       grandTotal: _grandTotal,
-      pendingDeletionAttachments: _attachmentsMarkedForDeletion.toList(),
       items: draftItems,
       payments: draftPayments,
-      attachments: attachmentMetadata,
-      attachmentFiles: const {},
     );
   }
 
