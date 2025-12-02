@@ -2334,6 +2334,42 @@ class _ImagePreview extends StatelessWidget {
   }
 }
 
+class _PaymentDateField extends StatelessWidget {
+  const _PaymentDateField({
+    required this.label,
+    required this.dateLabel,
+    required this.onTap,
+  });
+
+  final String label;
+  final String dateLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.event, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            Expanded(child: Text(dateLabel)),
+            const Icon(Icons.expand_more),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PdfPreview extends StatelessWidget {
   const _PdfPreview({required this.downloadUrl, this.apiHeaders});
 
