@@ -285,11 +285,8 @@ class CreatePurchaseOrderDraftRequest {
     this.vendorName,
     this.vendorCode,
     this.discountType,
-    this.pendingDeletionAttachments,
     this.items = const [],
     this.payments = const [],
-    this.attachments = const [],
-    this.attachmentFiles = const {},
   });
 
   final String? vendorId;
@@ -305,11 +302,8 @@ class CreatePurchaseOrderDraftRequest {
   final double itemsSubtotal;
   final double totalDiscount;
   final double grandTotal;
-  final List<dynamic>? pendingDeletionAttachments;
   final List<PurchaseOrderDraftItem> items;
   final List<PurchaseOrderDraftPayment> payments;
-  final List<PurchaseOrderDraftAttachment> attachments;
-  final Map<String, PlatformFile> attachmentFiles;
 
   Map<String, dynamic> toJson() {
     return {
@@ -326,13 +320,9 @@ class CreatePurchaseOrderDraftRequest {
       'items_subtotal': itemsSubtotal,
       'total_discount': totalDiscount,
       'grand_total': grandTotal,
-      if (pendingDeletionAttachments != null)
-        'pending_deletion_attachments': pendingDeletionAttachments,
       if (items.isNotEmpty) 'items': items.map((item) => item.toJson()).toList(),
       if (payments.isNotEmpty)
         'payments': payments.map((payment) => payment.toJson()).toList(),
-      if (attachments.isNotEmpty)
-        'attachments': attachments.map((file) => file.toJson()).toList(),
     };
   }
 }
@@ -543,7 +533,7 @@ class PurchaseOrderDraftsService {
 
     final request = http.MultipartRequest(
       'POST',
-      Uri.parse('$_attachmentsBaseUrl/$id/attachment'),
+      Uri.parse('$_attachmentsBaseUrl/$id/attachments'),
     )
       ..headers.addAll({
         'Accept': 'application/json',
@@ -582,7 +572,7 @@ class PurchaseOrderDraftsService {
 
     final request = http.Request(
       'DELETE',
-      Uri.parse('$_attachmentsBaseUrl/$id/attachment'),
+      Uri.parse('$_attachmentsBaseUrl/$id/attachments'),
     )..headers.addAll({
         'Accept': 'application/json',
         ...headers,
