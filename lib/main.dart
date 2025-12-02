@@ -32,6 +32,8 @@ class KokonutsBookkeepingApp extends StatefulWidget {
 class _KokonutsBookkeepingAppState extends State<KokonutsBookkeepingApp> {
   late final AppState _appState = widget.appState;
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
 
   @override
   void initState() {
@@ -51,6 +53,7 @@ class _KokonutsBookkeepingAppState extends State<KokonutsBookkeepingApp> {
             title: 'Kokonuts Bookkeeping',
             debugShowCheckedModeBanner: false,
             navigatorKey: _navigatorKey,
+            scaffoldMessengerKey: _scaffoldMessengerKey,
             theme: ThemeData(
               colorScheme: ColorScheme.fromSeed(
                 seedColor: Colors.teal,
@@ -67,6 +70,12 @@ class _KokonutsBookkeepingAppState extends State<KokonutsBookkeepingApp> {
             ),
             themeMode: _appState.themeMode,
             home: _buildHome(),
+            builder: (context, child) {
+              return ScaffoldMessenger(
+                key: _scaffoldMessengerKey,
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
           );
         },
       ),
