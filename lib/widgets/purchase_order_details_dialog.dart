@@ -597,7 +597,8 @@ class _ItemsSection extends StatelessWidget {
     }
 
     const tablePadding = EdgeInsets.symmetric(horizontal: 12, vertical: 10);
-    final headerTextStyle = theme.textTheme.labelMedium?.copyWith(
+    final headerTextStyle =
+        theme.textTheme.labelMedium?.copyWith(
           fontWeight: FontWeight.w700,
           color: theme.colorScheme.onSurfaceVariant,
         ) ??
@@ -931,9 +932,7 @@ class _PaymentsTabState extends State<_PaymentsTab> {
       );
       setState(() {
         _paymentModes = modes;
-        _paymentModesById = {
-          for (final mode in modes) mode.id: mode.name,
-        };
+        _paymentModesById = {for (final mode in modes) mode.id: mode.name};
       });
     } catch (error) {
       setState(() {
@@ -1171,10 +1170,7 @@ class _PaymentsTabState extends State<_PaymentsTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: addPaymentButton,
-        ),
+        Align(alignment: Alignment.centerRight, child: addPaymentButton),
         if (_paymentModesError != null)
           Padding(
             padding: const EdgeInsets.only(top: 8, bottom: 8),
@@ -1204,133 +1200,136 @@ class _PaymentsTabState extends State<_PaymentsTab> {
                   child: ConstrainedBox(
                     constraints: BoxConstraints(minWidth: minWidth),
                     child: Table(
-                  columnWidths: const {
-                    0: FlexColumnWidth(2),
-                    1: FlexColumnWidth(3),
-                    2: FlexColumnWidth(2),
-                    3: IntrinsicColumnWidth(),
-                  },
-                  border: TableBorder.all(
-                    color: theme.dividerColor,
-                    width: 1,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                  children: [
-                    TableRow(
-                      decoration: BoxDecoration(
-                        color:
-                            theme.colorScheme.surfaceVariant.withOpacity(0.4),
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(8),
-                        ),
+                      columnWidths: const {
+                        0: FlexColumnWidth(2),
+                        1: FlexColumnWidth(3),
+                        2: FlexColumnWidth(2),
+                        3: IntrinsicColumnWidth(),
+                      },
+                      border: TableBorder.all(
+                        color: theme.dividerColor,
+                        width: 1,
+                        borderRadius: BorderRadius.circular(8),
                       ),
+                      defaultVerticalAlignment:
+                          TableCellVerticalAlignment.middle,
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 10,
-                            horizontal: 12,
+                        TableRow(
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceVariant.withOpacity(
+                              0.4,
+                            ),
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(8),
+                            ),
                           ),
-                          child: Text('Date', style: headerStyle),
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 10,
+                                horizontal: 12,
+                              ),
+                              child: Text('Date', style: headerStyle),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 10,
+                                horizontal: 12,
+                              ),
+                              child: Text('Payment Method', style: headerStyle),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 10,
+                                horizontal: 12,
+                              ),
+                              child: Text('Amount', style: headerStyle),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 10,
+                                horizontal: 12,
+                              ),
+                              child: Text(
+                                'Actions',
+                                style: headerStyle,
+                                textAlign: TextAlign.end,
+                              ),
+                            ),
+                          ],
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 10,
-                            horizontal: 12,
-                          ),
-                          child: Text('Payment Method', style: headerStyle),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 10,
-                            horizontal: 12,
-                          ),
-                          child: Text('Amount', style: headerStyle),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 10,
-                            horizontal: 12,
-                          ),
-                          child: Text(
-                            'Actions',
-                            style: headerStyle,
-                            textAlign: TextAlign.end,
-                          ),
-                        ),
+                        ..._payments.map((payment) {
+                          final paymentId = payment.id ?? payment.reference;
+                          final dateLabel = payment.date != null
+                              ? DateFormat.yMMMd().format(payment.date!)
+                              : payment.dateLabel;
+                          final methodLabel = _resolvePaymentMethod(payment);
+                          final isDeleting =
+                              paymentId != null &&
+                              _deletingPaymentIds.contains(paymentId);
+
+                          return TableRow(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                  horizontal: 12,
+                                ),
+                                child: Text(dateLabel),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                  horizontal: 12,
+                                ),
+                                child: Text(methodLabel),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                  horizontal: 12,
+                                ),
+                                child: Text(
+                                  _formatAmount(payment),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                  horizontal: 12,
+                                ),
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: IconButton(
+                                    tooltip: 'Delete payment',
+                                    icon: isDeleting
+                                        ? const SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Icon(Icons.delete_outline),
+                                    color: theme.colorScheme.error,
+                                    onPressed: isDeleting
+                                        ? null
+                                        : () => _handleDelete(payment),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        }),
                       ],
                     ),
-                    ..._payments.map((payment) {
-                      final paymentId = payment.id ?? payment.reference;
-                      final dateLabel = payment.date != null
-                          ? DateFormat.yMMMd().format(payment.date!)
-                          : payment.dateLabel;
-                      final methodLabel = _resolvePaymentMethod(payment);
-                      final isDeleting =
-                          paymentId != null && _deletingPaymentIds.contains(
-                                paymentId,
-                              );
-
-                      return TableRow(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 10,
-                              horizontal: 12,
-                            ),
-                            child: Text(dateLabel),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 10,
-                              horizontal: 12,
-                            ),
-                            child: Text(methodLabel),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 10,
-                              horizontal: 12,
-                            ),
-                            child: Text(
-                              _formatAmount(payment),
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 8,
-                              horizontal: 12,
-                            ),
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: IconButton(
-                                tooltip: 'Delete payment',
-                                icon: isDeleting
-                                    ? const SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Icon(Icons.delete_outline),
-                                color: theme.colorScheme.error,
-                                onPressed: isDeleting
-                                    ? null
-                                    : () => _handleDelete(payment),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    }),
-                  ],
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ],
@@ -1355,9 +1354,7 @@ class _AddPaymentDialog extends StatefulWidget {
 
 class _AddPaymentDialogState extends State<_AddPaymentDialog> {
   final _formKey = GlobalKey<FormState>();
-  final List<_PaymentFormEntry> _entries = [
-    _PaymentFormEntry(),
-  ];
+  final List<_PaymentFormEntry> _entries = [_PaymentFormEntry()];
   String? _submitError;
 
   @override
@@ -1406,7 +1403,8 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
 
     final parsed = <_NewPaymentEntry>[];
     for (final entry in _entries) {
-      final amount = double.tryParse(entry.amountController.text.replaceAll(',', '')) ?? 0;
+      final amount =
+          double.tryParse(entry.amountController.text.replaceAll(',', '')) ?? 0;
       final paymentMode = entry.paymentModeId?.trim() ?? '';
       if (amount <= 0 || paymentMode.isEmpty) {
         setState(() {
@@ -1491,15 +1489,20 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                               TextFormField(
                                 controller: _entries[i].amountController,
                                 decoration: InputDecoration(
-                                  labelText: 'Amount (${widget.currencySymbol})',
+                                  labelText:
+                                      'Amount (${widget.currencySymbol})',
                                   border: const OutlineInputBorder(),
                                 ),
-                                keyboardType: const TextInputType.numberWithOptions(
-                                  decimal: true,
-                                ),
-                                inputFormatters: const [CurrencyInputFormatter()],
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                inputFormatters: const [
+                                  CurrencyInputFormatter(),
+                                ],
                                 validator: (value) {
-                                  final parsed = double.tryParse(
+                                  final parsed =
+                                      double.tryParse(
                                         (value ?? '').replaceAll(',', ''),
                                       ) ??
                                       0;
@@ -1511,11 +1514,16 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                               ),
                               SearchableDropdownFormField<String>(
                                 initialValue: _entries[i].paymentModeId,
-                                items: widget.paymentModes.map((mode) => mode.id).toList(),
+                                items: widget.paymentModes
+                                    .map((mode) => mode.id)
+                                    .toList(),
                                 itemToString: (id) => widget.paymentModes
                                     .firstWhere(
                                       (mode) => mode.id == id,
-                                      orElse: () => PaymentMode(id: id ?? '', name: 'Unknown'),
+                                      orElse: () => PaymentMode(
+                                        id: id ?? '',
+                                        name: 'Unknown',
+                                      ),
                                     )
                                     .name,
                                 decoration: const InputDecoration(
@@ -1526,13 +1534,14 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
                                     ? 'Loading payment modes...'
                                     : 'Select payment mode',
                                 enabled:
-                                    widget.paymentModes.isNotEmpty && !widget.isLoadingPaymentModes,
+                                    widget.paymentModes.isNotEmpty &&
+                                    !widget.isLoadingPaymentModes,
                                 dialogTitle: 'Select payment mode',
                                 onChanged: widget.paymentModes.isEmpty
                                     ? null
                                     : (value) => setState(
-                                          () => _entries[i].paymentModeId = value,
-                                        ),
+                                        () => _entries[i].paymentModeId = value,
+                                      ),
                                 validator: (value) {
                                   if ((value ?? '').trim().isEmpty) {
                                     return 'Select a payment mode.';
@@ -1577,10 +1586,7 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        ElevatedButton(
-          onPressed: _handleSubmit,
-          child: const Text('Submit'),
-        ),
+        ElevatedButton(onPressed: _handleSubmit, child: const Text('Submit')),
       ],
     );
   }
@@ -1588,8 +1594,8 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
 
 class _PaymentFormEntry {
   _PaymentFormEntry({DateTime? initialDate})
-      : date = initialDate ?? DateTime.now(),
-        amountController = TextEditingController();
+    : date = initialDate ?? DateTime.now(),
+      amountController = TextEditingController();
 
   final TextEditingController amountController;
   DateTime date;
@@ -1682,7 +1688,8 @@ class _AddAttachmentDialogState extends State<_AddAttachmentDialog> {
       final ext = attachmentExtension(file.name);
       if (!isAllowedAttachmentExtension(ext)) {
         setState(() {
-          _error = 'Unsupported file type. Please select PDF or image attachments.';
+          _error =
+              'Unsupported file type. Please select PDF or image attachments.';
         });
         return;
       }
@@ -1753,10 +1760,7 @@ class _AddAttachmentDialogState extends State<_AddAttachmentDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        ElevatedButton(
-          onPressed: _submit,
-          child: const Text('Submit'),
-        ),
+        ElevatedButton(onPressed: _submit, child: const Text('Submit')),
       ],
     );
   }
@@ -2444,4 +2448,3 @@ const _imageExtensions = <String>{
 };
 
 const _pdfExtensions = <String>{'.pdf'};
-
