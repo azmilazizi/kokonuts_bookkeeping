@@ -1,9 +1,17 @@
 import 'dart:math' as math;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
+import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
+import '../services/payment_modes_service.dart';
 import '../services/purchase_order_detail_service.dart';
+import '../services/purchase_orders_service.dart';
+import 'attachment_pdf_preview.dart';
+import 'attachment_picker.dart';
+import 'authenticated_image.dart';
 
 class PurchaseOrderDetailsDialog extends StatefulWidget {
   const PurchaseOrderDetailsDialog({super.key, required this.orderId});
@@ -78,8 +86,11 @@ class _PurchaseOrderDetailsDialogState
     extends State<PurchaseOrderDetailsDialog> {
   late Future<PurchaseOrderDetail> _future;
   final _service = PurchaseOrderDetailService();
+  final _purchaseOrdersService = PurchaseOrdersService();
+  final _paymentModesService = PaymentModesService();
   final _itemsScrollController = ScrollController();
   bool _initialized = false;
+  Map<String, String>? _apiHeaders;
 
   @override
   void didChangeDependencies() {
@@ -122,13 +133,15 @@ class _PurchaseOrderDetailsDialogState
         ? autoTokenValue
         : sanitizedToken;
 
+    _apiHeaders = {
+      'Accept': 'application/json',
+      'authtoken': authtokenHeader,
+      'Authorization': normalizedAuth,
+    };
+
     return _service.fetchPurchaseOrder(
       id: widget.orderId,
-      headers: {
-        'Accept': 'application/json',
-        'authtoken': authtokenHeader,
-        'Authorization': normalizedAuth,
-      },
+      headers: _apiHeaders!,
     );
   }
 
@@ -192,8 +205,21 @@ class _PurchaseOrderDetailsDialogState
                             detail: detail,
                             itemsController: _itemsScrollController,
                           ),
-                          _PaymentsTab(payments: detail.payments),
-                          _AttachmentsTab(attachments: detail.attachments),
+                          _PaymentsTab(
+                            orderId: detail.id,
+                            payments: detail.payments,
+                            currencySymbol: detail.currencySymbol,
+                            apiHeaders: _apiHeaders,
+                            paymentModesService: _paymentModesService,
+                            purchaseOrdersService: _purchaseOrdersService,
+                            onPaymentsChanged: _retry,
+                          ),
+                          _AttachmentsTab(
+                            orderId: detail.id,
+                            attachments: detail.attachments,
+                            apiHeaders: _apiHeaders,
+                            onAttachmentsChanged: _retry,
+                          ),
                         ],
                       ),
                     ),
@@ -825,222 +851,1016 @@ class _DetailsTab extends StatelessWidget {
   }
 }
 
-class _PaymentsTab extends StatelessWidget {
-  const _PaymentsTab({required this.payments});
+class _PaymentsTab extends StatefulWidget {
+  const _PaymentsTab({
+    required this.orderId,
+    required this.payments,
+    required this.currencySymbol,
+    required this.paymentModesService,
+    required this.purchaseOrdersService,
+    this.apiHeaders,
+    this.onPaymentsChanged,
+  });
 
+  final String orderId;
   final List<PurchaseOrderPayment> payments;
+  final String currencySymbol;
+  final PaymentModesService paymentModesService;
+  final PurchaseOrdersService purchaseOrdersService;
+  final Map<String, String>? apiHeaders;
+  final VoidCallback? onPaymentsChanged;
+
+  @override
+  State<_PaymentsTab> createState() => _PaymentsTabState();
+}
+
+class _PaymentsTabState extends State<_PaymentsTab> {
+  late List<PurchaseOrderPayment> _payments;
+  Map<String, String>? _paymentModesById;
+  bool _isLoadingPaymentModes = false;
+  bool _hasAttemptedLoadingModes = false;
+  String? _paymentModesError;
+  final Set<String> _deletingPaymentIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _payments = List<PurchaseOrderPayment>.from(widget.payments);
+  }
+
+  @override
+  void didUpdateWidget(covariant _PaymentsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.payments != widget.payments) {
+      _payments = List<PurchaseOrderPayment>.from(widget.payments);
+    }
+    if (widget.apiHeaders != null && !_hasAttemptedLoadingModes) {
+      _loadPaymentModes();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.apiHeaders != null && !_hasAttemptedLoadingModes) {
+      _loadPaymentModes();
+    }
+  }
+
+  Future<void> _loadPaymentModes() async {
+    if (_isLoadingPaymentModes || widget.apiHeaders == null) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingPaymentModes = true;
+      _paymentModesError = null;
+      _hasAttemptedLoadingModes = true;
+    });
+
+    try {
+      final modes = await widget.paymentModesService.fetchPaymentModes(
+        headers: widget.apiHeaders!,
+      );
+      setState(() {
+        _paymentModesById = {
+          for (final mode in modes) mode.id: mode.name,
+        };
+      });
+    } catch (error) {
+      setState(() {
+        _paymentModesError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingPaymentModes = false);
+      }
+    }
+  }
+
+  String _resolvePaymentMethod(PurchaseOrderPayment payment) {
+    final rawMethod = payment.method?.trim();
+    if (rawMethod != null && rawMethod.isNotEmpty) {
+      final mapped = _paymentModesById?[rawMethod];
+      if (mapped != null && mapped.isNotEmpty) {
+        return mapped;
+      }
+    }
+
+    final label = payment.methodLabel;
+    if (label != '—') {
+      return label;
+    }
+
+    if (rawMethod != null && rawMethod.isNotEmpty) {
+      return rawMethod;
+    }
+
+    return '—';
+  }
+
+  String _formatAmount(PurchaseOrderPayment payment) {
+    if (payment.amountValue != null) {
+      final formatted = payment.amountValue!.toStringAsFixed(2);
+      final symbol = widget.currencySymbol;
+      if (symbol.isNotEmpty && symbol.toLowerCase() != '0') {
+        return '$symbol $formatted';
+      }
+      return formatted;
+    }
+
+    return payment.amountLabel;
+  }
+
+  Future<void> _handleDelete(PurchaseOrderPayment payment) async {
+    final paymentId = payment.id?.trim();
+    if (paymentId == null || paymentId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to delete this payment.')),
+      );
+      return;
+    }
+
+    final headers = widget.apiHeaders;
+    if (headers == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Missing credentials to delete this payment.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _deletingPaymentIds.add(paymentId);
+    });
+
+    try {
+      await widget.purchaseOrdersService.deletePayments(
+        id: widget.orderId,
+        headers: headers,
+        paymentIds: [paymentId],
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _payments.removeWhere((entry) => entry.id == payment.id);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Payment deleted successfully.')),
+      );
+
+      widget.onPaymentsChanged?.call();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete payment: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _deletingPaymentIds.remove(paymentId);
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    if (payments.isEmpty) {
-      return const _EmptyTabMessage(
-        message: 'No payments recorded for this purchase order.',
+
+    if (_payments.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.payments_outlined, size: 40),
+            const SizedBox(height: 12),
+            Text(
+              'No payments recorded for this purchase order.',
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
+        ),
+      );
+    }
+
+    final headerStyle = theme.textTheme.labelMedium?.copyWith(
+      fontWeight: FontWeight.w700,
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_paymentModesError != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Failed to load payment methods: $_paymentModesError',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ),
+        if (_isLoadingPaymentModes)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        Expanded(
+          child: Scrollbar(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 640),
+                child: Table(
+                  columnWidths: const {
+                    0: FlexColumnWidth(2),
+                    1: FlexColumnWidth(3),
+                    2: FlexColumnWidth(2),
+                    3: IntrinsicColumnWidth(),
+                  },
+                  border: TableBorder.all(
+                    color: theme.dividerColor,
+                    width: 1,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                  children: [
+                    TableRow(
+                      decoration: BoxDecoration(
+                        color:
+                            theme.colorScheme.surfaceVariant.withOpacity(0.4),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(8),
+                        ),
+                      ),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                            horizontal: 12,
+                          ),
+                          child: Text('Date', style: headerStyle),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                            horizontal: 12,
+                          ),
+                          child: Text('Payment Method', style: headerStyle),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                            horizontal: 12,
+                          ),
+                          child: Text('Amount', style: headerStyle),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                            horizontal: 12,
+                          ),
+                          child: Text(
+                            'Actions',
+                            style: headerStyle,
+                            textAlign: TextAlign.end,
+                          ),
+                        ),
+                      ],
+                    ),
+                    ..._payments.map((payment) {
+                      final paymentId = payment.id ?? payment.reference;
+                      final dateLabel = payment.date != null
+                          ? DateFormat.yMMMd().format(payment.date!)
+                          : payment.dateLabel;
+                      final methodLabel = _resolvePaymentMethod(payment);
+                      final isDeleting =
+                          paymentId != null && _deletingPaymentIds.contains(
+                                paymentId,
+                              );
+
+                      return TableRow(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 10,
+                              horizontal: 12,
+                            ),
+                            child: Text(dateLabel),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 10,
+                              horizontal: 12,
+                            ),
+                            child: Text(methodLabel),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 10,
+                              horizontal: 12,
+                            ),
+                            child: Text(
+                              _formatAmount(payment),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 8,
+                              horizontal: 12,
+                            ),
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: IconButton(
+                                tooltip: 'Delete payment',
+                                icon: isDeleting
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.delete_outline),
+                                color: theme.colorScheme.error,
+                                onPressed: isDeleting
+                                    ? null
+                                    : () => _handleDelete(payment),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AttachmentsTab extends StatefulWidget {
+  const _AttachmentsTab({
+    required this.orderId,
+    required this.attachments,
+    this.apiHeaders,
+    this.onAttachmentsChanged,
+  });
+
+  final String orderId;
+  final List<PurchaseOrderAttachment> attachments;
+  final Map<String, String>? apiHeaders;
+  final VoidCallback? onAttachmentsChanged;
+
+  @override
+  State<_AttachmentsTab> createState() => _AttachmentsTabState();
+}
+
+class _AttachmentsTabState extends State<_AttachmentsTab> {
+  final _purchaseOrdersService = PurchaseOrdersService();
+  late List<PurchaseOrderAttachment> _attachments;
+  bool _isUploading = false;
+  String? _uploadError;
+
+  @override
+  void initState() {
+    super.initState();
+    _attachments = List<PurchaseOrderAttachment>.from(widget.attachments);
+  }
+
+  @override
+  void didUpdateWidget(covariant _AttachmentsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.attachments != widget.attachments) {
+      _attachments = List<PurchaseOrderAttachment>.from(widget.attachments);
+    }
+  }
+
+  Future<void> _handleAddAttachment() async {
+    if (_isUploading) return;
+
+    final headers = widget.apiHeaders;
+    if (headers == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Missing credentials to upload attachments.'),
+        ),
+      );
+      return;
+    }
+
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: allowedAttachmentExtensions.toList(growable: false),
+      withData: true,
+      withReadStream: true,
+    );
+
+    if (!mounted || result == null || result.files.isEmpty) {
+      return;
+    }
+
+    final invalid = result.files.where((file) {
+      final ext = attachmentExtension(file.name);
+      return !isAllowedAttachmentExtension(ext);
+    }).toList();
+
+    if (invalid.isNotEmpty) {
+      setState(() {
+        _uploadError =
+            'Unsupported file type. Please select PDF or image attachments.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isUploading = true;
+      _uploadError = null;
+    });
+
+    try {
+      await _purchaseOrdersService.uploadAttachments(
+        id: widget.orderId,
+        headers: headers,
+        attachments: result.files,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Attachments uploaded successfully.')),
+      );
+
+      widget.onAttachmentsChanged?.call();
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _uploadError = error.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    if (_attachments.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.attachment_outlined, size: 40),
+            const SizedBox(height: 12),
+            Text(
+              'No attachments uploaded for this purchase order.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _isUploading ? null : _handleAddAttachment,
+              icon: _isUploading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.attach_file),
+              label: const Text('Add Attachment'),
+            ),
+            if (_uploadError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _uploadError!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ],
+        ),
       );
     }
 
     return ListView.separated(
       padding: const EdgeInsets.only(bottom: 16),
-      itemCount: payments.length,
+      itemCount: _attachments.length,
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
-        final payment = payments[index];
-        final metaChips = _buildMetaChips(payment);
-
-        return Card(
-          margin: EdgeInsets.zero,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        payment.reference,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      payment.amountLabel,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: metaChips,
-                ),
-                if (payment.hasNote) ...[
-                  const SizedBox(height: 12),
-                  Text(payment.note!.trim(), style: theme.textTheme.bodyMedium),
-                ],
-              ],
-            ),
-          ),
+        final attachment = _attachments[index];
+        return _PurchaseOrderAttachmentCard(
+          attachment: attachment,
+          orderId: widget.orderId,
+          apiHeaders: widget.apiHeaders,
         );
       },
     );
   }
+}
 
-  List<Widget> _buildMetaChips(PurchaseOrderPayment payment) {
-    final chips = <Widget>[
-      _MetaChip(label: 'Date: ${payment.dateLabel}'),
+class _PurchaseOrderAttachmentCard extends StatelessWidget {
+  const _PurchaseOrderAttachmentCard({
+    required this.attachment,
+    required this.orderId,
+    this.apiHeaders,
+  });
+
+  final PurchaseOrderAttachment attachment;
+  final String orderId;
+  final Map<String, String>? apiHeaders;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labelColor = theme.colorScheme.onSurfaceVariant;
+
+    final normalizedDownloadUrl = attachment.downloadUrl != null
+        ? _normalizeAttachmentDownloadUrl(attachment.downloadUrl!)
+        : null;
+
+    final previewType = _resolveAttachmentPreviewType(
+      attachment.fileName,
+      normalizedDownloadUrl,
+    );
+
+    final children = <Widget>[
+      Row(
+        children: [
+          Icon(Icons.attach_file, color: labelColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              attachment.fileName,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
     ];
 
-    final method = payment.methodLabel;
-    if (method != '—') {
-      chips.add(_MetaChip(label: 'Method: $method'));
-    }
-
-    final status = payment.statusLabel;
-    if (status != '—') {
-      chips.add(_MetaChip(label: 'Status: $status'));
-    }
-
-    final recordedBy = payment.recordedBy?.trim();
-    if (recordedBy != null && recordedBy.isNotEmpty) {
-      chips.add(_MetaChip(label: 'Recorded by $recordedBy'));
-    }
-
-    return chips;
-  }
-}
-
-class _AttachmentsTab extends StatelessWidget {
-  const _AttachmentsTab({required this.attachments});
-
-  final List<PurchaseOrderAttachment> attachments;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    if (attachments.isEmpty) {
-      return const _EmptyTabMessage(
-        message: 'No attachments uploaded for this purchase order.',
+    final uploadedAtLabel = attachment.uploadedAtLabel.trim();
+    if (uploadedAtLabel.isNotEmpty && uploadedAtLabel != '—') {
+      children.add(
+        _LabelValueRow(label: 'Uploaded on', value: uploadedAtLabel),
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.only(bottom: 16),
-      itemCount: attachments.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final attachment = attachments[index];
-        final metadata = <String>[];
+    if (attachment.uploadedBy != null &&
+        attachment.uploadedBy!.trim().isNotEmpty) {
+      children.add(
+        _LabelValueRow(
+          label: 'Uploaded by',
+          value: attachment.uploadedBy!.trim(),
+        ),
+      );
+    }
 
-        final sizeLabel = attachment.sizeLabel?.trim();
-        if (sizeLabel != null && sizeLabel.isNotEmpty) {
-          metadata.add(sizeLabel);
-        }
+    if (attachment.sizeLabel != null &&
+        attachment.sizeLabel!.trim().isNotEmpty) {
+      children.add(
+        _LabelValueRow(label: 'Size', value: attachment.sizeLabel!.trim()),
+      );
+    }
 
-        final uploadedBy = attachment.uploadedBy?.trim();
-        if (uploadedBy != null && uploadedBy.isNotEmpty) {
-          metadata.add('Uploaded by $uploadedBy');
-        }
-
-        final uploadedAt = attachment.uploadedAtLabel.trim();
-        if (uploadedAt.isNotEmpty && uploadedAt != '—') {
-          metadata.add('Uploaded $uploadedAt');
-        }
-
-        return Card(
-          margin: EdgeInsets.zero,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        attachment.fileName,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    if (metadata.isNotEmpty) ...[
-                      const SizedBox(width: 12),
-                      Text(
-                        metadata.join(' • '),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.hintColor,
-                        ),
-                        textAlign: TextAlign.right,
-                      ),
-                    ],
-                  ],
-                ),
-                if (attachment.hasDescription) ...[
-                  const SizedBox(height: 8),
-                  Text(attachment.description!.trim()),
-                ],
-                if (attachment.hasDownloadUrl) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    attachment.downloadUrl!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                ],
-              ],
-            ),
+    if (attachment.description != null &&
+        attachment.description!.trim().isNotEmpty) {
+      children.addAll([
+        const SizedBox(height: 12),
+        Text(
+          'Description',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: labelColor,
           ),
-        );
-      },
+        ),
+        const SizedBox(height: 4),
+        Text(attachment.description!.trim(), style: theme.textTheme.bodyMedium),
+      ]);
+    }
+
+    if (normalizedDownloadUrl != null) {
+      children.addAll([
+        const SizedBox(height: 12),
+        Text(
+          'Download URL',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: labelColor,
+          ),
+        ),
+        const SizedBox(height: 4),
+        SelectableText(
+          normalizedDownloadUrl,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.primary,
+          ),
+        ),
+      ]);
+    }
+
+    if (previewType != null) {
+      const baseUrl = 'https://crm.kokonuts.my/purchase/api/v1/purchase_order';
+      final previewApiUrl = '$baseUrl/$orderId/attachments/${attachment.id}';
+
+      children.addAll([
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerRight,
+          child: _PreviewButton(
+            fileName: attachment.fileName,
+            downloadUrl: previewApiUrl,
+            previewType: previewType,
+            apiHeaders: apiHeaders,
+          ),
+        ),
+      ]);
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.dividerColor),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
     );
   }
 }
 
-class _MetaChip extends StatelessWidget {
-  const _MetaChip({required this.label});
+class _LabelValueRow extends StatelessWidget {
+  const _LabelValueRow({required this.label, required this.value});
 
   final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Chip(
-      label: Text(
-        label,
-        style: theme.textTheme.bodySmall,
+    final labelColor = theme.colorScheme.onSurfaceVariant;
+    final labelStyle = theme.textTheme.labelMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+      color: labelColor,
+    );
+
+    final displayValue = value.trim().isEmpty ? '—' : value;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 120, child: Text(label, style: labelStyle)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              displayValue,
+              style: theme.textTheme.bodyMedium,
+              softWrap: true,
+            ),
+          ),
+        ],
       ),
-      visualDensity: VisualDensity.compact,
-      side: BorderSide(color: theme.dividerColor.withOpacity(0.6)),
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      padding: EdgeInsets.zero,
     );
   }
 }
 
-class _EmptyTabMessage extends StatelessWidget {
-  const _EmptyTabMessage({required this.message});
+String _normalizeAttachmentDownloadUrl(String url) {
+  final trimmed = url.trim();
+  if (trimmed.isEmpty) {
+    return trimmed;
+  }
 
-  final String message;
+  if (trimmed.startsWith('//')) {
+    return 'https:$trimmed';
+  }
+
+  final uri = Uri.tryParse(trimmed);
+  if (uri == null) {
+    return trimmed;
+  }
+
+  if (uri.hasScheme) {
+    return uri.toString();
+  }
+
+  final base = Uri.base;
+  final canUseBase =
+      base.hasScheme && (base.scheme == 'http' || base.scheme == 'https');
+  if (canUseBase) {
+    return base.resolveUri(uri).toString();
+  }
+
+  return uri.toString();
+}
+
+enum _AttachmentPreviewType { image, pdf }
+
+_AttachmentPreviewType? _resolveAttachmentPreviewType(
+  String fileName,
+  String? downloadUrl,
+) {
+  if (_matchesExtension(fileName, _imageExtensions) ||
+      _matchesExtension(downloadUrl, _imageExtensions)) {
+    return _AttachmentPreviewType.image;
+  }
+
+  if (_matchesExtension(fileName, _pdfExtensions) ||
+      _matchesExtension(downloadUrl, _pdfExtensions)) {
+    return _AttachmentPreviewType.pdf;
+  }
+
+  return null;
+}
+
+bool _matchesExtension(String? value, Set<String> extensions) {
+  if (value == null || value.trim().isEmpty) {
+    return false;
+  }
+
+  bool match(String candidate) {
+    final lower = candidate.toLowerCase();
+    for (final ext in extensions) {
+      final normalizedExt = ext.startsWith('.') ? ext : '.$ext';
+      if (lower.endsWith(normalizedExt)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  final trimmed = value.trim();
+  if (match(trimmed)) {
+    return true;
+  }
+
+  final parsed = Uri.tryParse(trimmed);
+  if (parsed != null && match(parsed.path)) {
+    return true;
+  }
+
+  return false;
+}
+
+void _showAttachmentPreview({
+  required BuildContext context,
+  required String fileName,
+  required String downloadUrl,
+  required _AttachmentPreviewType previewType,
+  Map<String, String>? apiHeaders,
+}) {
+  showDialog<void>(
+    context: context,
+    builder: (context) => _AttachmentPreviewDialog(
+      fileName: fileName,
+      downloadUrl: downloadUrl,
+      previewType: previewType,
+      apiHeaders: apiHeaders,
+    ),
+  );
+}
+
+class _AttachmentPreviewDialog extends StatelessWidget {
+  const _AttachmentPreviewDialog({
+    required this.fileName,
+    required this.downloadUrl,
+    required this.previewType,
+    this.apiHeaders,
+  });
+
+  final String fileName;
+  final String downloadUrl;
+  final _AttachmentPreviewType previewType;
+  final Map<String, String>? apiHeaders;
 
   @override
   Widget build(BuildContext context) {
+    final title = '$fileName preview';
     final theme = Theme.of(context);
-    return Center(
-      child: Text(
-        message,
-        style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor),
-        textAlign: TextAlign.center,
+    Widget content;
+
+    switch (previewType) {
+      case _AttachmentPreviewType.image:
+        content = _ImagePreview(
+          downloadUrl: downloadUrl,
+          apiHeaders: apiHeaders,
+        );
+        break;
+      case _AttachmentPreviewType.pdf:
+        content = _PdfPreview(downloadUrl: downloadUrl, apiHeaders: apiHeaders);
+        break;
+    }
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: SizedBox(
+        width: 720,
+        height: 560,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close preview',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(child: content),
+          ],
+        ),
       ),
     );
   }
 }
+
+class _ImagePreview extends StatelessWidget {
+  const _ImagePreview({required this.downloadUrl, this.apiHeaders});
+
+  final String downloadUrl;
+  final Map<String, String>? apiHeaders;
+
+  @override
+  Widget build(BuildContext context) {
+    return InteractiveViewer(
+      child: Center(
+        child: AuthenticatedImage(
+          imageUrl: downloadUrl,
+          headers: apiHeaders,
+          fit: BoxFit.contain,
+          loadingBuilder: (context, child, loadingProgress) {
+            return const Center(child: CircularProgressIndicator());
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Unable to load image preview.'),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _PdfPreview extends StatelessWidget {
+  const _PdfPreview({required this.downloadUrl, this.apiHeaders});
+
+  final String downloadUrl;
+  final Map<String, String>? apiHeaders;
+
+  @override
+  Widget build(BuildContext context) {
+    return buildAttachmentPdfPreview(downloadUrl, headers: apiHeaders);
+  }
+}
+
+Map<String, String> _buildAuthHeaders(AppState appState, String token) {
+  final rawToken = (appState.rawAuthToken ?? token).trim();
+  final sanitizedToken = token
+      .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+      .trim();
+  final normalizedAuth = sanitizedToken.isNotEmpty
+      ? 'Bearer $sanitizedToken'
+      : token.trim();
+  final autoTokenValue = rawToken
+      .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+      .trim();
+  final authtokenHeader = autoTokenValue.isNotEmpty
+      ? autoTokenValue
+      : sanitizedToken;
+  return {
+    'Accept': 'application/json',
+    'authtoken': authtokenHeader,
+    'Authorization': normalizedAuth,
+  };
+}
+
+class _PreviewButton extends StatefulWidget {
+  const _PreviewButton({
+    required this.fileName,
+    required this.downloadUrl,
+    required this.previewType,
+    this.apiHeaders,
+  });
+
+  final String fileName;
+  final String downloadUrl;
+  final _AttachmentPreviewType previewType;
+  final Map<String, String>? apiHeaders;
+
+  @override
+  State<_PreviewButton> createState() => _PreviewButtonState();
+}
+
+class _PreviewButtonState extends State<_PreviewButton> {
+  bool _isLoading = false;
+
+  Future<void> _onPressed() async {
+    if (_isLoading) return;
+
+    Map<String, String>? headers = widget.apiHeaders;
+
+    if (headers == null || !headers.containsKey('authtoken')) {
+      setState(() => _isLoading = true);
+      try {
+        final appState = AppStateScope.of(context);
+        final token = await appState.getValidAuthToken();
+        if (token != null && mounted) {
+          headers = _buildAuthHeaders(appState, token);
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    }
+
+    if (!mounted) return;
+
+    _showAttachmentPreview(
+      context: context,
+      fileName: widget.fileName,
+      downloadUrl: widget.downloadUrl,
+      previewType: widget.previewType,
+      apiHeaders: headers,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.icon(
+      icon: _isLoading
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : const Icon(Icons.visibility),
+      label: const Text('Preview'),
+      onPressed: _onPressed,
+    );
+  }
+}
+
+const _imageExtensions = <String>{
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.bmp',
+  '.webp',
+  '.heic',
+};
+
+const _pdfExtensions = <String>{'.pdf'};
 
