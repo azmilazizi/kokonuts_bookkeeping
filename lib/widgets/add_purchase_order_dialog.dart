@@ -1346,11 +1346,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   const SizedBox(height: 12),
                   AttachmentPicker(
                     description:
-                        'Drag and drop files or tap to browse for invoice or payment receipt documents.',
+                        'Drag and drop receipts or supporting documents, or tap to browse.',
                     files: _supportingAttachments,
                     onPick: _pickAttachment,
                     onFilesSelected: (files) =>
-                        _addAttachments(files, replaceExisting: true),
+                        _replaceAttachmentsWith(files, showErrorToast: true),
                     onFileRemoved: (file) => setState(() {
                       _supportingAttachments = List.of(_supportingAttachments)
                         ..remove(file);
@@ -1373,17 +1373,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                       onRemove: _scheduleExistingAttachmentRemoval,
                       pendingDeletionCount:
                           _attachmentsMarkedForDeletion.length,
-                    ),
-                  ],
-                  if (_supportingAttachments.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    _NewAttachmentsList(
-                      attachments: _supportingAttachments,
-                      onRemove: (file) => setState(() {
-                        _supportingAttachments = List.of(_supportingAttachments)
-                          ..remove(file);
-                        _markDirty();
-                      }),
                     ),
                   ],
                   const SizedBox(height: 16),
@@ -1597,12 +1586,15 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       return;
     }
 
-    _addAttachments(newFiles);
+    _replaceAttachmentsWith(
+      [..._supportingAttachments, ...newFiles],
+      showErrorToast: true,
+    );
   }
 
-  void _addAttachments(
+  void _replaceAttachmentsWith(
     List<PlatformFile> files, {
-    bool replaceExisting = false,
+    required bool showErrorToast,
   }) {
     final sanitized = files
         .where(
@@ -1614,7 +1606,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         .toList(growable: false);
 
     if (sanitized.isEmpty) {
-      if (mounted) {
+      if (mounted && showErrorToast) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -1627,10 +1619,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     }
 
     setState(() {
-      final existing = replaceExisting
-          ? const <PlatformFile>[]
-          : _supportingAttachments.map(_ensureAttachmentIdentifier).toList();
-      _supportingAttachments = [...existing, ...sanitized];
+      _supportingAttachments = sanitized;
       _markDirty();
     });
   }
@@ -2621,67 +2610,6 @@ class _DraftAttachmentsList extends StatelessWidget {
                   tooltip: 'Remove attachment',
                   icon: const Icon(Icons.close),
                   onPressed: () => onRemove(index),
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  String _formatSize(int size) {
-    const kb = 1024;
-    const mb = kb * 1024;
-    if (size >= mb) {
-      return '${(size / mb).toStringAsFixed(1)} MB';
-    }
-    if (size >= kb) {
-      return '${(size / kb).toStringAsFixed(1)} KB';
-    }
-    return '$size B';
-  }
-}
-
-class _NewAttachmentsList extends StatelessWidget {
-  const _NewAttachmentsList({
-    required this.attachments,
-    required this.onRemove,
-  });
-
-  final List<PlatformFile> attachments;
-  final ValueChanged<PlatformFile> onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'New attachments (uploaded on save)',
-          style: theme.textTheme.titleSmall,
-        ),
-        const SizedBox(height: 8),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: attachments.length,
-          itemBuilder: (context, index) {
-            final file = attachments[index];
-            return Card(
-              key: ValueKey(
-                'new-attachment-$index-${file.name}-${file.identifier ?? ''}',
-              ),
-              margin: const EdgeInsets.symmetric(vertical: 4),
-              child: ListTile(
-                leading: const Icon(Icons.insert_drive_file_outlined),
-                title: Text(file.name),
-                subtitle: Text(_formatSize(file.size)),
-                trailing: IconButton(
-                  tooltip: 'Remove attachment',
-                  icon: const Icon(Icons.close),
-                  onPressed: () => onRemove(file),
                 ),
               ),
             );
