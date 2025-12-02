@@ -528,7 +528,9 @@ class PurchaseOrderDraftsService {
     final uploadFiles =
         files.whereType<http.MultipartFile>().toList(growable: false);
     if (uploadFiles.isEmpty) {
-      return;
+      throw PurchaseOrderDraftsException(
+        'No valid attachments were found to upload.',
+      );
     }
 
     final request = http.MultipartRequest(
@@ -551,11 +553,15 @@ class PurchaseOrderDraftsService {
     }
 
     final resolved = await http.Response.fromStream(response);
-    if (resolved.statusCode != 200 &&
-        resolved.statusCode != 201 &&
-        resolved.statusCode != 204) {
+    final isSuccessful =
+        resolved.statusCode == 200 || resolved.statusCode == 201 || resolved.statusCode == 204;
+    if (!isSuccessful) {
+      final serverMessage = resolved.body.trim();
+      final reason = serverMessage.isNotEmpty
+          ? 'Server responded with ${resolved.statusCode}: $serverMessage'
+          : 'Server responded with status ${resolved.statusCode}.';
       throw PurchaseOrderDraftsException(
-        'The attachments couldn\'t be uploaded right now. Please try again later.',
+        'The attachments couldn\'t be uploaded. $reason',
       );
     }
   }
