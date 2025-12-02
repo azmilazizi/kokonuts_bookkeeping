@@ -1634,7 +1634,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     return PlatformFile(
       name: file.name,
       size: file.size,
-      path: file.path,
+      path: kIsWeb ? null : file.path,
       bytes: file.bytes,
       readStream: file.readStream,
       identifier: generatedId,
