@@ -1353,10 +1353,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                       'Drag and drop files or tap to browse for invoice or payment receipt documents.',
                   files: _supportingAttachments,
                   onPick: _pickAttachment,
-                  onFilesSelected: (files) => setState(() {
-                    _supportingAttachments = files;
-                    _markDirty();
-                  }),
+                  onFilesSelected: (files) =>
+                      _addAttachments(files, replaceExisting: true),
                   onFileRemoved: (file) => setState(() {
                     _supportingAttachments = List.of(_supportingAttachments)
                       ..remove(file);
@@ -1587,15 +1585,29 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       return;
     }
 
-    final preparedFiles = newFiles
+    _addAttachments(newFiles);
+  }
+
+  void _addAttachments(List<PlatformFile> files,
+      {bool replaceExisting = false}) {
+    final sanitized = files
+        .where(
+          (file) => isAllowedAttachmentExtension(
+            file.extension ?? attachmentExtension(file.name),
+          ),
+        )
         .map(_ensureAttachmentIdentifier)
         .toList(growable: false);
 
+    if (sanitized.isEmpty) {
+      return;
+    }
+
     setState(() {
-      _supportingAttachments = [
-        ..._supportingAttachments.map(_ensureAttachmentIdentifier),
-        ...preparedFiles,
-      ];
+      final existing = replaceExisting
+          ? const <PlatformFile>[]
+          : _supportingAttachments.map(_ensureAttachmentIdentifier).toList();
+      _supportingAttachments = [...existing, ...sanitized];
       _markDirty();
     });
   }
