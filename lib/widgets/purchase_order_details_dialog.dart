@@ -12,6 +12,8 @@ import '../services/purchase_orders_service.dart';
 import 'attachment_pdf_preview.dart';
 import 'attachment_picker.dart';
 import 'authenticated_image.dart';
+import 'currency_input_formatter.dart';
+import 'searchable_dropdown_form_field.dart';
 
 class PurchaseOrderDetailsDialog extends StatefulWidget {
   const PurchaseOrderDetailsDialog({super.key, required this.orderId});
@@ -207,6 +209,7 @@ class _PurchaseOrderDetailsDialogState
                           ),
                           _PaymentsTab(
                             orderId: detail.id,
+                            orderNumber: detail.number,
                             payments: detail.payments,
                             currencySymbol: detail.currencySymbol,
                             apiHeaders: _apiHeaders,
@@ -854,6 +857,7 @@ class _DetailsTab extends StatelessWidget {
 class _PaymentsTab extends StatefulWidget {
   const _PaymentsTab({
     required this.orderId,
+    required this.orderNumber,
     required this.payments,
     required this.currencySymbol,
     required this.paymentModesService,
@@ -863,6 +867,7 @@ class _PaymentsTab extends StatefulWidget {
   });
 
   final String orderId;
+  final String orderNumber;
   final List<PurchaseOrderPayment> payments;
   final String currencySymbol;
   final PaymentModesService paymentModesService;
@@ -876,11 +881,13 @@ class _PaymentsTab extends StatefulWidget {
 
 class _PaymentsTabState extends State<_PaymentsTab> {
   late List<PurchaseOrderPayment> _payments;
+  List<PaymentMode> _paymentModes = const [];
   Map<String, String>? _paymentModesById;
   bool _isLoadingPaymentModes = false;
   bool _hasAttemptedLoadingModes = false;
   String? _paymentModesError;
   final Set<String> _deletingPaymentIds = {};
+  bool _isCreatingPayment = false;
 
   @override
   void initState() {
@@ -923,6 +930,7 @@ class _PaymentsTabState extends State<_PaymentsTab> {
         headers: widget.apiHeaders!,
       );
       setState(() {
+        _paymentModes = modes;
         _paymentModesById = {
           for (final mode in modes) mode.id: mode.name,
         };
@@ -934,6 +942,89 @@ class _PaymentsTabState extends State<_PaymentsTab> {
     } finally {
       if (mounted) {
         setState(() => _isLoadingPaymentModes = false);
+      }
+    }
+  }
+
+  int? _parsePurchaseOrderNumber(String orderNumber) {
+    final match = RegExp(r'#?PO-(\d+)').firstMatch(orderNumber);
+    if (match != null) {
+      return int.tryParse(match.group(1)!);
+    }
+    return int.tryParse(orderNumber);
+  }
+
+  Future<void> _openAddPaymentDialog() async {
+    if (_isCreatingPayment) return;
+
+    final headers = widget.apiHeaders;
+    if (headers == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Missing credentials to add payments.')),
+      );
+      return;
+    }
+
+    if (_paymentModes.isEmpty && !_isLoadingPaymentModes) {
+      await _loadPaymentModes();
+    }
+
+    final appState = AppStateScope.of(context);
+    final requester = appState.currentUserId;
+    final purchaseOrderNumber = _parsePurchaseOrderNumber(widget.orderNumber);
+
+    final newPayments = await showDialog<List<_NewPaymentEntry>>(
+      context: context,
+      builder: (context) => _AddPaymentDialog(
+        currencySymbol: widget.currencySymbol,
+        paymentModes: _paymentModes,
+        isLoadingPaymentModes: _isLoadingPaymentModes,
+      ),
+    );
+
+    if (newPayments == null || newPayments.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isCreatingPayment = true;
+    });
+
+    try {
+      await widget.purchaseOrdersService.createPayments(
+        id: widget.orderId,
+        headers: headers,
+        payments: newPayments
+            .map(
+              (entry) => CreatePurchaseOrderPayment(
+                purchaseOrderNumber: purchaseOrderNumber,
+                amount: entry.amount,
+                paymentMode: entry.paymentModeId,
+                date: entry.date,
+                requester: requester,
+              ),
+            )
+            .toList(growable: false),
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Payments added successfully.')),
+      );
+
+      widget.onPaymentsChanged?.call();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to add payments: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCreatingPayment = false;
+        });
       }
     }
   }
@@ -1032,6 +1123,18 @@ class _PaymentsTabState extends State<_PaymentsTab> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final addPaymentButton = ElevatedButton.icon(
+      onPressed: _isCreatingPayment ? null : _openAddPaymentDialog,
+      icon: _isCreatingPayment
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.add),
+      label: const Text('Add Payment'),
+    );
+
     if (_payments.isEmpty) {
       return Center(
         child: Column(
@@ -1043,6 +1146,18 @@ class _PaymentsTabState extends State<_PaymentsTab> {
               'No payments recorded for this purchase order.',
               style: theme.textTheme.bodyMedium,
             ),
+            const SizedBox(height: 16),
+            addPaymentButton,
+            if (_paymentModesError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Failed to load payment methods: $_paymentModesError',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ],
         ),
       );
@@ -1056,9 +1171,13 @@ class _PaymentsTabState extends State<_PaymentsTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: addPaymentButton,
+        ),
         if (_paymentModesError != null)
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.only(top: 8, bottom: 8),
             child: Text(
               'Failed to load payment methods: $_paymentModesError',
               style: theme.textTheme.bodySmall?.copyWith(
@@ -1076,12 +1195,15 @@ class _PaymentsTabState extends State<_PaymentsTab> {
             ),
           ),
         Expanded(
-          child: Scrollbar(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 640),
-                child: Table(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final minWidth = math.max(constraints.maxWidth, 640.0);
+              return Scrollbar(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: minWidth),
+                    child: Table(
                   columnWidths: const {
                     0: FlexColumnWidth(2),
                     1: FlexColumnWidth(3),
@@ -1216,6 +1338,430 @@ class _PaymentsTabState extends State<_PaymentsTab> {
   }
 }
 
+class _AddPaymentDialog extends StatefulWidget {
+  const _AddPaymentDialog({
+    required this.paymentModes,
+    required this.currencySymbol,
+    required this.isLoadingPaymentModes,
+  });
+
+  final List<PaymentMode> paymentModes;
+  final String currencySymbol;
+  final bool isLoadingPaymentModes;
+
+  @override
+  State<_AddPaymentDialog> createState() => _AddPaymentDialogState();
+}
+
+class _AddPaymentDialogState extends State<_AddPaymentDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final List<_PaymentFormEntry> _entries = [
+    _PaymentFormEntry(),
+  ];
+  String? _submitError;
+
+  @override
+  void dispose() {
+    for (final entry in _entries) {
+      entry.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _pickDate(_PaymentFormEntry entry) async {
+    final selected = await showDatePicker(
+      context: context,
+      firstDate: DateTime(DateTime.now().year - 10),
+      lastDate: DateTime(DateTime.now().year + 10),
+      initialDate: entry.date,
+    );
+
+    if (selected != null) {
+      setState(() {
+        entry.date = selected;
+      });
+    }
+  }
+
+  void _addEntry() {
+    setState(() {
+      _entries.add(_PaymentFormEntry());
+    });
+  }
+
+  void _removeEntry(int index) {
+    if (_entries.length == 1) {
+      return;
+    }
+
+    setState(() {
+      _entries.removeAt(index).dispose();
+    });
+  }
+
+  void _handleSubmit() {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    final parsed = <_NewPaymentEntry>[];
+    for (final entry in _entries) {
+      final amount = double.tryParse(entry.amountController.text.replaceAll(',', '')) ?? 0;
+      final paymentMode = entry.paymentModeId?.trim() ?? '';
+      if (amount <= 0 || paymentMode.isEmpty) {
+        setState(() {
+          _submitError =
+              'Enter a payment mode and amount greater than zero for all payments.';
+        });
+        return;
+      }
+      parsed.add(
+        _NewPaymentEntry(
+          amount: amount,
+          paymentModeId: paymentMode,
+          date: entry.date,
+        ),
+      );
+    }
+
+    Navigator.of(context).pop(parsed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final headerStyle = theme.textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+    );
+
+    return AlertDialog(
+      title: const Text('Add Payments'),
+      content: SizedBox(
+        width: 720,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Use the form below to add one or more payments using the same fields as the Create Purchase Order dialog.',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 16),
+                if (widget.isLoadingPaymentModes)
+                  Row(
+                    children: const [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('Loading payment modes...')),
+                    ],
+                  ),
+                const SizedBox(height: 8),
+                for (var i = 0; i < _entries.length; i++) ...[
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Payment ${i + 1}',
+                                  style: headerStyle,
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Remove payment',
+                                icon: const Icon(Icons.delete_outline),
+                                color: theme.colorScheme.error,
+                                onPressed: () => _removeEntry(i),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          _DialogResponsiveFieldsRow(
+                            children: [
+                              TextFormField(
+                                controller: _entries[i].amountController,
+                                decoration: InputDecoration(
+                                  labelText: 'Amount (${widget.currencySymbol})',
+                                  border: const OutlineInputBorder(),
+                                ),
+                                keyboardType: const TextInputType.numberWithOptions(
+                                  decimal: true,
+                                ),
+                                inputFormatters: const [CurrencyInputFormatter()],
+                                validator: (value) {
+                                  final parsed = double.tryParse(
+                                        (value ?? '').replaceAll(',', ''),
+                                      ) ??
+                                      0;
+                                  if (parsed <= 0) {
+                                    return 'Enter an amount greater than zero.';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              SearchableDropdownFormField<String>(
+                                initialValue: _entries[i].paymentModeId,
+                                items: widget.paymentModes.map((mode) => mode.id).toList(),
+                                itemToString: (id) => widget.paymentModes
+                                    .firstWhere(
+                                      (mode) => mode.id == id,
+                                      orElse: () => PaymentMode(id: id ?? '', name: 'Unknown'),
+                                    )
+                                    .name,
+                                decoration: const InputDecoration(
+                                  labelText: 'Payment mode',
+                                  border: OutlineInputBorder(),
+                                ),
+                                hintText: widget.isLoadingPaymentModes
+                                    ? 'Loading payment modes...'
+                                    : 'Select payment mode',
+                                enabled:
+                                    widget.paymentModes.isNotEmpty && !widget.isLoadingPaymentModes,
+                                dialogTitle: 'Select payment mode',
+                                onChanged: widget.paymentModes.isEmpty
+                                    ? null
+                                    : (value) => setState(
+                                          () => _entries[i].paymentModeId = value,
+                                        ),
+                                validator: (value) {
+                                  if ((value ?? '').trim().isEmpty) {
+                                    return 'Select a payment mode.';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              _PaymentDateField(
+                                label: 'Payment date',
+                                dateLabel: _entries[i].dateLabel,
+                                onTap: () => _pickDate(_entries[i]),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                TextButton.icon(
+                  onPressed: _addEntry,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add payment'),
+                ),
+                if (_submitError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _submitError!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _handleSubmit,
+          child: const Text('Submit'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PaymentFormEntry {
+  _PaymentFormEntry({DateTime? initialDate})
+      : date = initialDate ?? DateTime.now(),
+        amountController = TextEditingController();
+
+  final TextEditingController amountController;
+  DateTime date;
+  String? paymentModeId;
+
+  String get dateLabel => DateFormat.yMMMd().format(date);
+
+  void dispose() {
+    amountController.dispose();
+  }
+}
+
+class _NewPaymentEntry {
+  const _NewPaymentEntry({
+    required this.amount,
+    required this.paymentModeId,
+    required this.date,
+  });
+
+  final double amount;
+  final String paymentModeId;
+  final DateTime date;
+}
+
+class _DialogResponsiveFieldsRow extends StatelessWidget {
+  const _DialogResponsiveFieldsRow({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isStacked = constraints.maxWidth < 680;
+        if (isStacked) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                children[i],
+                if (i != children.length - 1) const SizedBox(height: 12),
+              ],
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < children.length; i++) ...[
+              Expanded(child: children[i]),
+              if (i != children.length - 1) const SizedBox(width: 12),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AddAttachmentDialog extends StatefulWidget {
+  const _AddAttachmentDialog();
+
+  @override
+  State<_AddAttachmentDialog> createState() => _AddAttachmentDialogState();
+}
+
+class _AddAttachmentDialogState extends State<_AddAttachmentDialog> {
+  List<PlatformFile> _files = const [];
+  String? _error;
+
+  Future<void> _pickFiles() async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: allowedAttachmentExtensions.toList(growable: false),
+      withData: true,
+      withReadStream: true,
+    );
+
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+
+    _replaceFiles([..._files, ...result.files]);
+  }
+
+  void _replaceFiles(List<PlatformFile> files) {
+    for (final file in files) {
+      final ext = attachmentExtension(file.name);
+      if (!isAllowedAttachmentExtension(ext)) {
+        setState(() {
+          _error = 'Unsupported file type. Please select PDF or image attachments.';
+        });
+        return;
+      }
+    }
+
+    setState(() {
+      _files = files;
+      _error = null;
+    });
+  }
+
+  void _removeFile(PlatformFile file) {
+    setState(() {
+      _files = List.of(_files)..remove(file);
+    });
+  }
+
+  void _submit() {
+    if (_files.isEmpty) {
+      setState(() {
+        _error = 'Select at least one attachment to continue.';
+      });
+      return;
+    }
+
+    Navigator.of(context).pop(_files);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: const Text('Add Attachments'),
+      content: SizedBox(
+        width: 720,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Use the same attachment picker as the Create Purchase Order dialog to add supporting files.',
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              AttachmentPicker(
+                description:
+                    'Drag and drop receipts or supporting documents, or tap to browse.',
+                files: _files,
+                onPick: _pickFiles,
+                onFilesSelected: _replaceFiles,
+                onFileRemoved: _removeFile,
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _submit,
+          child: const Text('Submit'),
+        ),
+      ],
+    );
+  }
+}
+
 class _AttachmentsTab extends StatefulWidget {
   const _AttachmentsTab({
     required this.orderId,
@@ -1253,7 +1799,7 @@ class _AttachmentsTabState extends State<_AttachmentsTab> {
     }
   }
 
-  Future<void> _handleAddAttachment() async {
+  Future<void> _openAddAttachmentDialog() async {
     if (_isUploading) return;
 
     final headers = widget.apiHeaders;
@@ -1266,19 +1812,23 @@ class _AttachmentsTabState extends State<_AttachmentsTab> {
       return;
     }
 
-    final result = await FilePicker.platform.pickFiles(
-      allowMultiple: true,
-      type: FileType.custom,
-      allowedExtensions: allowedAttachmentExtensions.toList(growable: false),
-      withData: true,
-      withReadStream: true,
+    final files = await showDialog<List<PlatformFile>>(
+      context: context,
+      builder: (context) => const _AddAttachmentDialog(),
     );
 
-    if (!mounted || result == null || result.files.isEmpty) {
+    if (!mounted || files == null || files.isEmpty) {
       return;
     }
 
-    final invalid = result.files.where((file) {
+    await _uploadAttachments(headers, files);
+  }
+
+  Future<void> _uploadAttachments(
+    Map<String, String> headers,
+    List<PlatformFile> files,
+  ) async {
+    final invalid = files.where((file) {
       final ext = attachmentExtension(file.name);
       return !isAllowedAttachmentExtension(ext);
     }).toList();
@@ -1300,7 +1850,7 @@ class _AttachmentsTabState extends State<_AttachmentsTab> {
       await _purchaseOrdersService.uploadAttachments(
         id: widget.orderId,
         headers: headers,
-        attachments: result.files,
+        attachments: files,
       );
 
       if (!mounted) return;
@@ -1342,7 +1892,7 @@ class _AttachmentsTabState extends State<_AttachmentsTab> {
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
-              onPressed: _isUploading ? null : _handleAddAttachment,
+              onPressed: _isUploading ? null : _openAddAttachmentDialog,
               icon: _isUploading
                   ? const SizedBox(
                       width: 16,
@@ -1367,18 +1917,49 @@ class _AttachmentsTabState extends State<_AttachmentsTab> {
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.only(bottom: 16),
-      itemCount: _attachments.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final attachment = _attachments[index];
-        return _PurchaseOrderAttachmentCard(
-          attachment: attachment,
-          orderId: widget.orderId,
-          apiHeaders: widget.apiHeaders,
-        );
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: ElevatedButton.icon(
+            onPressed: _isUploading ? null : _openAddAttachmentDialog,
+            icon: _isUploading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.attach_file),
+            label: const Text('Add Attachment'),
+          ),
+        ),
+        if (_uploadError != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _uploadError!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.only(bottom: 16),
+            itemCount: _attachments.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final attachment = _attachments[index];
+              return _PurchaseOrderAttachmentCard(
+                attachment: attachment,
+                orderId: widget.orderId,
+                apiHeaders: widget.apiHeaders,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
