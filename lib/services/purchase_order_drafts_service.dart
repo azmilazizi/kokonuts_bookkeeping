@@ -348,6 +348,8 @@ class PurchaseOrderDraftsService {
 
   static const _baseUrl =
       'https://crm.kokonuts.my/purchase/api/v1/purchase_order_drafts';
+  static const _attachmentsBaseUrl =
+      'https://crm.kokonuts.my/purchase/api/v1/purchase_order_drafts';
 
   Future<PurchaseOrderDraftsPage> fetchDrafts({
     required Map<String, String> headers,
@@ -541,7 +543,7 @@ class PurchaseOrderDraftsService {
 
     final request = http.MultipartRequest(
       'POST',
-      Uri.parse('$_baseUrl/$id/attachments'),
+      Uri.parse('$_attachmentsBaseUrl/$id/attachment'),
     )
       ..headers.addAll({
         'Accept': 'application/json',
@@ -580,7 +582,7 @@ class PurchaseOrderDraftsService {
 
     final request = http.Request(
       'DELETE',
-      Uri.parse('$_baseUrl/$id/attachments'),
+      Uri.parse('$_attachmentsBaseUrl/$id/attachment'),
     )..headers.addAll({
         'Accept': 'application/json',
         ...headers,
