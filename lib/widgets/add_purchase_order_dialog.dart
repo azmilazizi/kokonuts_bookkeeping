@@ -1594,6 +1594,15 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         .toList(growable: false);
 
     if (newFiles.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unsupported file type. Please select PDF or image files.',
+            ),
+          ),
+        );
+      }
       return;
     }
 
@@ -1614,6 +1623,15 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         .toList(growable: false);
 
     if (sanitized.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unsupported file type. Please select PDF or image files.',
+            ),
+          ),
+        );
+      }
       return;
     }
 
