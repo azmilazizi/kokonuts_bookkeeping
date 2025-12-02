@@ -564,17 +564,16 @@ class _OverviewTabState extends State<OverviewTab> {
                         constraints: BoxConstraints(minWidth: tableWidth),
                         child: Column(
                           children: [
-                            _TableHeaderRow(theme: theme),
-                            ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: _transactions.length,
-                              itemBuilder: (context, index) {
-                                return _TransactionRow(
-                                  transaction: _transactions[index],
-                                  theme: theme,
-                                );
-                              },
+                            _TableHeaderRow(
+                              theme: theme,
+                              tableWidth: tableWidth,
+                            ),
+                            ..._transactions.map(
+                              (transaction) => _TransactionRow(
+                                transaction: transaction,
+                                theme: theme,
+                                tableWidth: tableWidth,
+                              ),
                             ),
                           ],
                         ),
@@ -600,9 +599,13 @@ class _OverviewTabState extends State<OverviewTab> {
 }
 
 class _TableHeaderRow extends StatelessWidget {
-  const _TableHeaderRow({required this.theme});
+  const _TableHeaderRow({
+    required this.theme,
+    required this.tableWidth,
+  });
 
   final ThemeData theme;
+  final double tableWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -610,6 +613,7 @@ class _TableHeaderRow extends StatelessWidget {
       height: 56,
       color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
       padding: const EdgeInsets.symmetric(horizontal: 16),
+      constraints: BoxConstraints.tightFor(width: tableWidth),
       child: Row(
         children: const [
           Expanded(flex: 2, child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
@@ -628,10 +632,12 @@ class _TransactionRow extends StatelessWidget {
   const _TransactionRow({
     required this.transaction,
     required this.theme,
+    required this.tableWidth,
   });
 
   final OverviewTransaction transaction;
   final ThemeData theme;
+  final double tableWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -641,6 +647,7 @@ class _TransactionRow extends StatelessWidget {
         border: Border(bottom: BorderSide(color: theme.dividerColor.withOpacity(0.5))),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16),
+      constraints: BoxConstraints.tightFor(width: tableWidth),
       child: Row(
         children: [
           Expanded(flex: 2, child: Text(transaction.formattedDate, style: theme.textTheme.bodyMedium)),
