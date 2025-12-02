@@ -450,7 +450,7 @@ class PurchaseOrderDraftsService {
     required Map<String, String> headers,
     required CreatePurchaseOrderDraftRequest request,
   }) async {
-    final decoded = await _sendMultipartDraft(
+    final decoded = await _sendJsonDraft(
       uri: Uri.parse(_baseUrl),
       headers: headers,
       request: request,
@@ -472,7 +472,7 @@ class PurchaseOrderDraftsService {
     required Map<String, String> headers,
     required CreatePurchaseOrderDraftRequest request,
   }) async {
-    final decoded = await _sendMultipartDraft(
+    final decoded = await _sendJsonDraft(
       uri: Uri.parse('$_baseUrl/$id'),
       headers: headers,
       request: request,
@@ -610,35 +610,35 @@ class PurchaseOrderDraftsService {
     }
   }
 
-  Future<Map<String, dynamic>> _sendMultipartDraft({
+  Future<Map<String, dynamic>> _sendJsonDraft({
     required Uri uri,
     required Map<String, String> headers,
     required CreatePurchaseOrderDraftRequest request,
     required String method,
   }) async {
-    final requestFiles = await Future.wait(
-      request.attachmentFiles.entries
-          .map((entry) => _buildMultipartFile(entry.key, entry.value)),
-      eagerError: false,
-    );
-
-    final uploadFiles =
-        requestFiles.whereType<http.MultipartFile>().toList(growable: false);
-
-    final multipartRequest = http.MultipartRequest(method, uri)
-      ..headers.addAll({
-        'Accept': 'application/json',
-        ...headers,
-      })
-      ..fields['metadata'] = jsonEncode(request.toJson());
-
-    if (uploadFiles.isNotEmpty) {
-      multipartRequest.files.addAll(uploadFiles);
-    }
-
-    http.StreamedResponse response;
+    http.Response response;
     try {
-      response = await _client.send(multipartRequest);
+      if (method.toUpperCase() == 'POST') {
+        response = await _client.post(
+          uri,
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            ...headers,
+          },
+          body: jsonEncode(request.toJson()),
+        );
+      } else {
+        response = await _client.put(
+          uri,
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            ...headers,
+          },
+          body: jsonEncode(request.toJson()),
+        );
+      }
     } catch (_) {
       final actionVerb = method.toUpperCase() == 'POST' ? 'create' : 'update';
       throw PurchaseOrderDraftsException(
@@ -646,8 +646,7 @@ class PurchaseOrderDraftsService {
       );
     }
 
-    final resolved = await http.Response.fromStream(response);
-    if (resolved.statusCode != 200 && resolved.statusCode != 201) {
+    if (response.statusCode != 200 && response.statusCode != 201) {
       final actionVerb = method.toUpperCase() == 'POST' ? 'created' : 'updated';
       throw PurchaseOrderDraftsException(
         'The draft could not be $actionVerb right now. Please try again later.',
@@ -656,7 +655,7 @@ class PurchaseOrderDraftsService {
 
     dynamic decoded;
     try {
-      decoded = jsonDecode(resolved.body);
+      decoded = jsonDecode(response.body);
     } catch (_) {
       throw PurchaseOrderDraftsException(
         'We could not read the server response. Please try again.',
@@ -672,41 +671,6 @@ class PurchaseOrderDraftsService {
     );
   }
 
-  Future<http.MultipartFile?> _buildMultipartFile(
-    String attachmentId,
-    PlatformFile file,
-  ) async {
-    if (file.bytes != null) {
-      return http.MultipartFile.fromBytes(
-        'files[$attachmentId]',
-        file.bytes!,
-        filename: file.name,
-      );
-    }
-
-    if (file.readStream != null) {
-      return http.MultipartFile(
-        'files[$attachmentId]',
-        file.readStream!,
-        file.size,
-        filename: file.name,
-      );
-    }
-
-    if (file.path != null) {
-      try {
-        return await http.MultipartFile.fromPath(
-          'files[$attachmentId]',
-          file.path!,
-          filename: file.name,
-        );
-      } catch (_) {
-        return null;
-      }
-    }
-
-    return null;
-  }
 
   Future<http.MultipartFile?> _buildAttachmentUploadFile(
       PlatformFile file) async {
