@@ -70,12 +70,6 @@ class _KokonutsBookkeepingAppState extends State<KokonutsBookkeepingApp> {
             ),
             themeMode: _appState.themeMode,
             home: _buildHome(),
-            builder: (context, child) {
-              return ScaffoldMessenger(
-                key: _scaffoldMessengerKey,
-                child: child ?? const SizedBox.shrink(),
-              );
-            },
           );
         },
       ),
