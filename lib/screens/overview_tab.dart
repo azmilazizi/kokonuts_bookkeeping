@@ -25,7 +25,6 @@ class _OverviewTabState extends State<OverviewTab> {
   late final BillsService _billsService;
   late final PurchaseOrdersService _purchaseOrdersService;
   late final PurchaseOrderDetailService _purchaseOrderDetailService;
-  final ScrollController _tableHorizontalController = ScrollController();
 
   late DateTime _startDate;
   late DateTime _endDate;
@@ -61,7 +60,6 @@ class _OverviewTabState extends State<OverviewTab> {
 
   @override
   void dispose() {
-    _tableHorizontalController.dispose();
     super.dispose();
   }
 
@@ -548,39 +546,16 @@ class _OverviewTabState extends State<OverviewTab> {
               ),
             )
           else if (_transactions.isNotEmpty)
-            SliverToBoxAdapter(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  const double minTableWidth = 900;
-                  final tableWidth = math.max(constraints.maxWidth, minTableWidth);
-
-                  return Scrollbar(
-                    controller: _tableHorizontalController,
-                    thumbVisibility: true,
-                    child: SingleChildScrollView(
-                      controller: _tableHorizontalController,
-                      scrollDirection: Axis.horizontal,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(minWidth: tableWidth),
-                        child: Column(
-                          children: [
-                            _TableHeaderRow(
-                              theme: theme,
-                              tableWidth: tableWidth,
-                            ),
-                            ..._transactions.map(
-                              (transaction) => _TransactionRow(
-                                transaction: transaction,
-                                theme: theme,
-                                tableWidth: tableWidth,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  child: _TransactionCard(
+                    transaction: _transactions[index],
+                    accountingMethod: _accountingMethod,
+                  ),
+                ),
+                childCount: _transactions.length,
               ),
             )
           else
@@ -598,65 +573,116 @@ class _OverviewTabState extends State<OverviewTab> {
   }
 }
 
-class _TableHeaderRow extends StatelessWidget {
-  const _TableHeaderRow({
-    required this.theme,
-    required this.tableWidth,
-  });
-
-  final ThemeData theme;
-  final double tableWidth;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 56,
-      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      constraints: BoxConstraints.tightFor(width: tableWidth),
-      child: Row(
-        children: const [
-          Expanded(flex: 2, child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
-          Expanded(flex: 2, child: Text('Number', style: TextStyle(fontWeight: FontWeight.bold))),
-          Expanded(flex: 3, child: Text('Vendor', style: TextStyle(fontWeight: FontWeight.bold))),
-          Expanded(flex: 2, child: Text('Type', style: TextStyle(fontWeight: FontWeight.bold))),
-          Expanded(flex: 2, child: Text('Mode / Status', style: TextStyle(fontWeight: FontWeight.bold))),
-          Expanded(flex: 2, child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold))),
-        ],
-      ),
-    );
-  }
-}
-
-class _TransactionRow extends StatelessWidget {
-  const _TransactionRow({
+class _TransactionCard extends StatelessWidget {
+  const _TransactionCard({
     required this.transaction,
-    required this.theme,
-    required this.tableWidth,
+    required this.accountingMethod,
   });
 
   final OverviewTransaction transaction;
-  final ThemeData theme;
-  final double tableWidth;
+  final String accountingMethod;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 52,
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: theme.dividerColor.withOpacity(0.5))),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      constraints: BoxConstraints.tightFor(width: tableWidth),
-      child: Row(
-        children: [
-          Expanded(flex: 2, child: Text(transaction.formattedDate, style: theme.textTheme.bodyMedium)),
-          Expanded(flex: 2, child: Text(transaction.number, style: theme.textTheme.bodyMedium)),
-          Expanded(flex: 3, child: Text(transaction.vendor, style: theme.textTheme.bodyMedium)),
-          Expanded(flex: 2, child: Text(transaction.type, style: theme.textTheme.bodyMedium)),
-          Expanded(flex: 2, child: Text(transaction.paymentMode ?? transaction.status, style: theme.textTheme.bodyMedium)),
-          Expanded(flex: 2, child: Text(transaction.formattedAmount, style: theme.textTheme.bodyMedium)),
-        ],
+    final theme = Theme.of(context);
+    final subtitleStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.textTheme.bodySmall?.color,
+    );
+
+    final detailLabel = accountingMethod == 'payment' ? 'Payment Mode' : 'Status';
+    final detailValue = accountingMethod == 'payment'
+        ? (transaction.paymentMode ?? transaction.status)
+        : transaction.status;
+
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        transaction.vendor,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(transaction.type, style: subtitleStyle),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.calendar_today, size: 14, color: subtitleStyle?.color),
+                          const SizedBox(width: 4),
+                          Text(transaction.formattedDate, style: subtitleStyle),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.tag, size: 14, color: subtitleStyle?.color),
+                          const SizedBox(width: 4),
+                          Text(transaction.number, style: subtitleStyle),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      transaction.formattedAmount,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceVariant,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        detailValue,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Chip(
+                  label: Text(accountingMethod == 'payment' ? 'Cash Method' : 'Accrual Method'),
+                  backgroundColor: theme.colorScheme.primaryContainer,
+                  labelStyle: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$detailLabel: $detailValue',
+                  style: subtitleStyle,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
