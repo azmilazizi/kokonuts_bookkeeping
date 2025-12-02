@@ -103,11 +103,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
   String _paymentModeLabel(String id) {
     return _paymentModes
-            .firstWhere(
-              (mode) => mode.id == id,
-              orElse: () => PaymentMode(id: id, name: 'Unknown mode'),
-            )
-            .name;
+        .firstWhere(
+          (mode) => mode.id == id,
+          orElse: () => PaymentMode(id: id, name: 'Unknown mode'),
+        )
+        .name;
   }
 
   @override
@@ -204,9 +204,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _orderNumberController.text = detail.number;
     _selectedVendorName = detail.vendorName;
     _selectedVendorId = detail.vendorId;
-    _orderDiscountController.text = CurrencyInputFormatter.normalizeExistingValue(
-      _formatDouble(detail.discountValue ?? 0),
-    );
+    _orderDiscountController.text =
+        CurrencyInputFormatter.normalizeExistingValue(
+          _formatDouble(detail.discountValue ?? 0),
+        );
     _shippingFeeController.text = CurrencyInputFormatter.normalizeExistingValue(
       _formatDouble(detail.shippingFeeValue ?? 0),
     );
@@ -261,13 +262,14 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _isPaid = draft.isPaid;
     _orderDiscountController.text =
         CurrencyInputFormatter.normalizeExistingValue(
-      _formatDouble(draft.discountValue),
-    );
+          _formatDouble(draft.discountValue),
+        );
     _shippingFeeController.text = CurrencyInputFormatter.normalizeExistingValue(
       _formatDouble(draft.shippingFee),
     );
-    _orderDiscountType =
-        draft.discountType == 'percentage' ? DiscountType.percentage : DiscountType.amount;
+    _orderDiscountType = draft.discountType == 'percentage'
+        ? DiscountType.percentage
+        : DiscountType.amount;
 
     for (final existing in _items) {
       existing.dispose();
@@ -357,8 +359,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       return _formatDouble(amountValue);
     }
 
-    final digitsOnly =
-        payment.amountLabel.replaceAll(RegExp(r'[^0-9,.-]'), '');
+    final digitsOnly = payment.amountLabel.replaceAll(RegExp(r'[^0-9,.-]'), '');
     if (digitsOnly.isEmpty) {
       return null;
     }
@@ -384,7 +385,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     setState(() {
       final removed = _items.removeAt(index);
       final removedLineItemId = removed.lineItemId?.trim();
-      if (_isEditing && removedLineItemId != null && removedLineItemId.isNotEmpty) {
+      if (_isEditing &&
+          removedLineItemId != null &&
+          removedLineItemId.isNotEmpty) {
         _removedLineItemIds.add(removedLineItemId);
       }
       removed.dispose();
@@ -442,11 +445,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         _selectedVendorId = selectedVendor?.id;
         if (_paymentModes.isNotEmpty) {
           for (final payment in _payments) {
-            final matchedId = payment.paymentModeId ??
+            final matchedId =
+                payment.paymentModeId ??
                 _matchPaymentModeId(payment.initialPaymentModeLabel);
-            payment.setPaymentModeId(
-              matchedId ?? _paymentModes.first.id,
-            );
+            payment.setPaymentModeId(matchedId ?? _paymentModes.first.id);
           }
         }
       });
@@ -569,8 +571,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   double get _totalDiscount =>
       (_itemsDiscount + _orderDiscountAmount).clamp(0, _itemsSubtotal);
 
-  double get _shippingFee =>
-      double.tryParse(_shippingFeeController.text) ?? 0;
+  double get _shippingFee => double.tryParse(_shippingFeeController.text) ?? 0;
 
   double get _grandTotal => (_itemsSubtotal - _totalDiscount + _shippingFee)
       .clamp(0, double.infinity);
@@ -836,9 +837,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
     final removedPaymentIds = _isEditing
         ? _removedPaymentIds
-            .map((id) => id.trim())
-            .where((id) => id.isNotEmpty)
-            .toList(growable: false)
+              .map((id) => id.trim())
+              .where((id) => id.isNotEmpty)
+              .toList(growable: false)
         : const <String>[];
 
     final request = CreatePurchaseOrderRequest(
@@ -859,12 +860,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       isUpdate: _isEditing,
       removedLineItemIds: _isEditing
           ? _removedLineItemIds
-              .map((id) => id.trim())
-              .where((id) => id.isNotEmpty)
-              .toList(growable: false)
+                .map((id) => id.trim())
+                .where((id) => id.isNotEmpty)
+                .toList(growable: false)
           : null,
-      removedPaymentIds:
-          removedPaymentIds.isEmpty ? null : removedPaymentIds,
+      removedPaymentIds: removedPaymentIds.isEmpty ? null : removedPaymentIds,
     );
 
     setState(() {
@@ -898,9 +898,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         } catch (error) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Failed to delete some payments: $error'),
-              ),
+              SnackBar(content: Text('Failed to delete some payments: $error')),
             );
           }
         }
@@ -911,7 +909,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           await _service.deleteAttachments(
             id: created.id,
             headers: headers,
-            attachmentIds: _attachmentsMarkedForDeletion.toList(growable: false),
+            attachmentIds: _attachmentsMarkedForDeletion.toList(
+              growable: false,
+            ),
           );
         } catch (error) {
           if (mounted) {
@@ -1078,9 +1078,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       });
 
       if (showFailureSnackbar) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You are not logged in.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('You are not logged in.')));
       }
       return;
     }
@@ -1089,8 +1089,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     final sanitizedAttachments = _supportingAttachments
         .map(_ensureAttachmentIdentifier)
         .toList(growable: false);
-    final attachmentsToDelete =
-        _attachmentsMarkedForDeletion.toList(growable: false);
+    final attachmentsToDelete = _attachmentsMarkedForDeletion.toList(
+      growable: false,
+    );
 
     setState(() {
       _supportingAttachments = sanitizedAttachments;
@@ -1124,7 +1125,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           if (mounted) {
             messenger.showSnackBar(
               SnackBar(
-                content: Text('Failed to delete some draft attachments: $error'),
+                content: Text(
+                  'Failed to delete some draft attachments: $error',
+                ),
               ),
             );
           }
@@ -1142,7 +1145,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           if (mounted) {
             messenger.showSnackBar(
               SnackBar(
-                content: Text('Draft saved but failed to upload attachments: $error'),
+                content: Text(
+                  'Draft saved but failed to upload attachments: $error',
+                ),
               ),
             );
           }
@@ -1177,7 +1182,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         _draftAttachments = refreshedDraft?.attachments ?? draft.attachments;
         _supportingAttachments = const [];
         _attachmentsMarkedForDeletion.clear();
-        _draftStatusMessage = 'Draft saved at ${DateFormat.Hm().format(DateTime.now())}';
+        _draftStatusMessage =
+            'Draft saved at ${DateFormat.Hm().format(DateTime.now())}';
         _isDraftStatusError = false;
       });
 
@@ -1185,14 +1191,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       if (closeAfterSave) {
         Navigator.of(context).pop();
         if (showSuccessSnackbar) {
-          messenger.showSnackBar(
-            SnackBar(content: Text(message)),
-          );
+          messenger.showSnackBar(SnackBar(content: Text(message)));
         }
       } else if (showSuccessSnackbar && mounted) {
-        messenger.showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        messenger.showSnackBar(SnackBar(content: Text(message)));
       }
     } catch (error) {
       if (!mounted) {
@@ -1205,9 +1207,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       });
 
       if (showFailureSnackbar) {
-        messenger.showSnackBar(
-          SnackBar(content: Text(failureMessage)),
-        );
+        messenger.showSnackBar(SnackBar(content: Text(failureMessage)));
       }
     } finally {
       if (mounted) {
@@ -1220,8 +1220,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
   CreatePurchaseOrderDraftRequest _buildDraftRequest() {
     final sanitizedOrderName = _orderNameController.text.trim();
-    final discountTypeValue =
-        _orderDiscountType == DiscountType.percentage ? 'percentage' : 'amount';
+    final discountTypeValue = _orderDiscountType == DiscountType.percentage
+        ? 'percentage'
+        : 'amount';
 
     final draftItems = _items
         .where((item) => item.hasContent)
@@ -1244,9 +1245,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         .toList(growable: false);
 
     final draftPayments = _payments
-        .where((payment) =>
-            payment.amountController.text.trim().isNotEmpty ||
-            (payment.paymentModeId ?? '').isNotEmpty)
+        .where(
+          (payment) =>
+              payment.amountController.text.trim().isNotEmpty ||
+              (payment.paymentModeId ?? '').isNotEmpty,
+        )
         .map(
           (payment) => PurchaseOrderDraftPayment(
             id: payment.paymentId ?? '',
@@ -1305,7 +1308,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Purchase order created but failed to delete draft: $error'),
+            content: Text(
+              'Purchase order created but failed to delete draft: $error',
+            ),
           ),
         );
       }
@@ -1348,214 +1353,221 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   ],
                   Text('Attachments', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 12),
-                AttachmentPicker(
-                  description:
-                      'Drag and drop files or tap to browse for invoice or payment receipt documents.',
-                  files: _supportingAttachments,
-                  onPick: _pickAttachment,
-                  onFilesSelected: (files) =>
-                      _addAttachments(files, replaceExisting: true),
-                  onFileRemoved: (file) => setState(() {
-                    _supportingAttachments = List.of(_supportingAttachments)
-                      ..remove(file);
-                    _markDirty();
-                  }),
-                ),
-                if (_draftAttachments.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _DraftAttachmentsList(
-                    attachments: _draftAttachments,
-                    pendingDeletionCount: _attachmentsMarkedForDeletion.length,
-                    onRemove: _removeDraftAttachment,
-                  ),
-                ],
-                if (_isEditing) ...[
-                  const SizedBox(height: 12),
-                  _ExistingAttachmentsList(
-                    attachments: _existingAttachments,
-                    onRemove: _scheduleExistingAttachmentRemoval,
-                    pendingDeletionCount: _attachmentsMarkedForDeletion.length,
-                  ),
-                ],
-                if (_supportingAttachments.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _NewAttachmentsList(
-                    attachments: _supportingAttachments,
-                    onRemove: (file) => setState(() {
+                  AttachmentPicker(
+                    description:
+                        'Drag and drop files or tap to browse for invoice or payment receipt documents.',
+                    files: _supportingAttachments,
+                    onPick: _pickAttachment,
+                    onFilesSelected: (files) =>
+                        _addAttachments(files, replaceExisting: true),
+                    onFileRemoved: (file) => setState(() {
                       _supportingAttachments = List.of(_supportingAttachments)
                         ..remove(file);
                       _markDirty();
                     }),
                   ),
-                ],
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _isPaid,
-                      onChanged: (value) {
-                        setState(() {
-                          _isPaid = value ?? false;
-                          if (!_isPaid) {
-                            if (_isEditing) {
-                              for (final payment in _payments) {
-                                final removedPaymentId =
-                                    payment.paymentId?.trim();
-                                if (removedPaymentId != null &&
-                                    removedPaymentId.isNotEmpty) {
-                                  _removedPaymentIds.add(removedPaymentId);
+                  if (_draftAttachments.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _DraftAttachmentsList(
+                      attachments: _draftAttachments,
+                      pendingDeletionCount:
+                          _attachmentsMarkedForDeletion.length,
+                      onRemove: _removeDraftAttachment,
+                    ),
+                  ],
+                  if (_isEditing) ...[
+                    const SizedBox(height: 12),
+                    _ExistingAttachmentsList(
+                      attachments: _existingAttachments,
+                      onRemove: _scheduleExistingAttachmentRemoval,
+                      pendingDeletionCount:
+                          _attachmentsMarkedForDeletion.length,
+                    ),
+                  ],
+                  if (_supportingAttachments.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _NewAttachmentsList(
+                      attachments: _supportingAttachments,
+                      onRemove: (file) => setState(() {
+                        _supportingAttachments = List.of(_supportingAttachments)
+                          ..remove(file);
+                        _markDirty();
+                      }),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _isPaid,
+                        onChanged: (value) {
+                          setState(() {
+                            _isPaid = value ?? false;
+                            if (!_isPaid) {
+                              if (_isEditing) {
+                                for (final payment in _payments) {
+                                  final removedPaymentId = payment.paymentId
+                                      ?.trim();
+                                  if (removedPaymentId != null &&
+                                      removedPaymentId.isNotEmpty) {
+                                    _removedPaymentIds.add(removedPaymentId);
+                                  }
                                 }
                               }
+                              for (final payment in _payments) {
+                                payment.dispose();
+                              }
+                              _payments.clear();
+                            } else if (_payments.isEmpty) {
+                              _addPaymentEntry();
                             }
-                            for (final payment in _payments) {
-                              payment.dispose();
-                            }
-                            _payments.clear();
-                          } else if (_payments.isEmpty) {
-                            _addPaymentEntry();
-                          }
-                          _markDirty();
-                        });
-                      },
+                            _markDirty();
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('Paid'),
+                    ],
+                  ),
+                  if (_isPaid) ...[
+                    const SizedBox(height: 12),
+                    _PaymentEntriesTable(
+                      entries: _payments,
+                      isLoadingPaymentModes: _isLoadingReferenceData,
+                      paymentModes: _paymentModes,
+                      onAdd: _addPaymentEntry,
+                      onRemove: _removePaymentEntry,
+                      onPickDate: _pickPaymentDate,
+                      onPaymentModeChanged: (entry, modeId) =>
+                          setState(() => entry.setPaymentModeId(modeId)),
                     ),
-                    const SizedBox(width: 8),
-                    const Text('Paid'),
+                    const SizedBox(height: 24),
                   ],
-                ),
-                if (_isPaid) ...[
                   const SizedBox(height: 12),
-                  _PaymentEntriesTable(
-                    entries: _payments,
-                    isLoadingPaymentModes: _isLoadingReferenceData,
-                    paymentModes: _paymentModes,
-                    onAdd: _addPaymentEntry,
-                    onRemove: _removePaymentEntry,
-                    onPickDate: _pickPaymentDate,
-                    onPaymentModeChanged: (entry, modeId) =>
-                        setState(() => entry.setPaymentModeId(modeId)),
+                  _buildVendorField(theme),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _orderNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Order name',
+                      hintText: 'Describe the purchase order',
+                    ),
+                    textInputAction: TextInputAction.next,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Order name is required.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _orderNumberController,
+                    decoration: const InputDecoration(
+                      labelText: 'Order number',
+                      filled: true,
+                    ),
+                    readOnly: true,
+                  ),
+                  const SizedBox(height: 12),
+                  _OrderDateField(
+                    date: _orderDate ?? DateTime.now(),
+                    onTap: _pickOrderDate,
                   ),
                   const SizedBox(height: 24),
-                ],
-                const SizedBox(height: 12),
-                _buildVendorField(theme),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _orderNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Order name',
-                    hintText: 'Describe the purchase order',
-                  ),
-                  textInputAction: TextInputAction.next,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Order name is required.';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _orderNumberController,
-                  decoration: const InputDecoration(
-                    labelText: 'Order number',
-                    filled: true,
-                  ),
-                  readOnly: true,
-                ),
-                const SizedBox(height: 12),
-                _OrderDateField(
-                  date: _orderDate ?? DateTime.now(),
-                  onTap: _pickOrderDate,
-                ),
-                const SizedBox(height: 24),
-                Text('Items', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 12),
-                _buildItemsDropdown(theme),
-                const SizedBox(height: 12),
-                _buildItemCard(theme, item: _pendingItem, isPlaceholder: true),
-                if (_pendingItemError != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _pendingItemError!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                for (var i = 0; i < _items.length; i++) ...[
-                  _buildItemCard(theme, item: _items[i], index: i),
+                  Text('Items', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 12),
-                ],
-                const SizedBox(height: 16),
-                _TotalsSummary(
-                  subtotal: _itemsSubtotal,
-                  orderDiscountAmount: _orderDiscountAmount,
-                  totalDiscount: _totalDiscount,
-                  shippingFee: _shippingFee,
-                  grandTotal: _grandTotal,
-                  discountController: _orderDiscountController,
-                  discountType: _orderDiscountType,
-                  onDiscountTypeChanged: (type) {
-                    setState(() {
-                      _orderDiscountType = type;
-                      if (type == DiscountType.amount) {
-                        _orderDiscountController.text =
-                            CurrencyInputFormatter.normalizeExistingValue(
-                          _orderDiscountController.text,
-                        );
-                      }
-                    });
-                  },
-                  shippingFeeController: _shippingFeeController,
-                ),
-                if (_draftStatusMessage != null) ...[
+                  _buildItemsDropdown(theme),
                   const SizedBox(height: 12),
-                  Text(
-                    _draftStatusMessage!,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color:
-                          _isDraftStatusError ? theme.colorScheme.error : null,
-                    ),
+                  _buildItemCard(
+                    theme,
+                    item: _pendingItem,
+                    isPlaceholder: true,
                   ),
+                  if (_pendingItemError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _pendingItemError!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  for (var i = 0; i < _items.length; i++) ...[
+                    _buildItemCard(theme, item: _items[i], index: i),
+                    const SizedBox(height: 12),
+                  ],
+                  const SizedBox(height: 16),
+                  _TotalsSummary(
+                    subtotal: _itemsSubtotal,
+                    orderDiscountAmount: _orderDiscountAmount,
+                    totalDiscount: _totalDiscount,
+                    shippingFee: _shippingFee,
+                    grandTotal: _grandTotal,
+                    discountController: _orderDiscountController,
+                    discountType: _orderDiscountType,
+                    onDiscountTypeChanged: (type) {
+                      setState(() {
+                        _orderDiscountType = type;
+                        if (type == DiscountType.amount) {
+                          _orderDiscountController.text =
+                              CurrencyInputFormatter.normalizeExistingValue(
+                                _orderDiscountController.text,
+                              );
+                        }
+                      });
+                    },
+                    shippingFeeController: _shippingFeeController,
+                  ),
+                  if (_draftStatusMessage != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _draftStatusMessage!,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: _isDraftStatusError
+                            ? theme.colorScheme.error
+                            : null,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _isSubmitting ? null : _handleCancel,
-          child: const Text('Cancel'),
-        ),
-        if (!_isEditing)
+        actions: [
           TextButton(
-            onPressed: _isSubmitting || _isSavingDraft
-                ? null
-                : () => _saveDraft(
+            onPressed: _isSubmitting ? null : _handleCancel,
+            child: const Text('Cancel'),
+          ),
+          if (!_isEditing)
+            TextButton(
+              onPressed: _isSubmitting || _isSavingDraft
+                  ? null
+                  : () => _saveDraft(
                       closeAfterSave: true,
                       showSuccessSnackbar: true,
                     ),
-            child: _isSavingDraft
+              child: _isSavingDraft
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Save Draft'),
+            ),
+          FilledButton(
+            onPressed: _isSubmitting ? null : _submit,
+            child: _isSubmitting
                 ? const SizedBox(
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Save Draft'),
+                : Text(_isEditing ? 'Save Changes' : 'Create'),
           ),
-        FilledButton(
-          onPressed: _isSubmitting ? null : _submit,
-          child: _isSubmitting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(_isEditing ? 'Save Changes' : 'Create'),
-        ),
-      ],
+        ],
       ),
     );
   }
@@ -1588,8 +1600,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _addAttachments(newFiles);
   }
 
-  void _addAttachments(List<PlatformFile> files,
-      {bool replaceExisting = false}) {
+  void _addAttachments(
+    List<PlatformFile> files, {
+    bool replaceExisting = false,
+  }) {
     final sanitized = files
         .where(
           (file) => isAllowedAttachmentExtension(
@@ -2076,7 +2090,8 @@ class _PaymentEntriesTable extends StatelessWidget {
                         itemToString: (id) => paymentModes
                             .firstWhere(
                               (mode) => mode.id == id,
-                              orElse: () => PaymentMode(id: id, name: 'Unknown mode'),
+                              orElse: () =>
+                                  PaymentMode(id: id, name: 'Unknown mode'),
                             )
                             .name,
                         decoration: const InputDecoration(
@@ -2605,6 +2620,18 @@ class _DraftAttachmentsList extends StatelessWidget {
       ],
     );
   }
+
+  String _formatSize(int size) {
+    const kb = 1024;
+    const mb = kb * 1024;
+    if (size >= mb) {
+      return '${(size / mb).toStringAsFixed(1)} MB';
+    }
+    if (size >= kb) {
+      return '${(size / kb).toStringAsFixed(1)} KB';
+    }
+    return '$size B';
+  }
 }
 
 class _NewAttachmentsList extends StatelessWidget {
@@ -2765,12 +2792,12 @@ class _PaymentEntryDraft {
     DateTime? initialDate,
     String? initialPaymentModeId,
     this.initialPaymentModeLabel,
-  })  : amountController = TextEditingController(
-          text: CurrencyInputFormatter.normalizeExistingValue(initialAmount),
-        ),
-        _onChanged = onChanged,
-        date = initialDate ?? DateTime.now(),
-        paymentModeId = initialPaymentModeId {
+  }) : amountController = TextEditingController(
+         text: CurrencyInputFormatter.normalizeExistingValue(initialAmount),
+       ),
+       _onChanged = onChanged,
+       date = initialDate ?? DateTime.now(),
+       paymentModeId = initialPaymentModeId {
     amountController.addListener(_notifyChange);
   }
 
@@ -2882,8 +2909,12 @@ class _PurchaseOrderItemDraft {
     lineItemId = null;
     descriptionController.clear();
     quantityController.text = '1';
-    subtotalController.text = CurrencyInputFormatter.normalizeExistingValue('0');
-    discountController.text = CurrencyInputFormatter.normalizeExistingValue('0');
+    subtotalController.text = CurrencyInputFormatter.normalizeExistingValue(
+      '0',
+    );
+    discountController.text = CurrencyInputFormatter.normalizeExistingValue(
+      '0',
+    );
     _onChanged();
   }
 
