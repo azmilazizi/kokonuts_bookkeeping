@@ -38,12 +38,12 @@ class OverviewTransaction {
     return OverviewTransaction(
       id: expense.id,
       date: expense.date ?? DateTime.now(),
-      number: expense.name,
-      vendor: expense.vendor,
+      number: expense.name.isEmpty ? '—' : expense.name,
+      vendor: expense.vendor.isEmpty ? '—' : expense.vendor,
       type: 'Expense',
       amount: expense.amount ?? 0.0,
       status: 'Paid',
-      paymentMode: expense.paymentMode,
+      paymentMode: _emptyToNull(expense.paymentMode),
     );
   }
 
@@ -51,24 +51,25 @@ class OverviewTransaction {
     return OverviewTransaction(
       id: bill.id,
       date: bill.billDate ?? DateTime.now(),
-      number: 'Bill #${bill.id}',
-      vendor: bill.vendorName ?? 'Unknown',
+      number: bill.id.isEmpty ? 'Bill' : 'Bill #${bill.id}',
+      vendor: bill.vendorName?.isNotEmpty == true ? bill.vendorName! : 'Unknown',
       type: 'Bill',
       amount: bill.totalAmount ?? 0.0,
-      status: bill.status.label,
+      status: bill.status.label.isEmpty ? '—' : bill.status.label,
     );
   }
 
   factory OverviewTransaction.fromBillPayment(BillPayment payment, String vendorName) {
+    final resolvedReference = payment.referenceNo ?? payment.id;
     return OverviewTransaction(
       id: payment.id,
       date: payment.date ?? DateTime.now(),
-      number: payment.referenceNo ?? payment.id,
-      vendor: vendorName,
+      number: (resolvedReference == null || resolvedReference.isEmpty) ? '—' : resolvedReference,
+      vendor: vendorName.isEmpty ? 'Unknown' : vendorName,
       type: 'Bill Payment',
       amount: payment.amount ?? 0.0,
       status: 'Paid',
-      paymentMode: payment.paymentAccount,
+      paymentMode: _emptyToNull(payment.paymentAccount),
     );
   }
 
@@ -76,8 +77,8 @@ class OverviewTransaction {
     return OverviewTransaction(
       id: po.id,
       date: po.orderDate ?? DateTime.now(),
-      number: po.number,
-      vendor: po.vendorName,
+      number: po.number.isEmpty ? '—' : po.number,
+      vendor: po.vendorName.isEmpty ? 'Unknown' : po.vendorName,
       type: 'Purchase Order',
       amount: po.totalAmount ?? 0.0,
       status: _mapDeliveryStatus(po.deliveryStatus),
@@ -88,12 +89,12 @@ class OverviewTransaction {
     return OverviewTransaction(
       id: payment.id ?? '',
       date: payment.date ?? DateTime.now(),
-      number: payment.reference,
-      vendor: vendorName,
+      number: (payment.reference.isEmpty) ? '—' : payment.reference,
+      vendor: vendorName.isEmpty ? 'Unknown' : vendorName,
       type: 'Purchase Order Payment',
       amount: payment.amountValue ?? 0.0,
       status: 'Paid',
-      paymentMode: payment.method,
+      paymentMode: _emptyToNull(payment.method),
     );
   }
 
@@ -108,5 +109,12 @@ class OverviewTransaction {
       default:
         return 'Status $status';
     }
+  }
+
+  static String? _emptyToNull(String? value) {
+    if (value == null || value.trim().isEmpty || value == '—') {
+      return null;
+    }
+    return value;
   }
 }
