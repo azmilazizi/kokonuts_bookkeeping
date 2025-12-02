@@ -25,6 +25,7 @@ class _OverviewTabState extends State<OverviewTab> {
   late final BillsService _billsService;
   late final PurchaseOrdersService _purchaseOrdersService;
   late final PurchaseOrderDetailService _purchaseOrderDetailService;
+  final ScrollController _tableHorizontalController = ScrollController();
 
   late DateTime _startDate;
   late DateTime _endDate;
@@ -56,6 +57,12 @@ class _OverviewTabState extends State<OverviewTab> {
     _fetchSummary();
     _fetchCharts();
     _fetchTransactions();
+  }
+
+  @override
+  void dispose() {
+    _tableHorizontalController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchTransactions() async {
@@ -329,307 +336,291 @@ class _OverviewTabState extends State<OverviewTab> {
         await _fetchCharts();
         await _fetchTransactions();
       },
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Minimum width for the table content to ensure legibility
-          const double minTableWidth = 900;
-          // Determine if we need horizontal scrolling for the whole view based on table requirement
-          // Note: The top widgets (charts) are responsive, but the table requires minWidth.
-          // By wrapping the CustomScrollView in a horizontal scroll, we allow the table to be wide
-          // while keeping the header sticky relative to the CustomScrollView's viewport.
-
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minWidth: math.max(constraints.maxWidth, minTableWidth),
-                minHeight: constraints.maxHeight,
-              ),
-              child: SizedBox(
-                width: math.max(constraints.maxWidth, minTableWidth),
-                child: CustomScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primaryContainer,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Text(
-                                        'Accounting Method: ',
-                                        style: theme.textTheme.bodyMedium?.copyWith(
-                                          color: theme.colorScheme.onPrimaryContainer,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      DropdownButton<String>(
-                                        value: _accountingMethod,
-                                        dropdownColor: theme.colorScheme.primaryContainer,
-                                        style: theme.textTheme.bodyMedium?.copyWith(
-                                          color: theme.colorScheme.onPrimaryContainer,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                        underline: Container(
-                                          height: 1,
-                                          color: theme.colorScheme.onPrimaryContainer,
-                                        ),
-                                        icon: Icon(
-                                          Icons.arrow_drop_down,
-                                          color: theme.colorScheme.onPrimaryContainer,
-                                        ),
-                                        onChanged: (String? newValue) {
-                                          if (newValue != null) {
-                                            setState(() {
-                                              _accountingMethod = newValue;
-                                            });
-                                            _fetchCharts();
-                                            _fetchSummary();
-                                            _fetchTransactions();
-                                          }
-                                        },
-                                        items: const [
-                                          DropdownMenuItem(
-                                            value: 'payment',
-                                            child: Text('Cash'),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: 'issued',
-                                            child: Text('Accrual'),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-
-                                  InkWell(
-                                    onTap: _selectDateRange,
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 8.0,
-                                        horizontal: 4.0,
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.calendar_today,
-                                            size: 16,
-                                            color: theme.colorScheme.onPrimaryContainer,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            '${dateFormatter.format(_startDate)} - ${dateFormatter.format(_endDate)}',
-                                            style: theme.textTheme.titleMedium?.copyWith(
-                                              color: theme.colorScheme.onPrimaryContainer,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Icon(
-                                            Icons.arrow_drop_down,
-                                            color: theme.colorScheme.onPrimaryContainer,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-
-                                  Text(
-                                    'Total Spent',
-                                    style: theme.textTheme.labelLarge?.copyWith(
-                                      color: theme.colorScheme.onPrimaryContainer.withOpacity(0.8),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  if (_isLoading)
-                                    Padding(
-                                      padding: const EdgeInsets.all(8.0),
-                                      child: SizedBox(
-                                        height: 24,
-                                        width: 24,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: theme.colorScheme.onPrimaryContainer,
-                                        ),
-                                      ),
-                                    )
-                                  else if (_summary != null)
-                                    Text(
-                                      _summary!.totalSpent,
-                                      style: theme.textTheme.headlineLarge?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: theme.colorScheme.onPrimaryContainer,
-                                      ),
-                                    )
-                                  else
-                                    Text(
-                                      '--',
-                                      style: theme.textTheme.headlineLarge?.copyWith(
-                                        color: theme.colorScheme.onPrimaryContainer,
-                                      ),
-                                    ),
-                                ],
+                            Text(
+                              'Accounting Method: ',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onPrimaryContainer,
                               ),
                             ),
-
-                            const SizedBox(height: 24),
-
-                            Text(
-                              'Transaction Summary',
-                              style: theme.textTheme.titleLarge?.copyWith(
+                            const SizedBox(width: 8),
+                            DropdownButton<String>(
+                              value: _accountingMethod,
+                              dropdownColor: theme.colorScheme.primaryContainer,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onPrimaryContainer,
                                 fontWeight: FontWeight.bold,
                               ),
+                              underline: Container(
+                                height: 1,
+                                color: theme.colorScheme.onPrimaryContainer,
+                              ),
+                              icon: Icon(
+                                Icons.arrow_drop_down,
+                                color: theme.colorScheme.onPrimaryContainer,
+                              ),
+                              onChanged: (String? newValue) {
+                                if (newValue != null) {
+                                  setState(() {
+                                    _accountingMethod = newValue;
+                                  });
+                                  _fetchCharts();
+                                  _fetchSummary();
+                                  _fetchTransactions();
+                                }
+                              },
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'payment',
+                                  child: Text('Cash'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'issued',
+                                  child: Text('Accrual'),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 16),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
 
-                            if (_errorMessage != null)
-                              Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(32.0),
-                                  child: Text(
-                                    _errorMessage!,
-                                    style: TextStyle(color: theme.colorScheme.error),
-                                    textAlign: TextAlign.center,
+                        InkWell(
+                          onTap: _selectDateRange,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 8.0,
+                              horizontal: 4.0,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.calendar_today,
+                                  size: 16,
+                                  color: theme.colorScheme.onPrimaryContainer,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${dateFormatter.format(_startDate)} - ${dateFormatter.format(_endDate)}',
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    color: theme.colorScheme.onPrimaryContainer,
                                   ),
                                 ),
-                              )
-                            else if (_summary != null)
-                              _TransactionSummarySection(summary: _summary!)
-                            else if (!_isLoading)
-                              const Center(child: Text('No data available')),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.arrow_drop_down,
+                                  color: theme.colorScheme.onPrimaryContainer,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
 
-                            const SizedBox(height: 32),
-
-                            Text(
-                              'Transactions by Type',
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
+                        Text(
+                          'Total Spent',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: theme.colorScheme.onPrimaryContainer.withOpacity(0.8),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        if (_isLoading)
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: theme.colorScheme.onPrimaryContainer,
                               ),
                             ),
-                            const SizedBox(height: 16),
-                            if (_isChartLoading)
-                              const Center(child: CircularProgressIndicator())
-                            else if (_expensesPercentage != null)
-                              _ExpensesByTypeSection(data: _expensesPercentage!, accountingMethod: _accountingMethod)
-                            else
-                              const Center(child: Text('No chart data available')),
-
-                            const SizedBox(height: 32),
-
-                            Text(
-                              'Transaction Details',
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                          )
+                        else if (_summary != null)
+                          Text(
+                            _summary!.totalSpent,
+                            style: theme.textTheme.headlineLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.onPrimaryContainer,
                             ),
-                            const SizedBox(height: 16),
+                          )
+                        else
+                          Text(
+                            '--',
+                            style: theme.textTheme.headlineLarge?.copyWith(
+                              color: theme.colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  Text(
+                    'Transaction Summary',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  if (_errorMessage != null)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32.0),
+                        child: Text(
+                          _errorMessage!,
+                          style: TextStyle(color: theme.colorScheme.error),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    )
+                  else if (_summary != null)
+                    _TransactionSummarySection(summary: _summary!)
+                  else if (!_isLoading)
+                    const Center(child: Text('No data available')),
+
+                  const SizedBox(height: 32),
+
+                  Text(
+                    'Transactions by Type',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (_isChartLoading)
+                    const Center(child: CircularProgressIndicator())
+                  else if (_expensesPercentage != null)
+                    _ExpensesByTypeSection(data: _expensesPercentage!, accountingMethod: _accountingMethod)
+                  else
+                    const Center(child: Text('No chart data available')),
+
+                  const SizedBox(height: 32),
+
+                  Text(
+                    'Transaction Details',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ),
+
+          if (_isTransactionsLoading)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_transactionsError != null)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  'Failed to load transactions: $_transactionsError',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+              ),
+            )
+          else if (_transactions.isNotEmpty)
+            SliverToBoxAdapter(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  const double minTableWidth = 900;
+                  final tableWidth = math.max(constraints.maxWidth, minTableWidth);
+
+                  return Scrollbar(
+                    controller: _tableHorizontalController,
+                    thumbVisibility: true,
+                    child: SingleChildScrollView(
+                      controller: _tableHorizontalController,
+                      scrollDirection: Axis.horizontal,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(minWidth: tableWidth),
+                        child: Column(
+                          children: [
+                            _TableHeaderRow(theme: theme),
+                            ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: _transactions.length,
+                              itemBuilder: (context, index) {
+                                return _TransactionRow(
+                                  transaction: _transactions[index],
+                                  theme: theme,
+                                );
+                              },
+                            ),
                           ],
                         ),
                       ),
                     ),
-
-                    if (_isTransactionsLoading)
-                       const SliverFillRemaining(
-                         hasScrollBody: false,
-                         child: Center(child: CircularProgressIndicator()),
-                       )
-                    else if (_transactionsError != null)
-                       SliverToBoxAdapter(
-                         child: Padding(
-                           padding: const EdgeInsets.all(16.0),
-                           child: Text(
-                            'Failed to load transactions: $_transactionsError',
-                            style: TextStyle(color: theme.colorScheme.error),
-                           ),
-                         ),
-                       )
-                    else if (_transactions.isNotEmpty) ...[
-                      SliverPersistentHeader(
-                        delegate: _TableHeaderDelegate(theme: theme),
-                        pinned: true,
-                      ),
-                      SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            return _TransactionRow(
-                              transaction: _transactions[index],
-                              theme: theme,
-                            );
-                          },
-                          childCount: _transactions.length,
-                        ),
-                      ),
-                    ] else
-                       const SliverToBoxAdapter(
-                         child: Padding(
-                           padding: EdgeInsets.all(16.0),
-                           child: Text('No transactions found in this period.'),
-                         ),
-                       ),
-
-                     const SliverToBoxAdapter(child: SizedBox(height: 32)),
-                  ],
-                ),
+                  );
+                },
+              ),
+            )
+          else
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text('No transactions found in this period.'),
               ),
             ),
-          );
-        },
+
+          const SliverToBoxAdapter(child: SizedBox(height: 32)),
+        ],
       ),
     );
   }
 }
 
-class _TableHeaderDelegate extends SliverPersistentHeaderDelegate {
+class _TableHeaderRow extends StatelessWidget {
+  const _TableHeaderRow({required this.theme});
+
   final ThemeData theme;
 
-  _TableHeaderDelegate({required this.theme});
-
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(BuildContext context) {
     return Container(
       height: 56,
-      color: theme.scaffoldBackgroundColor, // Match background to cover scrolling items
-      child: Container(
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: const [
-            Expanded(flex: 2, child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
-            Expanded(flex: 2, child: Text('Number', style: TextStyle(fontWeight: FontWeight.bold))),
-            Expanded(flex: 3, child: Text('Vendor', style: TextStyle(fontWeight: FontWeight.bold))),
-            Expanded(flex: 2, child: Text('Type', style: TextStyle(fontWeight: FontWeight.bold))),
-            Expanded(flex: 2, child: Text('Mode / Status', style: TextStyle(fontWeight: FontWeight.bold))),
-            Expanded(flex: 2, child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold))),
-          ],
-        ),
+      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: const [
+          Expanded(flex: 2, child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(flex: 2, child: Text('Number', style: TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(flex: 3, child: Text('Vendor', style: TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(flex: 2, child: Text('Type', style: TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(flex: 2, child: Text('Mode / Status', style: TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(flex: 2, child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold))),
+        ],
       ),
     );
-  }
-
-  @override
-  double get maxExtent => 56;
-
-  @override
-  double get minExtent => 56;
-
-  @override
-  bool shouldRebuild(covariant _TableHeaderDelegate oldDelegate) {
-    return oldDelegate.theme != theme;
   }
 }
 
