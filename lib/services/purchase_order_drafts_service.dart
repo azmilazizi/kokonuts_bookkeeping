@@ -334,10 +334,7 @@ class PurchaseOrderDraftsService {
 
   final http.Client _client;
 
-  // The drafts attachments endpoint expects an array field; using `attachments[]`
-  // ensures the backend receives the uploaded files in the expected structure
-  // instead of a single stdClass object.
-  static const _attachmentFieldName = 'attachments[]';
+  static const _attachmentFieldName = 'file';
 
   static const _baseUrl =
       'https://crm.kokonuts.my/purchase/api/v1/purchase_order_drafts';
