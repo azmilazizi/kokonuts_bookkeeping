@@ -42,11 +42,11 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   String _filterQuery = '';
 
   static const _perPage = 20;
-  // A wider minimum width keeps the eight data columns readable on compact
+  // A wider minimum width keeps the nine data columns readable on compact
   // layouts and prevents them from collapsing into each other on small
   // screens. The wider width ensures horizontal scrolling kicks in before the
   // table gets cramped.
-  static const double _minTableWidth = 1200;
+  static const double _minTableWidth = 1400;
 
   bool _isLoading = false;
   bool _hasMore = true;
@@ -541,6 +541,14 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
     if (date.contains(query)) {
       return true;
     }
+    final totalLabel = _formatOrderCurrency(
+      order,
+      value: order.totalAmount,
+      fallback: order.totalLabel,
+    ).toLowerCase();
+    if (totalLabel.contains(query)) {
+      return true;
+    }
     return false;
   }
 
@@ -712,7 +720,7 @@ class _PurchaseOrdersHeader extends StatelessWidget {
   final bool sortAscending;
   final ValueChanged<PurchaseOrderSortColumn> onSort;
 
-  static const _columnFlex = [3, 4, 3, 3, 3, 3, 2];
+  static const _columnFlex = [3, 4, 3, 3, 3, 3, 2, 3, 2];
 
   @override
   Widget build(BuildContext context) {
@@ -769,13 +777,25 @@ class _PurchaseOrdersHeader extends StatelessWidget {
             onTap: () => onSort(PurchaseOrderSortColumn.deliveryDate),
           ),
           SortableHeaderCell(
-            label: 'Delivery Status',
+            label: 'Payment Progress',
             flex: _columnFlex[5],
             theme: theme,
             textAlign: TextAlign.center,
           ),
-          Expanded(
+          SortableHeaderCell(
+            label: 'Delivery Status',
             flex: _columnFlex[6],
+            theme: theme,
+            textAlign: TextAlign.center,
+          ),
+          SortableHeaderCell(
+            label: 'Total',
+            flex: _columnFlex[7],
+            theme: theme,
+            textAlign: TextAlign.end,
+          ),
+          Expanded(
+            flex: _columnFlex[8],
             child: Text(
               'Actions',
               textAlign: TextAlign.center,
@@ -870,7 +890,7 @@ class _PurchaseOrderRow extends StatefulWidget {
 class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
   bool _hovering = false;
 
-  static const _columnFlex = [3, 4, 3, 3, 3, 3, 2];
+  static const _columnFlex = [3, 4, 3, 3, 3, 3, 2, 3, 2];
 
   void _showDetails(BuildContext context) {
     showDialog(
@@ -930,12 +950,28 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
                 flex: _columnFlex[4],
                 textAlign: TextAlign.center,
               ),
-              _DeliveryStatusCell(
-                status: widget.order.deliveryStatus,
+              _PaymentProgressCell(
+                order: widget.order,
                 flex: _columnFlex[5],
               ),
-              Expanded(
+              _DeliveryStatusCell(
+                status: widget.order.deliveryStatus,
                 flex: _columnFlex[6],
+              ),
+              _DataCell(
+                _formatOrderCurrency(
+                  widget.order,
+                  value: widget.order.totalAmount,
+                  fallback: widget.order.totalLabel,
+                ),
+                flex: _columnFlex[7],
+                textAlign: TextAlign.end,
+                style: widget.theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Expanded(
+                flex: _columnFlex[8],
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -969,6 +1005,56 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PaymentProgressCell extends StatelessWidget {
+  const _PaymentProgressCell({required this.order, required this.flex});
+
+  final PurchaseOrder order;
+  final int flex;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final total = order.totalAmount;
+    final paid = order.totalPaid ?? 0;
+
+    if (total == null || total <= 0) {
+      return Expanded(
+        flex: flex,
+        child: Center(
+          child: Text('—', style: theme.textTheme.bodyMedium),
+        ),
+      );
+    }
+
+    final progress = (paid / total).clamp(0.0, 1.0);
+    final percentageLabel = (progress * 100).round().clamp(0, 100).toString();
+    final paidLabel = _formatOrderCurrency(order, value: paid, fallback: '0.00');
+    final totalLabel =
+        _formatOrderCurrency(order, value: total, fallback: order.totalLabel);
+
+    return Expanded(
+      flex: flex,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LinearProgressIndicator(
+            value: progress,
+            minHeight: 6,
+            backgroundColor: theme.colorScheme.surfaceVariant,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '$percentageLabel% • $paidLabel / $totalLabel',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.hintColor,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1019,4 +1105,21 @@ class _DataCell extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatOrderCurrency(
+  PurchaseOrder order, {
+  double? value,
+  String? fallback,
+}) {
+  final symbol = order.currencySymbol.trim();
+  final resolvedLabel = value != null
+      ? value.toStringAsFixed(2)
+      : fallback?.trim();
+
+  if (resolvedLabel == null || resolvedLabel.isEmpty) {
+    return '—';
+  }
+
+  return symbol.isNotEmpty ? '$symbol$resolvedLabel' : resolvedLabel;
 }

@@ -40,6 +40,8 @@ class AuthExpirationHandler {
             TextButton(
               onPressed: () async {
                 Navigator.of(dialogContext, rootNavigator: true).pop();
+                navigator.popUntil((route) => route.isFirst);
+
                 final appState = AppStateScope.of(context);
                 await appState.logout();
               },

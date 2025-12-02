@@ -164,23 +164,41 @@ class _PurchaseOrderDetailsDialogState
 
             final detail = snapshot.data!;
 
-            return Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _DialogHeader(
-                    orderNumber: detail.number,
-                    onClose: () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(height: 24),
-                  Expanded(
-                    child: _DetailsTab(
-                      detail: detail,
-                      itemsController: _itemsScrollController,
+            return DefaultTabController(
+              length: 3,
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _DialogHeader(
+                      orderNumber: detail.number,
+                      onClose: () => Navigator.of(context).pop(),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    TabBar(
+                      labelColor: Theme.of(context).colorScheme.primary,
+                      tabs: const [
+                        Tab(text: 'Details'),
+                        Tab(text: 'Payments'),
+                        Tab(text: 'Attachments'),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          _DetailsTab(
+                            detail: detail,
+                            itemsController: _itemsScrollController,
+                          ),
+                          _PaymentsTab(payments: detail.payments),
+                          _AttachmentsTab(attachments: detail.attachments),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -802,6 +820,225 @@ class _DetailsTab extends StatelessWidget {
             _RichTextSection(title: 'Terms & Conditions', value: detail.terms!),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _PaymentsTab extends StatelessWidget {
+  const _PaymentsTab({required this.payments});
+
+  final List<PurchaseOrderPayment> payments;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (payments.isEmpty) {
+      return const _EmptyTabMessage(
+        message: 'No payments recorded for this purchase order.',
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.only(bottom: 16),
+      itemCount: payments.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final payment = payments[index];
+        final metaChips = _buildMetaChips(payment);
+
+        return Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        payment.reference,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      payment.amountLabel,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: metaChips,
+                ),
+                if (payment.hasNote) ...[
+                  const SizedBox(height: 12),
+                  Text(payment.note!.trim(), style: theme.textTheme.bodyMedium),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<Widget> _buildMetaChips(PurchaseOrderPayment payment) {
+    final chips = <Widget>[
+      _MetaChip(label: 'Date: ${payment.dateLabel}'),
+    ];
+
+    final method = payment.methodLabel;
+    if (method != '—') {
+      chips.add(_MetaChip(label: 'Method: $method'));
+    }
+
+    final status = payment.statusLabel;
+    if (status != '—') {
+      chips.add(_MetaChip(label: 'Status: $status'));
+    }
+
+    final recordedBy = payment.recordedBy?.trim();
+    if (recordedBy != null && recordedBy.isNotEmpty) {
+      chips.add(_MetaChip(label: 'Recorded by $recordedBy'));
+    }
+
+    return chips;
+  }
+}
+
+class _AttachmentsTab extends StatelessWidget {
+  const _AttachmentsTab({required this.attachments});
+
+  final List<PurchaseOrderAttachment> attachments;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (attachments.isEmpty) {
+      return const _EmptyTabMessage(
+        message: 'No attachments uploaded for this purchase order.',
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.only(bottom: 16),
+      itemCount: attachments.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final attachment = attachments[index];
+        final metadata = <String>[];
+
+        final sizeLabel = attachment.sizeLabel?.trim();
+        if (sizeLabel != null && sizeLabel.isNotEmpty) {
+          metadata.add(sizeLabel);
+        }
+
+        final uploadedBy = attachment.uploadedBy?.trim();
+        if (uploadedBy != null && uploadedBy.isNotEmpty) {
+          metadata.add('Uploaded by $uploadedBy');
+        }
+
+        final uploadedAt = attachment.uploadedAtLabel.trim();
+        if (uploadedAt.isNotEmpty && uploadedAt != '—') {
+          metadata.add('Uploaded $uploadedAt');
+        }
+
+        return Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        attachment.fileName,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    if (metadata.isNotEmpty) ...[
+                      const SizedBox(width: 12),
+                      Text(
+                        metadata.join(' • '),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.hintColor,
+                        ),
+                        textAlign: TextAlign.right,
+                      ),
+                    ],
+                  ],
+                ),
+                if (attachment.hasDescription) ...[
+                  const SizedBox(height: 8),
+                  Text(attachment.description!.trim()),
+                ],
+                if (attachment.hasDownloadUrl) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    attachment.downloadUrl!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Chip(
+      label: Text(
+        label,
+        style: theme.textTheme.bodySmall,
+      ),
+      visualDensity: VisualDensity.compact,
+      side: BorderSide(color: theme.dividerColor.withOpacity(0.6)),
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      padding: EdgeInsets.zero,
+    );
+  }
+}
+
+class _EmptyTabMessage extends StatelessWidget {
+  const _EmptyTabMessage({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Text(
+        message,
+        style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor),
+        textAlign: TextAlign.center,
       ),
     );
   }
