@@ -701,8 +701,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   String _buildOrderNumber() {
     if (_nextPurchaseOrderNumber == null || _orderDate == null) return '';
     final datePart = _formatDate(_orderDate!);
-    // Format: #PO-{next_po_number}-{DDMMYYYY}
-    return '#PO-$_nextPurchaseOrderNumber-$datePart';
+    final vendorCode = (_selectedVendorCode ?? '').trim();
+    // Format: #PO-{next_po_number}-{DDMMYYYY}-{VENDOR_CODE}
+    final vendorSuffix = vendorCode.isNotEmpty ? '-$vendorCode' : '';
+    return '#PO-$_nextPurchaseOrderNumber-$datePart$vendorSuffix';
   }
 
   String _buildBaseOrderNumber() {
