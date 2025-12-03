@@ -13,6 +13,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  static const _domainSuffix = '@kokonuts.my';
+
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -45,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       await appState.login(
-        username: _usernameController.text.trim(),
+        username: _resolveUsername(),
         password: _passwordController.text,
       );
     } on AuthException catch (error) {
@@ -132,6 +134,17 @@ class _LoginScreenState extends State<LoginScreen> {
     return general.toList();
   }
 
+  String _resolveUsername() {
+    final trimmed = _usernameController.text.trim();
+    if (trimmed.isEmpty) {
+      return trimmed;
+    }
+    if (trimmed.toLowerCase().endsWith(_domainSuffix)) {
+      return trimmed;
+    }
+    return '$trimmed$_domainSuffix';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -176,6 +189,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Username',
                       border: OutlineInputBorder(),
+                      suffixText: _domainSuffix,
                     ),
                     textInputAction: TextInputAction.next,
                     onChanged: (_) {
