@@ -1,6 +1,6 @@
 # Kokonuts Bookkeeping
 
-Kokonuts Bookkeeping is a Flutter application. This README highlights how to build and ship it as an installable progressive web app (PWA).
+Kokonuts Bookkeeping is a Flutter application. This is the latest commit. This README highlights how to build and ship it as an installable progressive web app (PWA).
 
 ## Getting Started
 

@@ -1403,11 +1403,7 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
 
   void _addEntry() {
     setState(() {
-      _entries.add(
-        _PaymentFormEntry(
-          paymentModeId: _defaultPaymentModeId,
-        ),
-      );
+      _entries.add(_PaymentFormEntry(paymentModeId: _defaultPaymentModeId));
     });
   }
 
