@@ -13,6 +13,7 @@ import '../services/purchase_orders_service.dart';
 import '../services/purchase_order_detail_service.dart';
 import '../services/purchase_order_drafts_service.dart';
 import '../services/vendors_service.dart';
+import 'create_inventory_item_dialog.dart';
 import 'create_vendor_dialog.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
@@ -47,7 +48,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   final _draftsService = PurchaseOrderDraftsService();
   final _inventoryItemsService = InventoryItemsService();
   final _paymentModesService = PaymentModesService();
-  final TextEditingController _itemSearchController = TextEditingController();
   final TextEditingController _orderDiscountController = TextEditingController(
     text: CurrencyInputFormatter.normalizeExistingValue('0'),
   );
@@ -142,7 +142,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _orderDiscountController.dispose();
     _shippingFeeController.dispose();
     _pendingItem.dispose();
-    _itemSearchController.dispose();
     for (final payment in _payments) {
       payment.dispose();
     }
@@ -486,7 +485,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   void _resetPendingItem() {
     setState(() {
       _selectedInventoryItem = null;
-      _itemSearchController.clear();
       _pendingItem.clear();
       _pendingItemError = null;
     });
@@ -1772,6 +1770,36 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     return created.name;
   }
 
+  Future<InventoryItem?> _handleCreateItem() async {
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+    if (token == null || token.trim().isEmpty) {
+      setState(() => _referenceDataError = 'You are not logged in.');
+      return null;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+    final created = await showCreateInventoryItemDialog(
+      context: context,
+      headers: headers,
+    );
+
+    if (created == null) return null;
+
+    setState(() {
+      _inventoryItems = [..._inventoryItems, created]
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      _selectedInventoryItem = created;
+      _pendingItem.setItem(
+        itemName: _formatInventoryItemName(created),
+        itemId: created.id,
+      );
+      _pendingItemError = null;
+    });
+    _markDirty();
+    return created;
+  }
+
   VendorSummary? _findVendorByName(String? name) {
     if (name == null) {
       return null;
@@ -1825,42 +1853,33 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       );
     }
 
-    if (_inventoryItems.isEmpty) {
-      return _ReferenceStatusField(
-        label: 'Items',
-        child: Row(
-          children: const [
-            Icon(Icons.info_outline),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text('No inventory items found. Refresh to try again.'),
-            ),
-          ],
-        ),
-        onRetry: _isLoadingReferenceData ? null : _loadReferenceData,
-      );
-    }
-
-    final entries = _inventoryItems
-        .map(
-          (item) => DropdownMenuEntry<InventoryItem>(
-            value: item,
-            label: _formatInventoryItemName(item),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SearchableDropdownFormField<InventoryItem>(
+          initialValue: _selectedInventoryItem,
+          items: _inventoryItems,
+          itemToString: _formatInventoryItemName,
+          decoration: const InputDecoration(
+            labelText: 'Items',
+            border: OutlineInputBorder(),
           ),
-        )
-        .toList(growable: false);
-
-    return DropdownMenu<InventoryItem>(
-      controller: _itemSearchController,
-      requestFocusOnTap: true,
-      enableFilter: true,
-      leadingIcon: const Icon(Icons.search),
-      label: const Text('Select item'),
-      dropdownMenuEntries: entries,
-      inputDecorationTheme: const InputDecorationTheme(
-        border: OutlineInputBorder(),
-      ),
-      onSelected: _updateSelectedItem,
+          hintText: 'Select an item',
+          dialogTitle: 'Select item',
+          createLabel: 'Create new item',
+          onCreateNew: (_) => _handleCreateItem(),
+          onChanged: _isSubmitting ? null : _updateSelectedItem,
+          emptyLabel: 'No inventory items found. Tap create to add one.',
+        ),
+        if (_inventoryItems.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'No inventory items found. Create a new entry to continue.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+      ],
     );
   }
 
