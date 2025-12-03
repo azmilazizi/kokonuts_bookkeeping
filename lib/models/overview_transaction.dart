@@ -9,6 +9,7 @@ class OverviewTransaction {
   final String id;
   final DateTime date;
   final String number;
+  final String? name;
   final String vendor;
   final String type;
   final double amount;
@@ -19,6 +20,7 @@ class OverviewTransaction {
     required this.id,
     required this.date,
     required this.number,
+    this.name,
     required this.vendor,
     required this.type,
     required this.amount,
@@ -34,11 +36,19 @@ class OverviewTransaction {
     return NumberFormat.simpleCurrency(name: '').format(amount);
   }
 
+  String get displayName {
+    if (name != null && name!.trim().isNotEmpty) {
+      return name!;
+    }
+    return number;
+  }
+
   factory OverviewTransaction.fromExpense(Expense expense) {
     return OverviewTransaction(
       id: expense.id,
       date: expense.date ?? DateTime.now(),
       number: expense.name.isEmpty ? '—' : expense.name,
+      name: expense.name.isEmpty ? null : expense.name,
       vendor: expense.vendor.isEmpty ? '—' : expense.vendor,
       type: 'Expense',
       amount: expense.amount ?? 0.0,
@@ -52,6 +62,9 @@ class OverviewTransaction {
       id: bill.id,
       date: bill.billDate ?? DateTime.now(),
       number: bill.id.isEmpty ? 'Bill' : 'Bill #${bill.id}',
+      name: bill.payments.isNotEmpty
+          ? bill.payments.first.payBillItemName
+          : null,
       vendor: bill.vendorName?.isNotEmpty == true ? bill.vendorName! : 'Unknown',
       type: 'Bill',
       amount: bill.totalAmount ?? 0.0,
@@ -65,11 +78,12 @@ class OverviewTransaction {
       id: payment.id,
       date: payment.date ?? DateTime.now(),
       number: (resolvedReference == null || resolvedReference.isEmpty) ? '—' : resolvedReference,
+      name: payment.payBillItemName,
       vendor: vendorName.isEmpty ? 'Unknown' : vendorName,
-      type: 'Bill Payment',
+      type: 'Bill',
       amount: payment.amount ?? 0.0,
       status: 'Paid',
-      paymentMode: _emptyToNull(payment.paymentAccount),
+      paymentMode: 'Bank Transfer',
     );
   }
 
@@ -78,6 +92,7 @@ class OverviewTransaction {
       id: po.id,
       date: po.orderDate ?? DateTime.now(),
       number: po.number.isEmpty ? '—' : po.number,
+      name: po.name.isEmpty ? null : po.name,
       vendor: po.vendorName.isEmpty ? 'Unknown' : po.vendorName,
       type: 'Purchase Order',
       amount: po.totalAmount ?? 0.0,
@@ -85,16 +100,22 @@ class OverviewTransaction {
     );
   }
 
-  factory OverviewTransaction.fromPurchaseOrderPayment(PurchaseOrderPayment payment, String poNumber, String vendorName) {
+  factory OverviewTransaction.fromPurchaseOrderPayment(
+    PurchaseOrderPayment payment,
+    String poNumber,
+    String vendorName, {
+    String? purchaseOrderName,
+  }) {
     return OverviewTransaction(
       id: payment.id ?? '',
       date: payment.date ?? DateTime.now(),
       number: (payment.reference.isEmpty) ? '—' : payment.reference,
+      name: purchaseOrderName,
       vendor: vendorName.isEmpty ? 'Unknown' : vendorName,
-      type: 'Purchase Order Payment',
+      type: 'Purchase Order',
       amount: payment.amountValue ?? 0.0,
       status: 'Paid',
-      paymentMode: _emptyToNull(payment.method),
+      paymentMode: _emptyToNull(payment.paymentModeName ?? payment.method),
     );
   }
 

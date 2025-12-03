@@ -183,6 +183,7 @@ class _OverviewTabState extends State<OverviewTab> {
                     payment,
                     po.number,
                     po.vendorName,
+                    purchaseOrderName: details.name,
                   ));
                 }
               }
@@ -636,7 +637,6 @@ class _TransactionTable extends StatelessWidget {
         3: FlexColumnWidth(1.2),
         4: FlexColumnWidth(1.2),
         5: FlexColumnWidth(1.2),
-        6: FlexColumnWidth(1.2),
       },
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       border: TableBorder(
@@ -649,10 +649,9 @@ class _TransactionTable extends StatelessWidget {
             _tableHeaderCell('Vendor', headerStyle),
             _tableHeaderCell('Type', headerStyle),
             _tableHeaderCell('Date', headerStyle),
-            _tableHeaderCell('Number', headerStyle),
+            _tableHeaderCell('Name', headerStyle),
             _tableHeaderCell('Amount', headerStyle, align: TextAlign.right),
             _tableHeaderCell(detailLabel, headerStyle),
-            _tableHeaderCell('Accounting Method', headerStyle),
           ],
         ),
         ...transactions.map((transaction) {
@@ -665,7 +664,7 @@ class _TransactionTable extends StatelessWidget {
               _tableDataCell(transaction.vendor, theme),
               _tableDataCell(transaction.type, theme),
               _tableDataCell(transaction.formattedDate, theme),
-              _tableDataCell(transaction.number, theme),
+              _tableDataCell(transaction.displayName, theme),
               _tableDataCell(transaction.formattedAmount, theme, align: TextAlign.right),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
@@ -680,10 +679,6 @@ class _TransactionTable extends StatelessWidget {
                     style: subtitleStyle,
                   ),
                 ),
-              ),
-              _tableDataCell(
-                accountingMethod == 'payment' ? 'Cash Method' : 'Accrual Method',
-                theme,
               ),
             ],
           );
