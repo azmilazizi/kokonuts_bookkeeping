@@ -959,7 +959,7 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
                 flex: _columnFlex[6],
               ),
               _DataCell(
-                _formatOrderCurrency(
+                _formatOrderAmountPlain(
                   widget.order,
                   value: widget.order.totalAmount,
                   fallback: widget.order.totalLabel,
@@ -968,6 +968,7 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
                 textAlign: TextAlign.end,
                 style: widget.theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
+                  color: Colors.red,
                 ),
               ),
               Expanded(
@@ -1033,28 +1034,17 @@ class _PaymentProgressCell extends StatelessWidget {
 
     final progress = (paid / total).clamp(0.0, 1.0);
     final percentageLabel = (progress * 100).round().clamp(0, 100).toString();
-    final paidLabel = _formatOrderCurrency(order, value: paid, fallback: '0.00');
-    final totalLabel =
-        _formatOrderCurrency(order, value: total, fallback: order.totalLabel);
+    final paidLabel = paid.toStringAsFixed(2);
+    final totalLabel = total.toStringAsFixed(2);
 
     return Expanded(
       flex: flex,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          LinearProgressIndicator(
-            value: progress,
-            minHeight: 6,
-            backgroundColor: theme.colorScheme.surfaceVariant,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '$percentageLabel% • $paidLabel / $totalLabel',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.hintColor,
-            ),
-          ),
-        ],
+      child: Center(
+        child: Text(
+          '$percentageLabel% • $paidLabel / $totalLabel',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium,
+        ),
       ),
     );
   }
@@ -1122,4 +1112,20 @@ String _formatOrderCurrency(
   }
 
   return symbol.isNotEmpty ? '$symbol$resolvedLabel' : resolvedLabel;
+}
+
+String _formatOrderAmountPlain(
+  PurchaseOrder order, {
+  double? value,
+  String? fallback,
+}) {
+  final resolvedLabel = value != null
+      ? value.toStringAsFixed(2)
+      : fallback?.replaceAll(order.currencySymbol, '').trim();
+
+  if (resolvedLabel == null || resolvedLabel.isEmpty) {
+    return '—';
+  }
+
+  return resolvedLabel;
 }

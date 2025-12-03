@@ -502,6 +502,7 @@ class PurchaseOrderPayment {
     this.amountValue,
     this.date,
     this.method,
+    this.paymentModeName,
     this.status,
     this.note,
     this.recordedBy,
@@ -553,6 +554,8 @@ class PurchaseOrderPayment {
         _string(json['mode']) ??
         _string(json['payment_type']);
 
+    final paymentModeName = _string(json['payment_mode_name']);
+
     final status = _parseNestedName(json['status']) ??
         _string(json['status_label']) ??
         _string(json['status_text']);
@@ -573,6 +576,7 @@ class PurchaseOrderPayment {
       amountValue: _parseDouble(amountValue),
       date: date,
       method: method,
+      paymentModeName: paymentModeName,
       status: status,
       note: note,
       recordedBy: recordedBy,
@@ -585,6 +589,7 @@ class PurchaseOrderPayment {
   final double? amountValue;
   final DateTime? date;
   final String? method;
+  final String? paymentModeName;
   final String? status;
   final String? note;
   final String? recordedBy;

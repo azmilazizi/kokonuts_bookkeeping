@@ -1221,6 +1221,7 @@ class BillAttachment {
 class BillPayment {
   const BillPayment({
     required this.id,
+    this.payBillItemName,
     this.payBillId,
     this.payBillItemPaidId,
     this.date,
@@ -1247,6 +1248,10 @@ class BillPayment {
         .whereType<Map<String, dynamic>>()
         .toList();
 
+    final payBillItemName = payBillItemPaid.isNotEmpty
+        ? _stringValue(payBillItemPaid.first['item_name'])
+        : null;
+
     String? attachmentFileName;
     if (rawAttachment is String && rawAttachment.trim().isNotEmpty) {
       attachmentFileName = rawAttachment.trim();
@@ -1264,6 +1269,7 @@ class BillPayment {
           _stringValue(json['payment_no']) ??
           _stringValue(json['paymentId']) ??
           '',
+      payBillItemName: payBillItemName,
       payBillId:
           _stringValue(json['pay_bill_id']) ?? _stringValue(json['payBillId']),
       payBillItemPaidId: payBillItemPaid.isNotEmpty
@@ -1296,6 +1302,7 @@ class BillPayment {
   }
 
   final String id;
+  final String? payBillItemName;
   final String? payBillId;
   final String? payBillItemPaidId;
   final DateTime? date;
@@ -1311,6 +1318,7 @@ class BillPayment {
 
   BillPayment copyWith({
     String? id,
+    String? payBillItemName,
     String? payBillId,
     String? payBillItemPaidId,
     DateTime? date,
@@ -1326,6 +1334,7 @@ class BillPayment {
   }) {
     return BillPayment(
       id: id ?? this.id,
+      payBillItemName: payBillItemName ?? this.payBillItemName,
       payBillId: payBillId ?? this.payBillId,
       payBillItemPaidId: payBillItemPaidId ?? this.payBillItemPaidId,
       date: date ?? this.date,
