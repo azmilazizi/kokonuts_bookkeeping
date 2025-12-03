@@ -42,6 +42,13 @@ class VendorsService {
     return sorted;
   }
 
+  void collectVendorsForParsing(
+    dynamic source,
+    Map<String, VendorSummary> results,
+  ) {
+    _collectVendors(source, results);
+  }
+
   void _collectVendors(dynamic source, Map<String, VendorSummary> results) {
     if (source is Map<String, dynamic>) {
       final name = _extractVendorName(source);

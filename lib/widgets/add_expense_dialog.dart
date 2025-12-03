@@ -9,6 +9,7 @@ import '../app/app_state_scope.dart';
 import '../services/expenses_service.dart';
 import '../services/payment_modes_service.dart';
 import '../services/vendors_service.dart';
+import 'create_vendor_dialog.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
 import 'form_error_banner.dart';
@@ -274,6 +275,8 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
       hintText: _isLoadingData ? 'Loading vendors...' : 'Select a vendor',
       enabled: !_isLoadingData,
       dialogTitle: 'Select vendor',
+      createLabel: 'Create new vendor',
+      onCreateNew: (_) => _handleCreateVendor(),
       onChanged: (value) => setState(() => _selectedVendorId = value),
       validator: (value) {
         if (value == null || value.isEmpty) {
@@ -282,6 +285,28 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
         return null;
       },
     );
+  }
+
+  Future<String?> _handleCreateVendor() async {
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+    if (token == null || token.trim().isEmpty) {
+      setState(() => _submitError = 'You are not logged in.');
+      return null;
+    }
+    final headers = _buildAuthHeaders(appState, token);
+    final created = await showCreateVendorDialog(
+      context: context,
+      headers: headers,
+    );
+    if (created == null) return null;
+
+    setState(() {
+      _vendors = [..._vendors, created]
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      _selectedVendorId = created.id;
+    });
+    return created.id;
   }
 
   Widget _buildExpenseNameField() {
