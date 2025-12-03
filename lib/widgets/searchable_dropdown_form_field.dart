@@ -12,6 +12,8 @@ class SearchableDropdownFormField<T> extends FormField<T> {
     this.dialogTitle,
     this.searchLabel = 'Search',
     this.emptyLabel = 'No options available',
+    this.createLabel = 'Create new',
+    this.onCreateNew,
     T? initialValue,
     FormFieldValidator<T>? validator,
   })  : _items = items,
@@ -60,6 +62,8 @@ class SearchableDropdownFormField<T> extends FormField<T> {
   final String? dialogTitle;
   final String searchLabel;
   final String emptyLabel;
+  final String createLabel;
+  final Future<T?> Function(BuildContext context)? onCreateNew;
 
   @override
   FormFieldState<T> createState() => _SearchableDropdownFormFieldState<T>();
@@ -70,6 +74,8 @@ class _SearchableDropdownFormFieldState<T> extends FormFieldState<T> {
   SearchableDropdownFormField<T> get widget => super.widget as SearchableDropdownFormField<T>;
 
   bool get _isEnabled => widget.enabled && widget.onChanged != null;
+
+  final List<T> _createdItems = [];
 
   String? _labelForValue(T? value) {
     if (value == null) return null;
@@ -88,7 +94,8 @@ class _SearchableDropdownFormFieldState<T> extends FormFieldState<T> {
         return StatefulBuilder(
           builder: (context, setState) {
             final query = controller.text.toLowerCase();
-            final filteredItems = widget._items.where((item) {
+            final allItems = [...widget._items, ..._createdItems];
+            final filteredItems = allItems.where((item) {
               final label = widget.itemToString(item).toLowerCase();
               return label.contains(query);
             }).toList();
@@ -100,6 +107,28 @@ class _SearchableDropdownFormFieldState<T> extends FormFieldState<T> {
                 height: 420,
                 child: Column(
                   children: [
+                    if (widget.onCreateNew != null) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.add),
+                          onPressed: () async {
+                            final created =
+                                await widget.onCreateNew!.call(dialogContext);
+                            if (created != null) {
+                              setState(() {
+                                _createdItems.add(created);
+                              });
+                              if (dialogContext.mounted) {
+                                Navigator.of(dialogContext).pop(created);
+                              }
+                            }
+                          },
+                          label: Text(widget.createLabel),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     TextField(
                       controller: controller,
                       autofocus: true,

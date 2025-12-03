@@ -10,6 +10,7 @@ import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
 import 'form_error_banner.dart';
+import 'create_vendor_dialog.dart';
 import 'searchable_dropdown_form_field.dart';
 
 class CreateBillDialog extends StatefulWidget {
@@ -334,6 +335,8 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
       hintText: _isLoadingVendors ? 'Loading vendors...' : 'Select a vendor',
       enabled: !_isLoadingVendors,
       dialogTitle: 'Select vendor',
+      createLabel: 'Create new vendor',
+      onCreateNew: (_) => _handleCreateVendor(),
       onChanged: (value) => setState(() => _selectedVendorId = value),
       validator: (value) {
         if (value == null || value.isEmpty) {
@@ -342,6 +345,31 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         return null;
       },
     );
+  }
+
+  Future<String?> _handleCreateVendor() async {
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+    if (token == null || token.trim().isEmpty) {
+      setState(() => _submitError = 'You are not logged in.');
+      return null;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+    final created = await showCreateVendorDialog(
+      context: context,
+      headers: headers,
+    );
+
+    if (created == null) return null;
+
+    setState(() {
+      _vendors = [..._vendors, created]
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      _selectedVendorId = created.id;
+    });
+
+    return created.id;
   }
 
   Widget _buildNameField() {

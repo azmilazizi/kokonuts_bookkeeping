@@ -13,6 +13,7 @@ import '../services/purchase_orders_service.dart';
 import '../services/purchase_order_detail_service.dart';
 import '../services/purchase_order_drafts_service.dart';
 import '../services/vendors_service.dart';
+import 'create_vendor_dialog.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
 import 'form_error_banner.dart';
@@ -1722,6 +1723,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         hintText: 'Select a vendor',
       ),
       dialogTitle: 'Select vendor',
+      createLabel: 'Create new vendor',
+      onCreateNew: (_) => _handleCreateVendor(),
       onChanged: (value) {
         setState(() {
           _selectedVendorName = value;
@@ -1739,6 +1742,34 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         return null;
       },
     );
+  }
+
+  Future<String?> _handleCreateVendor() async {
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+    if (token == null || token.trim().isEmpty) {
+      setState(() => _referenceDataError = 'You are not logged in.');
+      return null;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+    final created = await showCreateVendorDialog(
+      context: context,
+      headers: headers,
+    );
+
+    if (created == null) return null;
+
+    setState(() {
+      _vendors = [..._vendors, created]
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      _selectedVendorName = created.name;
+      _selectedVendorCode = created.code;
+      _selectedVendorId = created.id;
+    });
+    _updateOrderNumber();
+    _markDirty();
+    return created.name;
   }
 
   VendorSummary? _findVendorByName(String? name) {
