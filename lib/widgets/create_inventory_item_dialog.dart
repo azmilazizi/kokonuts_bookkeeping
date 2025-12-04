@@ -7,6 +7,7 @@ import '../services/accounts_service.dart';
 import '../services/auth_http_client.dart';
 import '../services/inventory_items_service.dart';
 import 'create_account_dialog.dart';
+import 'searchable_dropdown_form_field.dart';
 
 Future<InventoryItem?> showCreateInventoryItemDialog({
   required BuildContext context,
@@ -198,30 +199,39 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
     required String? value,
     required List<_DropdownOption> options,
     required ValueChanged<String?> onChanged,
-    required Future<void> Function() onCreate,
+    required Future<String?> Function() onCreate,
   }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: _buildDropdown(
-            label: label,
-            value: value,
-            options: options,
-            onChanged: onChanged,
-          ),
-        ),
-        const SizedBox(width: 12),
-        SizedBox(
-          height: 56,
-          child: OutlinedButton.icon(
-            onPressed:
-                _isSubmitting || _isLoading || _isLoadingAccounts ? null : onCreate,
-            icon: const Icon(Icons.add),
-            label: const Text('Create new Account'),
-          ),
-        ),
-      ],
+    return SearchableDropdownFormField<String>(
+      decoration: InputDecoration(
+        labelText: label,
+        suffixIcon: _isLoadingAccounts
+            ? const Padding(
+                padding: EdgeInsets.all(12.0),
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            : null,
+      ),
+      initialValue: value,
+      items: options.map((option) => option.id).toList(),
+      itemToString: (id) => _accountLabelFromOptions(options, id),
+      hintText:
+          _isLoadingAccounts ? 'Loading accounts...' : 'Select an account',
+      enabled: !_isLoadingAccounts && !_isSubmitting,
+      dialogTitle: 'Select $label',
+      createLabel: 'Create new Account',
+      onCreateNew:
+          _isLoadingAccounts || _isSubmitting ? null : (_) => onCreate(),
+      onChanged: _isSubmitting || _isLoadingAccounts ? null : onChanged,
+      validator: (selected) {
+        if (selected == null || selected.isEmpty) {
+          return '$label is required';
+        }
+        return null;
+      },
     );
   }
 
@@ -326,13 +336,13 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
     }
   }
 
-  Future<void> _handleCreateAccount({required ValueChanged<String> onSelected}) async {
+  Future<String?> _handleCreateAccount({required ValueChanged<String> onSelected}) async {
     final created = await showDialog<Account?>(
       context: context,
       builder: (context) => const CreateAccountDialog(),
     );
 
-    if (created == null) return;
+    if (created == null) return null;
 
     await _refreshAccounts(
       selectInventoryId: _inventoryAssetAccountId,
@@ -346,6 +356,8 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
         onSelected(created.id);
       });
     }
+
+    return created.id;
   }
 
   Future<void> _refreshAccounts({
@@ -472,6 +484,15 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
       idKeys: const ['id'],
       labelKeys: const ['name', 'label'],
     );
+  }
+
+  String _accountLabelFromOptions(List<_DropdownOption> options, String id) {
+    return options
+        .firstWhere(
+          (option) => option.id == id,
+          orElse: () => _DropdownOption(id: id, label: id),
+        )
+        .label;
   }
 
   String _trimGroupLabel(String label) {
