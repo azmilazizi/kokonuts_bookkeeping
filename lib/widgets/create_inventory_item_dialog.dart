@@ -5,7 +5,6 @@ import 'package:http/http.dart' as http;
 
 import '../services/auth_http_client.dart';
 import '../services/inventory_items_service.dart';
-import '../services/accounts_service.dart';
 
 Future<InventoryItem?> showCreateInventoryItemDialog({
   required BuildContext context,
@@ -30,7 +29,6 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
   final _formKey = GlobalKey<FormState>();
   final _itemCodeController = TextEditingController();
   final _itemNameController = TextEditingController();
-  final _accountsService = AccountsService();
 
   bool _isLoading = true;
   bool _isSubmitting = false;
@@ -62,7 +60,7 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Create item'),
+      title: const Text('Create Item'),
       content: SizedBox(
         width: 520,
         child: _isLoading
@@ -221,10 +219,10 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
         _fetchOptions(
           client,
           Uri.parse('https://crm.kokonuts.my/warehouse/api/v1/units'),
-          idKeys: const ['unit_type_id', 'id'],
-          labelKeys: const ['unit_name', 'name'],
+          idKeys: const ['id'],
+          labelKeys: const ['label'],
         ),
-        _fetchAllAccounts(),
+        _fetchAllAccounts(client),
       ]);
 
       final groups = results[0] as List<_DropdownOption>;
@@ -299,34 +297,15 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
     return sorted;
   }
 
-  Future<List<_DropdownOption>> _fetchAllAccounts() async {
-    final accounts = <_DropdownOption>[];
-    final seenAccountIds = <String>{};
-    var page = 1;
-    const perPage = 100;
-    var hasMore = true;
-
-    while (hasMore) {
-      final response = await _accountsService.fetchAccounts(
-        page: page,
-        perPage: perPage,
-        headers: widget.headers,
-      );
-      final newAccounts = response.accounts.where((account) {
-        if (account.id.isEmpty) return false;
-        return seenAccountIds.add(account.id);
-      }).map((account) => _DropdownOption(id: account.id, label: account.name)).toList();
-
-      accounts.addAll(newAccounts);
-
-      hasMore = response.hasMore && newAccounts.isNotEmpty;
-      page += 1;
-    }
-
-    final unique = {for (final option in accounts) option.id: option};
-    final sorted = unique.values.toList()
-      ..sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
-    return sorted;
+  Future<List<_DropdownOption>> _fetchAllAccounts(http.Client client) {
+    return _fetchOptions(
+      client,
+      Uri.parse(
+        'https://crm.kokonuts.my/accounting/api/v1/accounts?with_balances=0',
+      ),
+      idKeys: const ['id'],
+      labelKeys: const ['name', 'label'],
+    );
   }
 
   String? _firstMatchingString(Map<String, dynamic> map, List<String> keys) {

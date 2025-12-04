@@ -830,7 +830,7 @@ class _ExpenseRowState extends State<_ExpenseRow> {
                 textAlign: TextAlign.end,
                 style: widget.theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: widget.theme.colorScheme.error,
+                  color: Colors.red,
                 ),
               ),
               _DataCell(
@@ -872,7 +872,7 @@ class _ExpenseRowState extends State<_ExpenseRow> {
                           width: 36,
                           height: 36,
                         ),
-                        color: widget.theme.colorScheme.error,
+                        color: Colors.red,
                         onPressed: _handleDelete,
                       ),
                     ],
