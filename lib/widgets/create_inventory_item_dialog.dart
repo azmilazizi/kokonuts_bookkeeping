@@ -301,6 +301,7 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
 
   Future<List<_DropdownOption>> _fetchAllAccounts() async {
     final accounts = <_DropdownOption>[];
+    final seenAccountIds = <String>{};
     var page = 1;
     const perPage = 100;
     var hasMore = true;
@@ -311,12 +312,14 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
         perPage: perPage,
         headers: widget.headers,
       );
-      accounts.addAll(
-        response.accounts
-            .map((account) => _DropdownOption(id: account.id, label: account.name))
-            .toList(),
-      );
-      hasMore = response.hasMore;
+      final newAccounts = response.accounts.where((account) {
+        if (account.id.isEmpty) return false;
+        return seenAccountIds.add(account.id);
+      }).map((account) => _DropdownOption(id: account.id, label: account.name)).toList();
+
+      accounts.addAll(newAccounts);
+
+      hasMore = response.hasMore && newAccounts.isNotEmpty;
       page += 1;
     }
 
