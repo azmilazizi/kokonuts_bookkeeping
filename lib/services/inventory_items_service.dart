@@ -89,6 +89,8 @@ class InventoryItemsService {
         if (trimmed.isNotEmpty) {
           return trimmed;
         }
+      } else if (value is num) {
+        return value.toString();
       }
     }
     return null;
