@@ -36,7 +36,9 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
 
   List<_DropdownOption> _groups = const [];
   List<_DropdownOption> _units = const [];
-  List<_DropdownOption> _accounts = const [];
+  List<_DropdownOption> _inventoryAccounts = const [];
+  List<_DropdownOption> _incomeAccounts = const [];
+  List<_DropdownOption> _expenseAccounts = const [];
 
   String? _selectedGroupId;
   String? _selectedUnitId;
@@ -98,7 +100,10 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
           children: [
             TextFormField(
               controller: _itemCodeController,
-              decoration: const InputDecoration(labelText: 'Item Code'),
+              decoration: const InputDecoration(
+                labelText: 'Item Code',
+                hintText: '2L-CHOC-SAUCE',
+              ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return 'Item Code is required';
@@ -109,7 +114,10 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
             const SizedBox(height: 12),
             TextFormField(
               controller: _itemNameController,
-              decoration: const InputDecoration(labelText: 'Item Name'),
+              decoration: const InputDecoration(
+                labelText: 'Item Name',
+                hintText: '2L Chocolate Sauce',
+              ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return 'Item Name is required';
@@ -143,21 +151,21 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
             _buildDropdown(
               label: 'Inventory Assets Account',
               value: _inventoryAssetAccountId,
-              options: _accounts,
+              options: _inventoryAccounts,
               onChanged: (value) => setState(() => _inventoryAssetAccountId = value),
             ),
             const SizedBox(height: 12),
             _buildDropdown(
               label: 'Income Account',
               value: _incomeAccountId,
-              options: _accounts,
+              options: _incomeAccounts,
               onChanged: (value) => setState(() => _incomeAccountId = value),
             ),
             const SizedBox(height: 12),
             _buildDropdown(
               label: 'Expense Account',
               value: _expenseAccountId,
-              options: _accounts,
+              options: _expenseAccounts,
               onChanged: (value) => setState(() => _expenseAccountId = value),
             ),
             if (_error != null) ...[
@@ -212,9 +220,10 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
       final results = await Future.wait([
         _fetchOptions(
           client,
-          Uri.parse('https://crm.kokonuts.my/warehouse/api/v1/groups'),
+          Uri.parse('https://crm.kokonuts.my/warehouse/api/v1/item_groups'),
           idKeys: const ['id', 'group_id', 'groupId'],
-          labelKeys: const ['name', 'group_name', 'groupName'],
+          labelKeys: const ['label', 'name', 'group_name', 'groupName'],
+          labelTransformer: _trimGroupLabel,
         ),
         _fetchOptions(
           client,
@@ -222,22 +231,44 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
           idKeys: const ['id'],
           labelKeys: const ['label'],
         ),
-        _fetchAllAccounts(client),
+        _fetchAccounts(
+          client,
+          Uri.parse(
+            'https://crm.kokonuts.my/accounting/api/v1/accounts?account_type_name=Current Assets',
+          ),
+        ),
+        _fetchAccounts(
+          client,
+          Uri.parse(
+            'https://crm.kokonuts.my/accounting/api/v1/accounts?account_type_name=Income',
+          ),
+        ),
+        _fetchAccounts(
+          client,
+          Uri.parse(
+            'https://crm.kokonuts.my/accounting/api/v1/accounts?account_type_name=Cost of sales',
+          ),
+        ),
       ]);
 
       final groups = results[0] as List<_DropdownOption>;
       final units = results[1] as List<_DropdownOption>;
-      final accounts = results[2] as List<_DropdownOption>;
+      final inventoryAccounts = results[2] as List<_DropdownOption>;
+      final incomeAccounts = results[3] as List<_DropdownOption>;
+      final expenseAccounts = results[4] as List<_DropdownOption>;
 
       setState(() {
         _groups = groups;
         _units = units;
-        _accounts = accounts;
         _selectedGroupId = groups.isNotEmpty ? groups.first.id : null;
         _selectedUnitId = units.isNotEmpty ? units.first.id : null;
-        _inventoryAssetAccountId = accounts.isNotEmpty ? accounts.first.id : null;
-        _incomeAccountId = accounts.length > 1 ? accounts[1].id : _inventoryAssetAccountId;
-        _expenseAccountId = accounts.length > 2 ? accounts[2].id : _incomeAccountId;
+        _inventoryAccounts = inventoryAccounts;
+        _incomeAccounts = incomeAccounts;
+        _expenseAccounts = expenseAccounts;
+        _inventoryAssetAccountId =
+            inventoryAccounts.isNotEmpty ? inventoryAccounts.first.id : null;
+        _incomeAccountId = incomeAccounts.isNotEmpty ? incomeAccounts.first.id : null;
+        _expenseAccountId = expenseAccounts.isNotEmpty ? expenseAccounts.first.id : null;
         _isLoading = false;
       });
     } catch (error) {
@@ -253,6 +284,7 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
     Uri uri, {
     required List<String> idKeys,
     required List<String> labelKeys,
+    String Function(String label)? labelTransformer,
   }) async {
     http.Response response;
     try {
@@ -278,7 +310,12 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
         final id = _firstMatchingString(source, idKeys);
         final label = _firstMatchingString(source, labelKeys);
         if (id != null && label != null) {
-          results.add(_DropdownOption(id: id, label: label));
+          results.add(
+            _DropdownOption(
+              id: id,
+              label: labelTransformer != null ? labelTransformer(label) : label,
+            ),
+          );
         }
         for (final value in source.values) {
           collect(value);
@@ -297,15 +334,19 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
     return sorted;
   }
 
-  Future<List<_DropdownOption>> _fetchAllAccounts(http.Client client) {
+  Future<List<_DropdownOption>> _fetchAccounts(http.Client client, Uri uri) {
     return _fetchOptions(
       client,
-      Uri.parse(
-        'https://crm.kokonuts.my/accounting/api/v1/accounts?with_balances=0',
-      ),
+      uri,
       idKeys: const ['id'],
       labelKeys: const ['name', 'label'],
     );
+  }
+
+  String _trimGroupLabel(String label) {
+    final underscoreIndex = label.indexOf('_');
+    if (underscoreIndex == -1) return label;
+    return label.substring(0, underscoreIndex);
   }
 
   String? _firstMatchingString(Map<String, dynamic> map, List<String> keys) {
