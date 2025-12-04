@@ -689,7 +689,7 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
           ? widget.expense.categoryName
           : _categoryController.text.trim(),
       'vendor': _selectedVendorId ?? '',
-      'payment_mode': _selectedPaymentMode ?? '',
+      'paymentmode': _selectedPaymentMode ?? '',
     };
 
     if ((requestData['vendor'] as String).isEmpty &&

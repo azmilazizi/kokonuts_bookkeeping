@@ -590,6 +590,7 @@ class Expense {
     final paymentMode =
         _stringValue(json['payment_mode_name']) ??
         _stringValue(json['payment_mode']) ??
+        _stringValue(json['paymentmode']) ??
         _stringValue(json['paymentMode']) ??
         _stringValue(json['mode']) ??
         _stringValue(json['payment_method']) ??

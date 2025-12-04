@@ -68,6 +68,7 @@ class PaymentModesService {
     const candidateKeys = [
       'name',
       'payment_mode',
+      'paymentmode',
       'paymentMode',
       'label',
       'title',
@@ -86,6 +87,7 @@ class PaymentModesService {
     const candidateKeys = [
       'id',
       'payment_mode_id',
+      'paymentmodeid',
       'paymentModeId',
     ];
 
