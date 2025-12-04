@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/accounts_service.dart';
+import '../widgets/create_account_dialog.dart';
 import '../widgets/sortable_header_cell.dart';
 import '../widgets/table_filter_bar.dart';
 
@@ -203,6 +204,14 @@ class _AccountsTabState extends State<AccountsTab> {
                               onChanged: _handleFilterChanged,
                               hintText: 'Search by name, parent, or type',
                               isFiltering: _filterController.text.isNotEmpty,
+                              trailing: Align(
+                                alignment: Alignment.centerRight,
+                                child: ElevatedButton.icon(
+                                  icon: const Icon(Icons.add),
+                                  onPressed: _openCreateAccountDialog,
+                                  label: const Text('Create new Account'),
+                                ),
+                              ),
                               horizontalController: _horizontalController,
                             ),
                           ),
@@ -264,6 +273,19 @@ class _AccountsTabState extends State<AccountsTab> {
       _filterQuery = value.trim().toLowerCase();
       _rebuildDisplayAccounts();
     });
+  }
+
+  Future<void> _openCreateAccountDialog() async {
+    final created = await showDialog<Account?>(
+      context: context,
+      builder: (context) => CreateAccountDialog(accountsService: _service),
+    );
+
+    if (!mounted || created == null) {
+      return;
+    }
+
+    await _fetchPage(reset: true);
   }
 
   String _resolveParentName(Account account) {

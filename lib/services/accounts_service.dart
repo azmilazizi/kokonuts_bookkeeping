@@ -54,12 +54,15 @@ class AccountsService {
     required int page,
     required int perPage,
     required Map<String, String> headers,
+    bool includeBalances = true,
   }) async {
-    final uri = Uri.parse(_baseUrl).replace(queryParameters: {
+    final queryParameters = {
       'page': '$page',
       'per_page': '$perPage',
-      'with_balances': '1',
-    });
+      if (includeBalances) 'with_balances': '1',
+    };
+
+    final uri = Uri.parse(_baseUrl).replace(queryParameters: queryParameters);
 
     http.Response response;
     try {
@@ -101,6 +104,183 @@ class AccountsService {
       hasMore: pagination.hasMore,
       namesById: namesById,
     );
+  }
+
+  Future<List<AccountType>> fetchAccountTypes({
+    required Map<String, String> headers,
+  }) async {
+    http.Response response;
+    try {
+      response = await _client.get(
+        Uri.parse('https://crm.kokonuts.my/accounting/api/v1/account_types'),
+        headers: headers,
+      );
+    } catch (error) {
+      throw AccountsException('Failed to reach server: $error');
+    }
+
+    if (response.statusCode != 200) {
+      throw AccountsException(
+        'Request failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error) {
+      throw AccountsException('Unable to parse response: $error');
+    }
+
+    final types = _collectAccountTypes(decoded);
+    if (types.isEmpty) {
+      throw const AccountsException('No account types available.');
+    }
+    return types;
+  }
+
+  Future<List<AccountDetailType>> fetchAccountDetailTypes({
+    required String accountTypeId,
+    required Map<String, String> headers,
+  }) async {
+    final uri = Uri.parse(
+        'https://crm.kokonuts.my/accounting/api/v1/account_types/$accountTypeId/account_type_detail');
+
+    http.Response response;
+    try {
+      response = await _client.get(uri, headers: headers);
+    } catch (error) {
+      throw AccountsException('Failed to reach server: $error');
+    }
+
+    if (response.statusCode != 200) {
+      throw AccountsException(
+        'Request failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error) {
+      throw AccountsException('Unable to parse response: $error');
+    }
+
+    final detailTypes = _collectAccountDetailTypes(decoded);
+    if (detailTypes.isEmpty) {
+      throw const AccountsException('No account detail types available.');
+    }
+    return detailTypes;
+  }
+
+  Future<Account> createAccount({
+    required String name,
+    required String accountTypeId,
+    required String accountDetailTypeId,
+    String? parentAccountId,
+    required Map<String, String> headers,
+  }) async {
+    http.Response response;
+    try {
+      response = await _client.post(
+        Uri.parse(_baseUrl),
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'name': name,
+          'account_type_id': accountTypeId,
+          'account_detail_type_id': accountDetailTypeId,
+          if (parentAccountId != null && parentAccountId.trim().isNotEmpty)
+            'parent_account': parentAccountId.trim(),
+        }),
+      );
+    } catch (error) {
+      throw AccountsException('Failed to reach server: $error');
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw AccountsException(
+        'Request failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error) {
+      throw AccountsException('Unable to parse response: $error');
+    }
+
+    final data = _findMap(decoded, const ['data', 'account']) ??
+        (decoded is Map<String, dynamic> ? decoded : null);
+
+    if (data == null) {
+      throw const AccountsException('Response did not include account data.');
+    }
+
+    return Account.fromJson(data);
+  }
+
+  List<AccountType> _collectAccountTypes(dynamic source) {
+    final results = <AccountType>[];
+
+    void collect(dynamic value) {
+      if (value is Map<String, dynamic>) {
+        final id = Account._stringValue(value['id']);
+        final name = Account._stringValue(value['name']) ?? Account._stringValue(value['label']);
+        if (id != null && name != null) {
+          results.add(AccountType(id: id, name: name));
+        }
+        for (final child in value.values) {
+          collect(child);
+        }
+      } else if (value is List) {
+        for (final entry in value) {
+          collect(entry);
+        }
+      }
+    }
+
+    collect(source);
+    final deduped = {for (final type in results) type.id: type};
+    final sorted = deduped.values.toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return sorted;
+  }
+
+  List<AccountDetailType> _collectAccountDetailTypes(dynamic source) {
+    final results = <AccountDetailType>[];
+
+    void collect(dynamic value) {
+      if (value is Map<String, dynamic>) {
+        final id = Account._stringValue(value['id']);
+        final name = Account._stringValue(value['name']) ?? Account._stringValue(value['label']);
+        if (id != null && name != null) {
+          results.add(
+            AccountDetailType(
+              id: id,
+              name: name,
+              note: Account._stringValue(value['note']),
+            ),
+          );
+        }
+        for (final child in value.values) {
+          collect(child);
+        }
+      } else if (value is List) {
+        for (final entry in value) {
+          collect(entry);
+        }
+      }
+    }
+
+    collect(source);
+    final deduped = {for (final type in results) type.id: type};
+    final sorted = deduped.values.toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return sorted;
   }
 
   List<dynamic> _extractAccountsList(dynamic decoded) {
@@ -313,4 +493,19 @@ class AccountsException implements Exception {
 
   @override
   String toString() => 'AccountsException: $message';
+}
+
+class AccountType {
+  const AccountType({required this.id, required this.name});
+
+  final String id;
+  final String name;
+}
+
+class AccountDetailType {
+  const AccountDetailType({required this.id, required this.name, this.note});
+
+  final String id;
+  final String name;
+  final String? note;
 }
