@@ -19,7 +19,8 @@ class OverviewTab extends StatefulWidget {
   State<OverviewTab> createState() => _OverviewTabState();
 }
 
-class _OverviewTabState extends State<OverviewTab> {
+class _OverviewTabState extends State<OverviewTab>
+    with AutomaticKeepAliveClientMixin {
   late final OverviewService _service;
   late final ExpensesService _expensesService;
   late final BillsService _billsService;
@@ -38,6 +39,9 @@ class _OverviewTabState extends State<OverviewTab> {
   ExpensesPieChartData? _expensesPercentage;
   String _accountingMethod = 'payment'; // 'payment' (Cash) or 'issued' (Accrual)
   List<OverviewTransaction> _transactions = [];
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -326,6 +330,7 @@ class _OverviewTabState extends State<OverviewTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
     final dateFormatter = DateFormat('MMM dd, yyyy');
 
@@ -571,7 +576,9 @@ class _OverviewTabState extends State<OverviewTab> {
   }
 }
 
-class _TransactionTable extends StatelessWidget {
+enum _TransactionSortColumn { date, name, vendor, type, paymentMode, amount }
+
+class _TransactionTable extends StatefulWidget {
   const _TransactionTable({
     required this.transactions,
     required this.accountingMethod,
@@ -581,15 +588,39 @@ class _TransactionTable extends StatelessWidget {
   final String accountingMethod;
 
   @override
+  State<_TransactionTable> createState() => _TransactionTableState();
+}
+
+class _TransactionTableState extends State<_TransactionTable> {
+  late List<OverviewTransaction> _sortedTransactions;
+  _TransactionSortColumn _sortColumn = _TransactionSortColumn.date;
+  bool _sortAscending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _sortedTransactions = List.of(widget.transactions);
+    _applySorting(notify: false);
+  }
+
+  @override
+  void didUpdateWidget(covariant _TransactionTable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.transactions != widget.transactions) {
+      _sortedTransactions = List.of(widget.transactions);
+      _applySorting();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final detailLabel = accountingMethod == 'payment' ? 'Payment Mode' : 'Status';
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final isLargeScreen = constraints.maxWidth >= 900;
 
-        final table = _buildTable(theme, detailLabel);
+        final table = _buildTable(theme);
 
         if (isLargeScreen) {
           return Card(
@@ -620,7 +651,67 @@ class _TransactionTable extends StatelessWidget {
     );
   }
 
-  Table _buildTable(ThemeData theme, String detailLabel) {
+  void _handleSort(_TransactionSortColumn column) {
+    setState(() {
+      if (_sortColumn == column) {
+        _sortAscending = !_sortAscending;
+      } else {
+        _sortColumn = column;
+        _sortAscending = true;
+      }
+      _applySorting(notify: false);
+    });
+  }
+
+  void _applySorting({bool notify = true}) {
+    final sorted = List<OverviewTransaction>.from(_sortedTransactions)
+      ..sort((a, b) {
+        int comparison;
+
+        switch (_sortColumn) {
+          case _TransactionSortColumn.date:
+            comparison = a.date.compareTo(b.date);
+            break;
+          case _TransactionSortColumn.name:
+            comparison = a.displayName.toLowerCase().compareTo(
+                  b.displayName.toLowerCase(),
+                );
+            break;
+          case _TransactionSortColumn.vendor:
+            comparison = a.vendor.toLowerCase().compareTo(b.vendor.toLowerCase());
+            break;
+          case _TransactionSortColumn.type:
+            comparison = a.type.toLowerCase().compareTo(b.type.toLowerCase());
+            break;
+          case _TransactionSortColumn.paymentMode:
+            comparison = _detailValue(a).toLowerCase().compareTo(
+                  _detailValue(b).toLowerCase(),
+                );
+            break;
+          case _TransactionSortColumn.amount:
+            comparison = a.amount.compareTo(b.amount);
+            break;
+        }
+
+        return _sortAscending ? comparison : -comparison;
+      });
+
+    if (notify) {
+      setState(() {
+        _sortedTransactions = sorted;
+      });
+    } else {
+      _sortedTransactions = sorted;
+    }
+  }
+
+  String _detailValue(OverviewTransaction transaction) {
+    return widget.accountingMethod == 'payment'
+        ? (transaction.paymentMode ?? transaction.status)
+        : transaction.status;
+  }
+
+  Table _buildTable(ThemeData theme) {
     final headerStyle = theme.textTheme.bodyMedium?.copyWith(
       fontWeight: FontWeight.w700,
     );
@@ -631,12 +722,12 @@ class _TransactionTable extends StatelessWidget {
 
     return Table(
       columnWidths: const {
-        0: FlexColumnWidth(2.2),
-        1: FlexColumnWidth(1.4),
-        2: FlexColumnWidth(1.2),
-        3: FlexColumnWidth(1.2),
-        4: FlexColumnWidth(1.2),
-        5: FlexColumnWidth(1.2),
+        0: FlexColumnWidth(1.3),
+        1: FlexColumnWidth(2.1),
+        2: FlexColumnWidth(1.5),
+        3: FlexColumnWidth(1.4),
+        4: FlexColumnWidth(1.4),
+        5: FlexColumnWidth(1.3),
       },
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       border: TableBorder(
@@ -646,39 +737,54 @@ class _TransactionTable extends StatelessWidget {
         TableRow(
           decoration: BoxDecoration(color: theme.colorScheme.surfaceVariant),
           children: [
-            _tableHeaderCell('Vendor', headerStyle),
-            _tableHeaderCell('Type', headerStyle),
-            _tableHeaderCell('Date', headerStyle),
-            _tableHeaderCell('Name', headerStyle),
-            _tableHeaderCell('Amount', headerStyle, align: TextAlign.right),
-            _tableHeaderCell(detailLabel, headerStyle),
+            _sortableHeaderCell('Date', headerStyle, _TransactionSortColumn.date),
+            _sortableHeaderCell('Name', headerStyle, _TransactionSortColumn.name),
+            _sortableHeaderCell('Vendor', headerStyle, _TransactionSortColumn.vendor),
+            _sortableHeaderCell('Type', headerStyle, _TransactionSortColumn.type),
+            _sortableHeaderCell(
+              'Payment Mode',
+              headerStyle,
+              _TransactionSortColumn.paymentMode,
+              align: TextAlign.center,
+            ),
+            _sortableHeaderCell(
+              'Amount',
+              headerStyle,
+              _TransactionSortColumn.amount,
+              align: TextAlign.right,
+            ),
           ],
         ),
-        ...transactions.map((transaction) {
-          final detailValue = accountingMethod == 'payment'
-              ? (transaction.paymentMode ?? transaction.status)
-              : transaction.status;
+        ..._sortedTransactions.map((transaction) {
+          final detailValue = _detailValue(transaction);
 
           return TableRow(
             children: [
-              _tableDataCell(transaction.vendor, theme),
-              _tableDataCell(transaction.type, theme),
               _tableDataCell(transaction.formattedDate, theme),
               _tableDataCell(transaction.displayName, theme),
-              _tableDataCell(transaction.formattedAmount, theme, align: TextAlign.right),
+              _tableDataCell(transaction.vendor, theme),
+              _tableDataCell(transaction.type, theme),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceVariant,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    detailValue,
-                    style: subtitleStyle,
+                child: Align(
+                  alignment: Alignment.center,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceVariant,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      detailValue,
+                      style: subtitleStyle,
+                    ),
                   ),
                 ),
+              ),
+              _tableDataCell(
+                transaction.formattedAmount,
+                theme,
+                align: TextAlign.right,
               ),
             ],
           );
@@ -687,13 +793,43 @@ class _TransactionTable extends StatelessWidget {
     );
   }
 
-  Widget _tableHeaderCell(String text, TextStyle? style, {TextAlign align = TextAlign.left}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-      child: Text(
-        text,
-        textAlign: align,
-        style: style,
+  Widget _sortableHeaderCell(
+    String text,
+    TextStyle? style,
+    _TransactionSortColumn column, {
+    TextAlign align = TextAlign.left,
+  }) {
+    final isActive = _sortColumn == column;
+    final icon = _sortAscending ? Icons.arrow_upward : Icons.arrow_downward;
+
+    return InkWell(
+      onTap: () => _handleSort(column),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+        child: Align(
+          alignment:
+              align == TextAlign.right ? Alignment.centerRight : Alignment.centerLeft,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                text,
+                textAlign: align,
+                style: style,
+              ),
+              const SizedBox(width: 6),
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 150),
+                opacity: isActive ? 1 : 0.3,
+                child: Icon(
+                  icon,
+                  size: 16,
+                  color: style?.color,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

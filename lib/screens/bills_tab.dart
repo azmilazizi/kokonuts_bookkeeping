@@ -19,7 +19,8 @@ class BillsTab extends StatefulWidget {
   BillsTabState createState() => BillsTabState();
 }
 
-class BillsTabState extends State<BillsTab> {
+class BillsTabState extends State<BillsTab>
+    with AutomaticKeepAliveClientMixin {
   final _service = BillsService();
   final _scrollController = ScrollController();
   final _horizontalController = ScrollController();
@@ -43,6 +44,9 @@ class BillsTabState extends State<BillsTab> {
   bool _hasMore = true;
   int _nextPage = 1;
   String? _error;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -241,6 +245,7 @@ class BillsTabState extends State<BillsTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
 
     return RefreshIndicator(

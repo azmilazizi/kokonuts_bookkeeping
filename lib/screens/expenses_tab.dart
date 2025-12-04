@@ -17,7 +17,8 @@ class ExpensesTab extends StatefulWidget {
   ExpensesTabState createState() => ExpensesTabState();
 }
 
-class ExpensesTabState extends State<ExpensesTab> {
+class ExpensesTabState extends State<ExpensesTab>
+    with AutomaticKeepAliveClientMixin {
   final _service = ExpensesService();
   final _scrollController = ScrollController();
   final _horizontalController = ScrollController();
@@ -40,6 +41,9 @@ class ExpensesTabState extends State<ExpensesTab> {
   bool _hasMore = true;
   int _nextPage = 1;
   String? _error;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -161,6 +165,7 @@ class ExpensesTabState extends State<ExpensesTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
 
     return RefreshIndicator(
