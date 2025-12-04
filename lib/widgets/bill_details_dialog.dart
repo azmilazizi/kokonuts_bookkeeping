@@ -198,6 +198,7 @@ class _BillDetailsDialogState extends State<BillDetailsDialog> {
         page: 1,
         perPage: 200,
         headers: headers,
+        includeBalances: false,
       );
 
       if (mounted) {
@@ -2058,6 +2059,7 @@ class _EditPaymentDialogState extends State<_EditPaymentDialog> {
         page: 1,
         perPage: 200,
         headers: headers,
+        includeBalances: false,
       );
 
       if (!mounted) {
@@ -2589,6 +2591,7 @@ class _AddPaymentDialogState extends State<_AddPaymentDialog> {
         page: 1,
         perPage: 200,
         headers: headers,
+        includeBalances: false,
       );
 
       if (!mounted) {

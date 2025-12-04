@@ -658,6 +658,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         page: 1,
         perPage: _accountsPerPage,
         headers: headers,
+        includeBalances: false,
       );
 
       if (!mounted) {
