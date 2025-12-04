@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../services/accounts_service.dart';
 import '../services/auth_http_client.dart';
 import '../services/inventory_items_service.dart';
+import 'create_account_dialog.dart';
 
 Future<InventoryItem?> showCreateInventoryItemDialog({
   required BuildContext context,
@@ -33,6 +35,7 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
   bool _isLoading = true;
   bool _isSubmitting = false;
   String? _error;
+  bool _isLoadingAccounts = false;
 
   List<_DropdownOption> _groups = const [];
   List<_DropdownOption> _units = const [];
@@ -148,25 +151,34 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
               ],
             ),
             const SizedBox(height: 12),
-            _buildDropdown(
+            _buildAccountField(
               label: 'Inventory Assets Account',
               value: _inventoryAssetAccountId,
               options: _inventoryAccounts,
               onChanged: (value) => setState(() => _inventoryAssetAccountId = value),
+              onCreate: () => _handleCreateAccount(
+                onSelected: (id) => setState(() => _inventoryAssetAccountId = id),
+              ),
             ),
             const SizedBox(height: 12),
-            _buildDropdown(
+            _buildAccountField(
               label: 'Income Account',
               value: _incomeAccountId,
               options: _incomeAccounts,
               onChanged: (value) => setState(() => _incomeAccountId = value),
+              onCreate: () => _handleCreateAccount(
+                onSelected: (id) => setState(() => _incomeAccountId = id),
+              ),
             ),
             const SizedBox(height: 12),
-            _buildDropdown(
+            _buildAccountField(
               label: 'Expense Account',
               value: _expenseAccountId,
               options: _expenseAccounts,
               onChanged: (value) => setState(() => _expenseAccountId = value),
+              onCreate: () => _handleCreateAccount(
+                onSelected: (id) => setState(() => _expenseAccountId = id),
+              ),
             ),
             if (_error != null) ...[
               const SizedBox(height: 12),
@@ -178,6 +190,38 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildAccountField({
+    required String label,
+    required String? value,
+    required List<_DropdownOption> options,
+    required ValueChanged<String?> onChanged,
+    required Future<void> Function() onCreate,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: _buildDropdown(
+            label: label,
+            value: value,
+            options: options,
+            onChanged: onChanged,
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          height: 56,
+          child: OutlinedButton.icon(
+            onPressed:
+                _isSubmitting || _isLoading || _isLoadingAccounts ? null : onCreate,
+            icon: const Icon(Icons.add),
+            label: const Text('Create new Account'),
+          ),
+        ),
+      ],
     );
   }
 
@@ -212,6 +256,7 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
   Future<void> _loadReferenceData() async {
     setState(() {
       _isLoading = true;
+      _isLoadingAccounts = true;
       _error = null;
     });
 
@@ -270,11 +315,97 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
         _incomeAccountId = incomeAccounts.isNotEmpty ? incomeAccounts.first.id : null;
         _expenseAccountId = expenseAccounts.isNotEmpty ? expenseAccounts.first.id : null;
         _isLoading = false;
+        _isLoadingAccounts = false;
       });
     } catch (error) {
       setState(() {
         _error = 'Failed to load reference data: $error';
         _isLoading = false;
+        _isLoadingAccounts = false;
+      });
+    }
+  }
+
+  Future<void> _handleCreateAccount({required ValueChanged<String> onSelected}) async {
+    final created = await showDialog<Account?>(
+      context: context,
+      builder: (context) => const CreateAccountDialog(),
+    );
+
+    if (created == null) return;
+
+    await _refreshAccounts(
+      selectInventoryId: _inventoryAssetAccountId,
+      selectIncomeId: _incomeAccountId,
+      selectExpenseId: _expenseAccountId,
+    );
+
+    if (mounted) {
+      setState(() {
+        _appendAccountIfMissing(created);
+        onSelected(created.id);
+      });
+    }
+  }
+
+  Future<void> _refreshAccounts({
+    String? selectInventoryId,
+    String? selectIncomeId,
+    String? selectExpenseId,
+  }) async {
+    setState(() {
+      _isLoadingAccounts = true;
+      _error = null;
+    });
+
+    try {
+      final client = createAuthAwareClient();
+      final results = await Future.wait([
+        _fetchAccounts(
+          client,
+          Uri.parse(
+            'https://crm.kokonuts.my/accounting/api/v1/accounts?account_type_name=Current Assets',
+          ),
+        ),
+        _fetchAccounts(
+          client,
+          Uri.parse(
+            'https://crm.kokonuts.my/accounting/api/v1/accounts?account_type_name=Income',
+          ),
+        ),
+        _fetchAccounts(
+          client,
+          Uri.parse(
+            'https://crm.kokonuts.my/accounting/api/v1/accounts?account_type_name=Cost of sales',
+          ),
+        ),
+      ]);
+
+      if (!mounted) return;
+
+      setState(() {
+        _inventoryAccounts = results[0] as List<_DropdownOption>;
+        _incomeAccounts = results[1] as List<_DropdownOption>;
+        _expenseAccounts = results[2] as List<_DropdownOption>;
+
+        _inventoryAssetAccountId = selectInventoryId ?? _inventoryAssetAccountId;
+        _incomeAccountId = selectIncomeId ?? _incomeAccountId;
+        _expenseAccountId = selectExpenseId ?? _expenseAccountId;
+
+        _inventoryAssetAccountId ??=
+            _inventoryAccounts.isNotEmpty ? _inventoryAccounts.first.id : null;
+        _incomeAccountId =
+            _incomeAccountId ?? (_incomeAccounts.isNotEmpty ? _incomeAccounts.first.id : null);
+        _expenseAccountId = _expenseAccountId ??
+            (_expenseAccounts.isNotEmpty ? _expenseAccounts.first.id : null);
+
+        _isLoadingAccounts = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to reload accounts: $error';
+        _isLoadingAccounts = false;
       });
     }
   }
@@ -360,6 +491,20 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
       }
     }
     return null;
+  }
+
+  void _appendAccountIfMissing(Account account) {
+    final option = _DropdownOption(id: account.id, label: account.name);
+    final updateList = (List<_DropdownOption> options) {
+      final exists = options.any((existing) => existing.id == account.id);
+      if (exists) return options;
+      return [...options, option]
+        ..sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+    };
+
+    _inventoryAccounts = updateList(_inventoryAccounts);
+    _incomeAccounts = updateList(_incomeAccounts);
+    _expenseAccounts = updateList(_expenseAccounts);
   }
 
   Future<void> _submit() async {
