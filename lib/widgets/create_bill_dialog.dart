@@ -9,6 +9,7 @@ import '../services/bills_service.dart';
 import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
+import 'create_account_dialog.dart';
 import 'form_error_banner.dart';
 import 'create_vendor_dialog.dart';
 import 'searchable_dropdown_form_field.dart';
@@ -469,6 +470,9 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
                 : 'Select an account',
             enabled: !_isLoadingAccounts,
             dialogTitle: 'Select $label',
+            createLabel: 'Create new Account',
+            onCreateNew:
+                _isLoadingAccounts ? null : (_) => _handleCreateAccount(),
             onChanged: _isLoadingAccounts || _accounts.isEmpty
                 ? null
                 : onChanged,
@@ -513,6 +517,31 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
     return double.tryParse(
       controller.text.replaceAll(RegExp(r'[^0-9.,-]'), '').replaceAll(',', ''),
     );
+  }
+
+  Future<String?> _handleCreateAccount() async {
+    final created = await showDialog<Account?>(
+      context: context,
+      builder: (context) => CreateAccountDialog(accountsService: _accountsService),
+    );
+
+    if (created == null) return null;
+
+    if (!mounted) return null;
+
+    setState(() {
+      final updated = [..._accounts];
+      final existingIndex = updated.indexWhere((account) => account.id == created.id);
+      if (existingIndex >= 0) {
+        updated[existingIndex] = created;
+      } else {
+        updated.add(created);
+      }
+      updated.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      _accounts = updated;
+    });
+
+    return created.id;
   }
 
   Future<void> _submit() async {
