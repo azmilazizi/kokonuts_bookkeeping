@@ -15,7 +15,8 @@ class AccountsTab extends StatefulWidget {
   State<AccountsTab> createState() => _AccountsTabState();
 }
 
-class _AccountsTabState extends State<AccountsTab> {
+class _AccountsTabState extends State<AccountsTab>
+    with AutomaticKeepAliveClientMixin {
   final _service = AccountsService();
   final _scrollController = ScrollController();
   final _horizontalController = ScrollController();
@@ -37,6 +38,9 @@ class _AccountsTabState extends State<AccountsTab> {
   bool _hasMore = true;
   int _nextPage = 1;
   String? _error;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -170,6 +174,7 @@ class _AccountsTabState extends State<AccountsTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
 
     return RefreshIndicator(

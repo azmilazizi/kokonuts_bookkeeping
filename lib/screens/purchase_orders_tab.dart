@@ -26,7 +26,8 @@ class PurchaseOrdersTab extends StatefulWidget {
   PurchaseOrdersTabState createState() => PurchaseOrdersTabState();
 }
 
-class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
+class PurchaseOrdersTabState extends State<PurchaseOrdersTab>
+    with AutomaticKeepAliveClientMixin {
   final _service = PurchaseOrdersService();
   final _scrollController = ScrollController();
   final _horizontalController = ScrollController();
@@ -52,6 +53,9 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
   bool _hasMore = true;
   int _nextPage = 1;
   String? _error;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -197,6 +201,7 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
     final mediaQuery = MediaQuery.of(context);
 
@@ -977,25 +982,30 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.edit, size: 22.0),
+                      icon: const Icon(Icons.edit, size: 20.0),
                       onPressed: widget.onEdit,
-                      constraints: const BoxConstraints(
-                        minWidth: 40,
-                        minHeight: 40,
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 36,
+                        height: 36,
                       ),
                       splashRadius: 20,
                       tooltip: 'Edit',
                     ),
+                    const SizedBox(width: 8),
                     IconButton(
                       icon: Icon(
                         Icons.delete_outline,
-                        size: 22.0,
+                        size: 20.0,
                         color: Colors.red,
                       ),
                       onPressed: widget.onDelete,
-                      constraints: const BoxConstraints(
-                        minWidth: 40,
-                        minHeight: 40,
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 36,
+                        height: 36,
                       ),
                       splashRadius: 20,
                       tooltip: 'Delete',
