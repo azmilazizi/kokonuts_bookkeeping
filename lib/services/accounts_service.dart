@@ -144,7 +144,7 @@ class AccountsService {
     required Map<String, String> headers,
   }) async {
     final uri = Uri.parse(
-        'https://crm.kokonuts.my/accounting/api/v1/account_types/$accountTypeId/account_type_detail');
+        'https://crm.kokonuts.my/accounting/api/v1/account_type/$accountTypeId/account_type_detail');
 
     http.Response response;
     try {
