@@ -499,7 +499,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
       'amount': parsedAmount ?? 0,
       'vendor': _selectedVendorId ?? '',
       'category': categoryName.isNotEmpty ? categoryName : _selectedCategory,
-      'payment_mode': _selectedPaymentMode ?? '',
+      'paymentmode': _selectedPaymentMode ?? '',
       if (_attachments.isNotEmpty) 'attachment': _attachments.first.name,
     };
 
