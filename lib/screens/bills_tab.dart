@@ -903,7 +903,7 @@ class _BillRowState extends State<_BillRow> {
                 flex: _columnFlex[4],
                 textAlign: TextAlign.end,
                 style: widget.theme.textTheme.bodyMedium?.copyWith(
-                  color: widget.theme.colorScheme.error,
+                  color: Colors.red,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -924,7 +924,7 @@ class _BillRowState extends State<_BillRow> {
                           width: 36,
                           height: 36,
                         ),
-                        color: widget.theme.colorScheme.error,
+                        color: Colors.red,
                         onPressed: _isDeleting ? null : _handleDelete,
                       ),
                     ],

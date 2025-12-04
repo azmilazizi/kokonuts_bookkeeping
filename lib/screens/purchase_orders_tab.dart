@@ -990,7 +990,7 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
                       icon: Icon(
                         Icons.delete_outline,
                         size: 22.0,
-                        color: widget.theme.colorScheme.error,
+                        color: Colors.red,
                       ),
                       onPressed: widget.onDelete,
                       constraints: const BoxConstraints(
