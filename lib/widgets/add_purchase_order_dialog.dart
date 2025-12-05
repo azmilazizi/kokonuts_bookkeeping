@@ -429,9 +429,14 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         return;
       }
 
+      final fetchedItems = results[1] as List<InventoryItem>;
+
       setState(() {
         _vendors = results[0] as List<VendorSummary>;
-        _inventoryItems = results[1] as List<InventoryItem>;
+        _inventoryItems = [...fetchedItems]
+          ..sort((a, b) => _formatInventoryItemName(a)
+              .toLowerCase()
+              .compareTo(_formatInventoryItemName(b).toLowerCase()));
         final options = results[2] as PurchaseOptions;
         _paymentModes = results[3] as List<PaymentMode>;
         _purchaseOrderPrefix = '#PO-';
@@ -1788,7 +1793,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
     setState(() {
       _inventoryItems = [..._inventoryItems, created]
-        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        ..sort((a, b) => _formatInventoryItemName(a)
+            .toLowerCase()
+            .compareTo(_formatInventoryItemName(b).toLowerCase()));
       _selectedInventoryItem = created;
       _pendingItem.setItem(
         itemName: _formatInventoryItemName(created),
@@ -1815,16 +1822,16 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   String _formatInventoryItemName(InventoryItem item) {
     final code = item.skuCode?.trim();
     final skuName = item.skuName?.trim();
-    if ((code ?? '').isEmpty && (skuName ?? '').isEmpty) {
-      return item.name;
+    if (code != null && code.isNotEmpty && skuName != null && skuName.isNotEmpty) {
+      return '${code}_$skuName';
     }
-    if (code != null &&
-        code.isNotEmpty &&
-        skuName != null &&
-        skuName.isNotEmpty) {
-      return '${code}_$skuName ';
+    if (code != null && code.isNotEmpty) {
+      return code;
     }
-    return code?.isNotEmpty == true ? code! : skuName ?? item.name;
+    if (skuName != null && skuName.isNotEmpty) {
+      return skuName;
+    }
+    return item.name;
   }
 
   Widget _buildItemsDropdown(ThemeData theme) {
@@ -1866,7 +1873,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           ),
           hintText: 'Select an item',
           dialogTitle: 'Select item',
-          createLabel: 'Create new item',
+          createLabel: 'Add New Item',
           onCreateNew: (_) => _handleCreateItem(),
           onChanged: _isSubmitting ? null : _updateSelectedItem,
           emptyLabel: 'No inventory items found. Tap create to add one.',
