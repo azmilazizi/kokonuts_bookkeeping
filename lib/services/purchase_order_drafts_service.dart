@@ -606,6 +606,41 @@ class PurchaseOrderDraftsService {
     }
   }
 
+  Future<void> moveAttachmentsToPurchaseOrder({
+    required String draftId,
+    required String purchaseOrderId,
+    required Map<String, String> headers,
+  }) async {
+    final request = http.Request(
+      'POST',
+      Uri.parse('$_attachmentsBaseUrl/$draftId/attachments/move'),
+    )
+      ..headers.addAll({
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        ...headers,
+      })
+      ..body = jsonEncode({'purchase_order_id': purchaseOrderId});
+
+    http.StreamedResponse response;
+    try {
+      response = await _client.send(request);
+    } catch (_) {
+      throw PurchaseOrderDraftsException(
+        'We couldn\'t move the draft attachments right now. Please try again.',
+      );
+    }
+
+    final resolved = await http.Response.fromStream(response);
+    if (resolved.statusCode != 200 &&
+        resolved.statusCode != 201 &&
+        resolved.statusCode != 204) {
+      throw PurchaseOrderDraftsException(
+        'The draft attachments could not be moved to the purchase order right now. Please try again later.',
+      );
+    }
+  }
+
   Future<Map<String, dynamic>> _sendJsonDraft({
     required Uri uri,
     required Map<String, String> headers,
