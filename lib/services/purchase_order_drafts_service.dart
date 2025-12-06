@@ -248,11 +248,16 @@ class PurchaseOrderDraftAttachment {
         json['url']?.toString() ??
         json['file_url']?.toString();
 
+    final draftId = json['draft_id']?.toString() ?? '';
+    final fileName = json['file_name']?.toString() ?? '';
+    final resolvedUrl =
+        _resolveAttachmentUrl(explicitUrl: explicitUrl, draftId: draftId, fileName: fileName);
+
     return PurchaseOrderDraftAttachment(
       id: json['id']?.toString() ?? '',
-      draftId: json['draft_id']?.toString() ?? '',
-      fileName: json['file_name']?.toString() ?? '',
-      downloadUrl: explicitUrl,
+      draftId: draftId,
+      fileName: fileName,
+      downloadUrl: resolvedUrl,
       sizeBytes: _parseInt(json['size_bytes']),
       sizeLabel: json['file_size_formatted']?.toString() ??
           json['size_formatted']?.toString(),
@@ -275,6 +280,27 @@ class PurchaseOrderDraftAttachment {
       'marked_for_deletion': markedForDeletion,
     };
   }
+}
+
+String? _resolveAttachmentUrl({
+  required String? explicitUrl,
+  required String draftId,
+  required String fileName,
+}) {
+  final trimmedExplicit = explicitUrl?.trim();
+  if (trimmedExplicit != null && trimmedExplicit.isNotEmpty) {
+    return trimmedExplicit;
+  }
+
+  final trimmedDraftId = draftId.trim();
+  final trimmedFileName = fileName.trim();
+  if (trimmedDraftId.isEmpty || trimmedFileName.isEmpty) {
+    return null;
+  }
+
+  final encodedDraftId = Uri.encodeComponent(trimmedDraftId);
+  final encodedFileName = Uri.encodeComponent(trimmedFileName);
+  return 'https://crm.kokonuts.my/modules/purchase/uploads/pur_order_draft/$encodedDraftId/$encodedFileName';
 }
 
 class PurchaseOrderDraftsPage {
