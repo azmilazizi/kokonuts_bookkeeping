@@ -486,6 +486,13 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
         )
         .name;
 
+    final paymentModeName = _paymentModes
+        .firstWhere(
+          (mode) => mode.id == _selectedPaymentMode,
+          orElse: () => const PaymentMode(id: '', name: ''),
+        )
+        .name;
+
     final parsedAmount = double.tryParse(
       _amountController.text
           .replaceAll(RegExp(r'[^0-9.,-]'), '')
@@ -500,6 +507,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
       'vendor': _selectedVendorId ?? '',
       'category': categoryName.isNotEmpty ? categoryName : _selectedCategory,
       'paymentmode': _selectedPaymentMode ?? '',
+      'payment_method_name': paymentModeName,
       if (_attachments.isNotEmpty) 'attachment': _attachments.first.name,
     };
 

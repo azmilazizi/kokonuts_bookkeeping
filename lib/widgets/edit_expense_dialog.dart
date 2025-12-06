@@ -680,6 +680,14 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
           .replaceAll(',', ''),
     );
     final resolvedAmount = parsedAmount ?? widget.expense.amount;
+    final paymentModeName = _selectedPaymentMode == null
+        ? _initialPaymentModeLabel
+        : _paymentModes
+            .firstWhere(
+              (mode) => mode.id == _selectedPaymentMode,
+              orElse: () => const PaymentMode(id: '', name: ''),
+            )
+            .name;
 
     final requestData = {
       'expense_name': _nameController.text.trim(),
@@ -690,6 +698,7 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
           : _categoryController.text.trim(),
       'vendor': _selectedVendorId ?? '',
       'paymentmode': _selectedPaymentMode ?? '',
+      'payment_method_name': paymentModeName,
     };
 
     if ((requestData['vendor'] as String).isEmpty &&
