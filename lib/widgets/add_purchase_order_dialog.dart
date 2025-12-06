@@ -951,6 +951,13 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         }
       }
 
+      if (!_isEditing) {
+        await _moveDraftAttachmentsToPurchaseOrder(
+          headers: headers,
+          purchaseOrderId: created.id,
+        );
+      }
+
       await _deleteDraftIfNeeded(headers);
 
       Navigator.of(context).pop(created);
@@ -1286,6 +1293,34 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       items: draftItems,
       payments: draftPayments,
     );
+  }
+
+  Future<void> _moveDraftAttachmentsToPurchaseOrder({
+    required Map<String, String> headers,
+    required String purchaseOrderId,
+  }) async {
+    final draftId = _activeDraftId;
+    if (draftId == null || draftId.trim().isEmpty) {
+      return;
+    }
+
+    try {
+      await _draftsService.moveAttachmentsToPurchaseOrder(
+        draftId: draftId,
+        purchaseOrderId: purchaseOrderId,
+        headers: headers,
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Purchase order created but failed to move draft attachments: $error',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _deleteDraftIfNeeded(Map<String, String> headers) async {
