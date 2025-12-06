@@ -23,6 +23,7 @@ class PurchaseOrderDraft {
     required this.orderNumber,
     required this.orderDate,
     required this.isPaid,
+    required this.itemsReceived,
     required this.discountType,
     required this.discountValue,
     required this.shippingFee,
@@ -45,6 +46,7 @@ class PurchaseOrderDraft {
   final String orderNumber;
   final DateTime orderDate;
   final bool isPaid;
+  final bool itemsReceived;
   final String? vendorId;
   final String? vendorName;
   final String? vendorCode;
@@ -71,6 +73,7 @@ class PurchaseOrderDraft {
       orderNumber: json['order_number']?.toString() ?? '',
       orderDate: _parseDate(json['order_date']) ?? DateTime.fromMillisecondsSinceEpoch(0),
       isPaid: _parseBool(json['is_paid']) ?? false,
+      itemsReceived: _parseBool(json['items_received']) ?? false,
       discountType: json['discount_type']?.toString(),
       discountValue: _parseDouble(json['discount_value']) ?? 0,
       shippingFee: _parseDouble(json['shipping_fee']) ?? 0,
@@ -276,6 +279,7 @@ class CreatePurchaseOrderDraftRequest {
     required this.orderNumber,
     required this.orderDate,
     required this.isPaid,
+    required this.itemsReceived,
     required this.discountValue,
     required this.shippingFee,
     required this.itemsSubtotal,
@@ -296,6 +300,7 @@ class CreatePurchaseOrderDraftRequest {
   final String orderNumber;
   final DateTime orderDate;
   final bool isPaid;
+  final bool itemsReceived;
   final String? discountType;
   final double discountValue;
   final double shippingFee;
@@ -314,6 +319,7 @@ class CreatePurchaseOrderDraftRequest {
       'order_number': orderNumber,
       'order_date': _formatDate(orderDate),
       'is_paid': isPaid,
+      'items_received': itemsReceived,
       if (discountType != null) 'discount_type': discountType,
       'discount_value': discountValue,
       'shipping_fee': shippingFee,

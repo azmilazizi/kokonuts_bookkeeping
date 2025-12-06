@@ -564,6 +564,7 @@ class CreatePurchaseOrderRequest {
     required this.discountValue,
     required this.isDiscountPercentage,
     this.payments,
+    this.itemsReceived = false,
     this.vendorId,
     this.userId,
     this.nextPurchaseOrderNumber,
@@ -584,6 +585,7 @@ class CreatePurchaseOrderRequest {
   final double discountValue;
   final bool isDiscountPercentage;
   final List<CreatePurchaseOrderPayment>? payments;
+  final bool itemsReceived;
   final String? userId;
   final int? nextPurchaseOrderNumber;
   final bool isUpdate;
@@ -594,6 +596,8 @@ class CreatePurchaseOrderRequest {
     final discountPercent = 0;
     final discountAmount =
         isDiscountPercentage ? subtotal * (discountValue / 100) : discountValue;
+    final isDelivered = itemsReceived;
+    final deliveryDate = isDelivered ? _formatDate(DateTime.now()) : null;
     final payload = <String, dynamic>{
       'pur_order_name': orderName,
       'vendor': vendorId ?? '',
@@ -602,7 +606,7 @@ class CreatePurchaseOrderRequest {
       'status': 1,
       'approve_status': 2,
       'date_owed': 0,
-      'delivery_date': null,
+      'delivery_date': deliveryDate,
       'subtotal': subtotal,
       'total_tax': 0,
       'total': total,
@@ -613,13 +617,13 @@ class CreatePurchaseOrderRequest {
       'discount_type': 'after_tax',
       'buyer': userId ?? '',
       'status_goods': 1,
-      'delivery_status': 0,
+      'delivery_status': isDelivered ? 1 : 0,
       'project': 0,
       'pur_request': 0,
       'department': 0,
       'sale_invoice': 0,
       'currency': 1,
-      'order_status': 'new',
+      'order_status': isDelivered ? 'delivered' : 'new',
       'currency_rate': 1,
       'from_currency': 1,
       'to_currency': 1,
