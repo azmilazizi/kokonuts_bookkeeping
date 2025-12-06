@@ -440,9 +440,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         _purchaseOptionsService.fetchPurchaseOptions(headers: headers),
         _paymentModesService.fetchPaymentModes(headers: headers),
         _warehousesService.fetchWarehouses(headers: headers),
-        _inventoryOptionsService.fetchInventoryReceivedPrefix(
-          headers: headers,
-        ),
+        _inventoryOptionsService.fetchInventoryReceivedPrefix(headers: headers),
       ]);
 
       if (!mounted) {
@@ -454,9 +452,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       setState(() {
         _vendors = results[0] as List<VendorSummary>;
         _inventoryItems = [...fetchedItems]
-          ..sort((a, b) => _formatInventoryItemName(a)
-              .toLowerCase()
-              .compareTo(_formatInventoryItemName(b).toLowerCase()));
+          ..sort(
+            (a, b) => _formatInventoryItemName(a).toLowerCase().compareTo(
+              _formatInventoryItemName(b).toLowerCase(),
+            ),
+          );
         final options = results[2] as PurchaseOptions;
         _paymentModes = results[3] as List<PaymentMode>;
         _warehouses = results[4] as List<Warehouse>;
@@ -666,23 +666,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
   void _handlePaymentChanged() {
     setState(_markDirty);
-  }
-
-  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
-    final rawToken = (appState.rawAuthToken ?? token).trim();
-    final sanitizedToken = token
-        .replaceFirst(RegExp('^Bearer\s+', caseSensitive: false), '')
-        .trim();
-    final normalizedAuth = sanitizedToken.isNotEmpty
-        ? 'Bearer $sanitizedToken'
-        : token.trim();
-    final autoTokenValue = rawToken
-        .replaceFirst(RegExp('^Bearer\s+', caseSensitive: false), '')
-        .trim();
-    final authtokenHeader = autoTokenValue.isNotEmpty
-        ? autoTokenValue
-        : sanitizedToken;
-    return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
   }
 
   Future<void> _pickOrderDate() async {
@@ -1761,10 +1744,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       return;
     }
 
-    _replaceAttachmentsWith(
-      [..._supportingAttachments, ...newFiles],
-      showErrorToast: true,
-    );
+    _replaceAttachmentsWith([
+      ..._supportingAttachments,
+      ...newFiles,
+    ], showErrorToast: true);
   }
 
   void _replaceAttachmentsWith(
@@ -1995,9 +1978,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
     setState(() {
       _inventoryItems = [..._inventoryItems, created]
-        ..sort((a, b) => _formatInventoryItemName(a)
-            .toLowerCase()
-            .compareTo(_formatInventoryItemName(b).toLowerCase()));
+        ..sort(
+          (a, b) => _formatInventoryItemName(
+            a,
+          ).toLowerCase().compareTo(_formatInventoryItemName(b).toLowerCase()),
+        );
       _selectedInventoryItem = created;
       _pendingItem.setItem(
         itemName: _formatInventoryItemName(created),
@@ -2024,7 +2009,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   String _formatInventoryItemName(InventoryItem item) {
     final code = item.skuCode?.trim();
     final skuName = item.skuName?.trim();
-    if (code != null && code.isNotEmpty && skuName != null && skuName.isNotEmpty) {
+    if (code != null &&
+        code.isNotEmpty &&
+        skuName != null &&
+        skuName.isNotEmpty) {
       return '${code}_$skuName';
     }
     if (code != null && code.isNotEmpty) {
@@ -2865,7 +2853,9 @@ class _DraftAttachmentsList extends StatelessWidget {
 
             final downloadUrl = attachment.downloadUrl?.trim();
             final canPreview =
-                downloadUrl != null && downloadUrl.isNotEmpty && previewType != null;
+                downloadUrl != null &&
+                downloadUrl.isNotEmpty &&
+                previewType != null;
 
             final subtitle = subtitleParts.isEmpty
                 ? null
@@ -2902,11 +2892,11 @@ class _DraftAttachmentsList extends StatelessWidget {
                 ),
                 onTap: canPreview
                     ? () => _handleDraftAttachmentPreview(
-                          context: context,
-                          fileName: attachment.fileName,
-                          downloadUrl: downloadUrl!,
-                          previewType: previewType!,
-                        )
+                        context: context,
+                        fileName: attachment.fileName,
+                        downloadUrl: downloadUrl!,
+                        previewType: previewType!,
+                      )
                     : null,
               ),
             );
@@ -3024,10 +3014,7 @@ class _AttachmentPreviewDialog extends StatelessWidget {
         );
         break;
       case _AttachmentPreviewType.pdf:
-        content = _PdfPreview(
-          downloadUrl: downloadUrl,
-          apiHeaders: apiHeaders,
-        );
+        content = _PdfPreview(downloadUrl: downloadUrl, apiHeaders: apiHeaders);
         break;
     }
 
@@ -3109,6 +3096,23 @@ class _PdfPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     return buildAttachmentPdfPreview(downloadUrl, headers: apiHeaders);
   }
+}
+
+Map<String, String> _buildAuthHeaders(AppState appState, String token) {
+  final rawToken = (appState.rawAuthToken ?? token).trim();
+  final sanitizedToken = token
+      .replaceFirst(RegExp('^Bearer\s+', caseSensitive: false), '')
+      .trim();
+  final normalizedAuth = sanitizedToken.isNotEmpty
+      ? 'Bearer $sanitizedToken'
+      : token.trim();
+  final autoTokenValue = rawToken
+      .replaceFirst(RegExp('^Bearer\s+', caseSensitive: false), '')
+      .trim();
+  final authtokenHeader = autoTokenValue.isNotEmpty
+      ? autoTokenValue
+      : sanitizedToken;
+  return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
 }
 
 Future<void> _handleDraftAttachmentPreview({
