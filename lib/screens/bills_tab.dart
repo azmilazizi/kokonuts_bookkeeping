@@ -38,7 +38,7 @@ class BillsTabState extends State<BillsTab>
   static const _perPage = 20;
   // The bills table includes action buttons which require extra width; raising
   // the minimum ensures the columns stay separated on compact layouts.
-  static const double _minTableWidth = 1000;
+  static const double _minTableWidth = 1100;
 
   bool _isLoading = false;
   bool _hasMore = true;
@@ -514,6 +514,10 @@ class BillsTabState extends State<BillsTab>
     if (_vendorLabel(bill).toLowerCase().contains(query)) {
       return true;
     }
+    final expenseName = bill.expenseName?.toLowerCase();
+    if (expenseName != null && expenseName.contains(query)) {
+      return true;
+    }
     final status = bill.status.label.toLowerCase();
     final statusCode = bill.status.code.toString().toLowerCase();
     if (status.contains(query) || statusCode.contains(query)) {
@@ -707,7 +711,7 @@ class _BillsHeader extends StatelessWidget {
   final bool sortAscending;
   final ValueChanged<BillsSortColumn> onSort;
 
-  static const _columnFlex = [4, 3, 3, 3, 2, 3];
+  static const _columnFlex = [4, 4, 3, 3, 3, 2, 3];
 
   @override
   Widget build(BuildContext context) {
@@ -724,8 +728,13 @@ class _BillsHeader extends StatelessWidget {
             onTap: () => onSort(BillsSortColumn.vendor),
           ),
           SortableHeaderCell(
-            label: 'Date',
+            label: 'Description',
             flex: _columnFlex[1],
+            theme: theme,
+          ),
+          SortableHeaderCell(
+            label: 'Date',
+            flex: _columnFlex[2],
             theme: theme,
             textAlign: TextAlign.center,
             isActive: sortColumn == BillsSortColumn.billDate,
@@ -734,7 +743,7 @@ class _BillsHeader extends StatelessWidget {
           ),
           SortableHeaderCell(
             label: 'Due Date',
-            flex: _columnFlex[2],
+            flex: _columnFlex[3],
             theme: theme,
             textAlign: TextAlign.center,
             isActive: sortColumn == BillsSortColumn.dueDate,
@@ -743,7 +752,7 @@ class _BillsHeader extends StatelessWidget {
           ),
           SortableHeaderCell(
             label: 'Status',
-            flex: _columnFlex[3],
+            flex: _columnFlex[4],
             theme: theme,
             textAlign: TextAlign.center,
             isActive: sortColumn == BillsSortColumn.status,
@@ -752,7 +761,7 @@ class _BillsHeader extends StatelessWidget {
           ),
           SortableHeaderCell(
             label: 'Total',
-            flex: _columnFlex[4],
+            flex: _columnFlex[5],
             theme: theme,
             textAlign: TextAlign.end,
             isActive: sortColumn == BillsSortColumn.total,
@@ -762,7 +771,7 @@ class _BillsHeader extends StatelessWidget {
           const SizedBox(width: 12),
           SortableHeaderCell(
             label: 'Actions',
-            flex: _columnFlex[5],
+            flex: _columnFlex[6],
             theme: theme,
             textAlign: TextAlign.center,
             ascending: sortAscending,
@@ -849,7 +858,7 @@ class _BillRowState extends State<_BillRow> {
   bool _hovering = false;
   bool _isDeleting = false;
 
-  static const _columnFlex = [4, 3, 3, 3, 2, 3];
+  static const _columnFlex = [4, 4, 3, 3, 3, 2, 3];
 
   @override
   Widget build(BuildContext context) {
@@ -884,17 +893,21 @@ class _BillRowState extends State<_BillRow> {
             children: [
               _DataCell(widget.vendorName, flex: _columnFlex[0]),
               _DataCell(
-                widget.bill.formattedDate,
+                _descriptionLabel(widget.bill),
                 flex: _columnFlex[1],
+              ),
+              _DataCell(
+                widget.bill.formattedDate,
+                flex: _columnFlex[2],
                 textAlign: TextAlign.center,
               ),
               _DataCell(
                 widget.bill.formattedDueDate,
-                flex: _columnFlex[2],
+                flex: _columnFlex[3],
                 textAlign: TextAlign.center,
               ),
               Expanded(
-                flex: _columnFlex[3],
+                flex: _columnFlex[4],
                 child: Align(
                   alignment: Alignment.center,
                   child: _StatusPill(
@@ -905,7 +918,7 @@ class _BillRowState extends State<_BillRow> {
               ),
               _DataCell(
                 widget.bill.totalLabel,
-                flex: _columnFlex[4],
+                flex: _columnFlex[5],
                 textAlign: TextAlign.end,
                 style: widget.theme.textTheme.bodyMedium?.copyWith(
                   color: Colors.red,
@@ -914,7 +927,7 @@ class _BillRowState extends State<_BillRow> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                flex: _columnFlex[5],
+                flex: _columnFlex[6],
                 child: Center(
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -989,6 +1002,14 @@ class _BillRowState extends State<_BillRow> {
         setState(() => _isDeleting = false);
       }
     }
+  }
+
+  String _descriptionLabel(Bill bill) {
+    final description = bill.expenseName?.trim();
+    if (description == null || description.isEmpty) {
+      return '-';
+    }
+    return description;
   }
 }
 
