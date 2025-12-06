@@ -18,6 +18,8 @@ import '../services/inventory_options_service.dart';
 import 'create_inventory_item_dialog.dart';
 import 'create_vendor_dialog.dart';
 import 'attachment_picker.dart';
+import 'attachment_pdf_preview.dart';
+import 'authenticated_image.dart';
 import 'currency_input_formatter.dart';
 import 'form_error_banner.dart';
 import 'searchable_dropdown_form_field.dart';
@@ -1922,7 +1924,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           .map(
             (warehouse) => DropdownMenuItem<String>(
               value: warehouse.id,
-              child: Text(_warehouseLabel(warehouse)),
+              child: Text(
+                _warehouseLabel(warehouse),
+                overflow: TextOverflow.fade,
+                softWrap: false,
+              ),
             ),
           )
           .toList(growable: false),
@@ -2787,7 +2793,11 @@ class _ExistingAttachmentsList extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(vertical: 4),
                 child: ListTile(
                   leading: const Icon(Icons.attach_file),
-                  title: Text(attachment.fileName),
+                  title: Text(
+                    attachment.fileName,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                  ),
                   subtitle: subtitle == null ? null : Text(subtitle),
                   trailing: IconButton(
                     tooltip: 'Remove attachment',
@@ -2848,6 +2858,15 @@ class _DraftAttachmentsList extends StatelessWidget {
               subtitleParts.add('Uploaded by $uploadedBy');
             }
 
+            final previewType = _resolveAttachmentPreviewType(
+              attachment.fileName,
+              attachment.downloadUrl,
+            );
+
+            final downloadUrl = attachment.downloadUrl?.trim();
+            final canPreview =
+                downloadUrl != null && downloadUrl.isNotEmpty && previewType != null;
+
             final subtitle = subtitleParts.isEmpty
                 ? null
                 : subtitleParts.join(' • ');
@@ -2859,13 +2878,36 @@ class _DraftAttachmentsList extends StatelessWidget {
               margin: const EdgeInsets.symmetric(vertical: 4),
               child: ListTile(
                 leading: const Icon(Icons.attach_email_outlined),
-                title: Text(attachment.fileName),
-                subtitle: subtitle == null ? null : Text(subtitle),
-                trailing: IconButton(
-                  tooltip: 'Remove attachment',
-                  icon: const Icon(Icons.close),
-                  onPressed: () => onRemove(index),
+                title: Text(
+                  attachment.fileName,
+                  overflow: TextOverflow.fade,
+                  softWrap: false,
                 ),
+                subtitle: subtitle == null ? null : Text(subtitle),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (canPreview)
+                      _AttachmentPreviewButton(
+                        fileName: attachment.fileName,
+                        downloadUrl: downloadUrl!,
+                        previewType: previewType!,
+                      ),
+                    IconButton(
+                      tooltip: 'Remove attachment',
+                      icon: const Icon(Icons.close),
+                      onPressed: () => onRemove(index),
+                    ),
+                  ],
+                ),
+                onTap: canPreview
+                    ? () => _handleDraftAttachmentPreview(
+                          context: context,
+                          fileName: attachment.fileName,
+                          downloadUrl: downloadUrl!,
+                          previewType: previewType!,
+                        )
+                    : null,
               ),
             );
           },
@@ -2884,6 +2926,261 @@ class _DraftAttachmentsList extends StatelessWidget {
       return '${(size / kb).toStringAsFixed(1)} KB';
     }
     return '$size B';
+  }
+}
+
+enum _AttachmentPreviewType { image, pdf }
+
+const _imageExtensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'};
+const _pdfExtensions = {'.pdf'};
+
+_AttachmentPreviewType? _resolveAttachmentPreviewType(
+  String fileName,
+  String? downloadUrl,
+) {
+  if (_matchesExtension(fileName, _imageExtensions) ||
+      _matchesExtension(downloadUrl, _imageExtensions)) {
+    return _AttachmentPreviewType.image;
+  }
+
+  if (_matchesExtension(fileName, _pdfExtensions) ||
+      _matchesExtension(downloadUrl, _pdfExtensions)) {
+    return _AttachmentPreviewType.pdf;
+  }
+
+  return null;
+}
+
+bool _matchesExtension(String? value, Set<String> extensions) {
+  if (value == null || value.trim().isEmpty) {
+    return false;
+  }
+
+  bool match(String candidate) {
+    final lower = candidate.toLowerCase();
+    for (final ext in extensions) {
+      final normalizedExt = ext.startsWith('.') ? ext : '.$ext';
+      if (lower.endsWith(normalizedExt)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  final trimmed = value.trim();
+  if (match(trimmed)) {
+    return true;
+  }
+
+  final parsed = Uri.tryParse(trimmed);
+  if (parsed != null && match(parsed.path)) {
+    return true;
+  }
+
+  return false;
+}
+
+void _showAttachmentPreview({
+  required BuildContext context,
+  required String fileName,
+  required String downloadUrl,
+  required _AttachmentPreviewType previewType,
+  Map<String, String>? apiHeaders,
+}) {
+  showDialog<void>(
+    context: context,
+    builder: (context) => _AttachmentPreviewDialog(
+      fileName: fileName,
+      downloadUrl: downloadUrl,
+      previewType: previewType,
+      apiHeaders: apiHeaders,
+    ),
+  );
+}
+
+class _AttachmentPreviewDialog extends StatelessWidget {
+  const _AttachmentPreviewDialog({
+    required this.fileName,
+    required this.downloadUrl,
+    required this.previewType,
+    this.apiHeaders,
+  });
+
+  final String fileName;
+  final String downloadUrl;
+  final _AttachmentPreviewType previewType;
+  final Map<String, String>? apiHeaders;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    Widget content;
+
+    switch (previewType) {
+      case _AttachmentPreviewType.image:
+        content = _ImagePreview(
+          downloadUrl: downloadUrl,
+          apiHeaders: apiHeaders,
+        );
+        break;
+      case _AttachmentPreviewType.pdf:
+        content = _PdfPreview(
+          downloadUrl: downloadUrl,
+          apiHeaders: apiHeaders,
+        );
+        break;
+    }
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: SizedBox(
+        width: 720,
+        height: 560,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '$fileName preview',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close preview',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(child: content),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ImagePreview extends StatelessWidget {
+  const _ImagePreview({required this.downloadUrl, this.apiHeaders});
+
+  final String downloadUrl;
+  final Map<String, String>? apiHeaders;
+
+  @override
+  Widget build(BuildContext context) {
+    return InteractiveViewer(
+      child: Center(
+        child: AuthenticatedImage(
+          imageUrl: downloadUrl,
+          headers: apiHeaders,
+          fit: BoxFit.contain,
+          loadingBuilder: (context, child, loadingProgress) {
+            return const Center(child: CircularProgressIndicator());
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Unable to load image preview.'),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _PdfPreview extends StatelessWidget {
+  const _PdfPreview({required this.downloadUrl, this.apiHeaders});
+
+  final String downloadUrl;
+  final Map<String, String>? apiHeaders;
+
+  @override
+  Widget build(BuildContext context) {
+    return buildAttachmentPdfPreview(downloadUrl, headers: apiHeaders);
+  }
+}
+
+Future<void> _handleDraftAttachmentPreview({
+  required BuildContext context,
+  required String fileName,
+  required String downloadUrl,
+  required _AttachmentPreviewType previewType,
+}) async {
+  final appState = AppStateScope.of(context);
+  final token = await appState.getValidAuthToken();
+  if (!context.mounted || token == null) return;
+
+  final headers = _buildAuthHeaders(appState, token);
+  _showAttachmentPreview(
+    context: context,
+    fileName: fileName,
+    downloadUrl: downloadUrl,
+    previewType: previewType,
+    apiHeaders: headers,
+  );
+}
+
+class _AttachmentPreviewButton extends StatefulWidget {
+  const _AttachmentPreviewButton({
+    required this.fileName,
+    required this.downloadUrl,
+    required this.previewType,
+  });
+
+  final String fileName;
+  final String downloadUrl;
+  final _AttachmentPreviewType previewType;
+
+  @override
+  State<_AttachmentPreviewButton> createState() =>
+      _AttachmentPreviewButtonState();
+}
+
+class _AttachmentPreviewButtonState extends State<_AttachmentPreviewButton> {
+  bool _isLoading = false;
+
+  Future<void> _onPressed() async {
+    if (_isLoading) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await _handleDraftAttachmentPreview(
+        context: context,
+        fileName: widget.fileName,
+        downloadUrl: widget.downloadUrl,
+        previewType: widget.previewType,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: 'Preview attachment',
+      onPressed: _isLoading ? null : _onPressed,
+      icon: _isLoading
+          ? const SizedBox(
+              height: 18,
+              width: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.remove_red_eye_outlined),
+    );
   }
 }
 

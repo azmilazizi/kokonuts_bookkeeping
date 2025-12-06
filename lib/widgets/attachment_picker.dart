@@ -284,7 +284,8 @@ class SelectedFileChip extends StatelessWidget {
             child: Text(
               '$truncatedName ($sizeLabel)',
               style: theme.textTheme.bodySmall,
-              overflow: TextOverflow.ellipsis,
+              overflow: TextOverflow.fade,
+              softWrap: false,
             ),
           ),
           IconButton(

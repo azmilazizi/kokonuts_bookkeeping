@@ -1137,7 +1137,8 @@ class _PieChartCard extends StatelessWidget {
                           child: Text(
                             item.label.isEmpty ? 'Unknown' : item.label,
                             style: theme.textTheme.bodySmall,
-                            overflow: TextOverflow.ellipsis,
+                            overflow: TextOverflow.fade,
+                            softWrap: false,
                           ),
                         ),
                         Text(

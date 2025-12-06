@@ -53,13 +53,15 @@ class _KokonutsBookkeepingAppState extends State<KokonutsBookkeepingApp> {
             title: 'Kokonuts Bookkeeping',
             debugShowCheckedModeBanner: false,
             navigatorKey: _navigatorKey,
-            scaffoldMessengerKey: _scaffoldMessengerKey,
             theme: ThemeData(
               colorScheme: ColorScheme.fromSeed(
                 seedColor: Colors.teal,
                 brightness: Brightness.light,
               ),
               useMaterial3: true,
+              snackBarTheme: const SnackBarThemeData(
+                behavior: SnackBarBehavior.floating,
+              ),
             ),
             darkTheme: ThemeData(
               colorScheme: ColorScheme.fromSeed(
@@ -67,8 +69,17 @@ class _KokonutsBookkeepingAppState extends State<KokonutsBookkeepingApp> {
                 brightness: Brightness.dark,
               ),
               useMaterial3: true,
+              snackBarTheme: const SnackBarThemeData(
+                behavior: SnackBarBehavior.floating,
+              ),
             ),
             themeMode: _appState.themeMode,
+            builder: (context, child) {
+              return ScaffoldMessenger(
+                key: _scaffoldMessengerKey,
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
             home: _buildHome(),
           );
         },

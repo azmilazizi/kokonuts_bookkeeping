@@ -225,7 +225,9 @@ class PurchaseOrderDraftAttachment {
     required this.id,
     required this.draftId,
     required this.fileName,
+    this.downloadUrl,
     this.sizeBytes,
+    this.sizeLabel,
     this.uploadedBy,
     this.isExisting = false,
     this.markedForDeletion = false,
@@ -234,17 +236,26 @@ class PurchaseOrderDraftAttachment {
   final String id;
   final String draftId;
   final String fileName;
+  final String? downloadUrl;
   final int? sizeBytes;
+  final String? sizeLabel;
   final String? uploadedBy;
   final bool isExisting;
   final bool markedForDeletion;
 
   factory PurchaseOrderDraftAttachment.fromJson(Map<String, dynamic> json) {
+    final explicitUrl = json['download_url']?.toString() ??
+        json['url']?.toString() ??
+        json['file_url']?.toString();
+
     return PurchaseOrderDraftAttachment(
       id: json['id']?.toString() ?? '',
       draftId: json['draft_id']?.toString() ?? '',
       fileName: json['file_name']?.toString() ?? '',
+      downloadUrl: explicitUrl,
       sizeBytes: _parseInt(json['size_bytes']),
+      sizeLabel: json['file_size_formatted']?.toString() ??
+          json['size_formatted']?.toString(),
       uploadedBy: json['uploaded_by']?.toString(),
       isExisting: _parseBool(json['is_existing']) ?? false,
       markedForDeletion: _parseBool(json['marked_for_deletion']) ?? false,
@@ -256,7 +267,9 @@ class PurchaseOrderDraftAttachment {
       'id': id,
       'draft_id': draftId,
       'file_name': fileName,
+      if (downloadUrl != null) 'download_url': downloadUrl,
       if (sizeBytes != null) 'size_bytes': sizeBytes,
+      if (sizeLabel != null) 'file_size_formatted': sizeLabel,
       if (uploadedBy != null) 'uploaded_by': uploadedBy,
       'is_existing': isExisting,
       'marked_for_deletion': markedForDeletion,
