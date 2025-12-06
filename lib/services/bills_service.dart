@@ -807,6 +807,7 @@ class Bill {
     required this.id,
     required this.vendorId,
     this.vendorName,
+    this.expenseName,
     required this.billDate,
     required this.dueDate,
     required this.status,
@@ -888,6 +889,8 @@ class Bill {
           _stringValue(json['vendor']) ??
           '',
       vendorName: _stringValue(json['vendor_name']),
+      expenseName:
+          _stringValue(json['expense_name']) ?? _stringValue(json['expenseName']),
       billDate: _parseDate(_stringValue(json['date'])),
       dueDate: _parseDate(_stringValue(json['due_date'])) ??
           _parseDate(_stringValue(json['date'])),
@@ -924,6 +927,7 @@ class Bill {
   final String id;
   final String vendorId;
   final String? vendorName;
+  final String? expenseName;
   final DateTime? billDate;
   final DateTime? dueDate;
   final BillStatus status;
