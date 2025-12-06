@@ -13,6 +13,8 @@ import '../services/purchase_orders_service.dart';
 import '../services/purchase_order_detail_service.dart';
 import '../services/purchase_order_drafts_service.dart';
 import '../services/vendors_service.dart';
+import '../services/warehouses_service.dart';
+import '../services/inventory_options_service.dart';
 import 'create_inventory_item_dialog.dart';
 import 'create_vendor_dialog.dart';
 import 'attachment_picker.dart';
@@ -48,6 +50,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   final _draftsService = PurchaseOrderDraftsService();
   final _inventoryItemsService = InventoryItemsService();
   final _paymentModesService = PaymentModesService();
+  final _warehousesService = WarehousesService();
+  final _inventoryOptionsService = InventoryOptionsService();
   final TextEditingController _orderDiscountController = TextEditingController(
     text: CurrencyInputFormatter.normalizeExistingValue('0'),
   );
@@ -91,6 +95,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   List<VendorSummary> _vendors = const [];
   List<InventoryItem> _inventoryItems = const [];
   List<PaymentMode> _paymentModes = const [];
+  List<Warehouse> _warehouses = const [];
   final List<_PaymentEntryDraft> _payments = [];
   List<PlatformFile> _supportingAttachments = const [];
   List<PurchaseOrderDraftAttachment> _draftAttachments = const [];
@@ -101,6 +106,13 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   int _attachmentIdCounter = 0;
 
   String _vendorLabel(String name) => name;
+
+  String _warehouseLabel(Warehouse warehouse) =>
+      '${warehouse.code}-${warehouse.name}';
+
+  bool _itemsReceived = false;
+  String? _selectedWarehouseId;
+  String? _inventoryReceivedPrefix;
 
   String _paymentModeLabel(String id) {
     return _paymentModes
@@ -204,6 +216,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _orderNumberController.text = detail.number;
     _selectedVendorName = detail.vendorName;
     _selectedVendorId = detail.vendorId;
+    _itemsReceived = detail.deliveryStatusId == 1;
     _orderDiscountController.text =
         CurrencyInputFormatter.normalizeExistingValue(
           _formatDouble(detail.discountValue ?? 0),
@@ -259,6 +272,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _selectedVendorName = draft.vendorName;
     _selectedVendorId = draft.vendorId;
     _selectedVendorCode = draft.vendorCode;
+    _itemsReceived = draft.itemsReceived;
     _isPaid = draft.isPaid;
     _orderDiscountController.text =
         CurrencyInputFormatter.normalizeExistingValue(
@@ -423,6 +437,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         _inventoryItemsService.fetchItems(headers: headers),
         _purchaseOptionsService.fetchPurchaseOptions(headers: headers),
         _paymentModesService.fetchPaymentModes(headers: headers),
+        _warehousesService.fetchWarehouses(headers: headers),
+        _inventoryOptionsService.fetchInventoryReceivedPrefix(
+          headers: headers,
+        ),
       ]);
 
       if (!mounted) {
@@ -439,7 +457,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
               .compareTo(_formatInventoryItemName(b).toLowerCase()));
         final options = results[2] as PurchaseOptions;
         _paymentModes = results[3] as List<PaymentMode>;
+        _warehouses = results[4] as List<Warehouse>;
         _purchaseOrderPrefix = '#PO-';
+        _inventoryReceivedPrefix = results[5] as String?;
         _nextPurchaseOrderNumber = options.nextPurchaseOrderNumber;
         _orderNumberSeed = _buildOrderNumberSeed(
           _purchaseOrderPrefix,
@@ -841,6 +861,13 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       payments = parsedPayments;
     }
 
+    if (_itemsReceived && (_selectedWarehouseId?.trim().isEmpty ?? true)) {
+      setState(() {
+        _submitError = 'Select a warehouse when items are marked as received.';
+      });
+      return;
+    }
+
     final removedPaymentIds = _isEditing
         ? _removedPaymentIds
               .map((id) => id.trim())
@@ -860,6 +887,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       shippingFee: _shippingFee,
       discountValue: _orderDiscountValue,
       isDiscountPercentage: _orderDiscountType == DiscountType.percentage,
+      itemsReceived: _itemsReceived,
       payments: payments,
       userId: appState.currentUserId,
       nextPurchaseOrderNumber: _nextPurchaseOrderNumber,
@@ -962,6 +990,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         await _deleteDraftIfNeeded(headers);
       }
 
+      await _createGoodsReceiptIfNeeded(
+        appState: appState,
+        headers: headers,
+        order: created,
+      );
+
       Navigator.of(context).pop(created);
     } on PurchaseOrdersException catch (error) {
       setState(() {
@@ -978,6 +1012,71 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           _isSubmitting = false;
         });
       }
+    }
+  }
+
+  Future<void> _createGoodsReceiptIfNeeded({
+    required AppState appState,
+    required Map<String, String> headers,
+    required PurchaseOrder order,
+  }) async {
+    if (!_itemsReceived) {
+      return;
+    }
+
+    final warehouseId = _selectedWarehouseId;
+    if (warehouseId == null || warehouseId.trim().isEmpty) {
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    var prefix = _inventoryReceivedPrefix;
+    if (prefix == null) {
+      try {
+        prefix = await _inventoryOptionsService.fetchInventoryReceivedPrefix(
+          headers: headers,
+        );
+        _inventoryReceivedPrefix = prefix;
+      } catch (error) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Purchase order saved but failed to load goods receipt prefix: $error',
+            ),
+          ),
+        );
+      }
+    }
+
+    final cleanedPrefix = (prefix ?? '').trim();
+    final goodsReceiptCode =
+        'IR-${cleanedPrefix.isNotEmpty ? cleanedPrefix : order.number}';
+
+    final request = CreateGoodsReceiptRequest(
+      supplierCode: _selectedVendorId ?? '',
+      supplierName: _selectedVendorName ?? '',
+      buyerId: appState.currentUserId ?? '',
+      purOrderId: order.id,
+      date: DateTime.now(),
+      goodsReceiptCode: goodsReceiptCode,
+      warehouseId: warehouseId,
+      total: _grandTotal,
+      addedFrom: appState.currentUserId ?? '',
+    );
+
+    try {
+      await _warehousesService.createGoodsReceipt(
+        headers: headers,
+        request: request,
+      );
+    } catch (error) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Purchase order saved but failed to create goods receipt: $error',
+          ),
+        ),
+      );
     }
   }
 
@@ -1286,6 +1385,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       orderNumber: _orderNumberController.text.trim(),
       orderDate: _orderDate!,
       isPaid: _isPaid,
+      itemsReceived: _itemsReceived,
       discountType: discountTypeValue,
       discountValue: _orderDiscountValue,
       shippingFee: _shippingFee,
@@ -1426,6 +1526,29 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                     ),
                   ],
                   const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _itemsReceived,
+                        onChanged: (value) {
+                          setState(() {
+                            _itemsReceived = value ?? false;
+                            if (!_itemsReceived) {
+                              _selectedWarehouseId = null;
+                            }
+                            _markDirty();
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('Items Received'),
+                    ],
+                  ),
+                  if (_itemsReceived) ...[
+                    const SizedBox(height: 12),
+                    _buildWarehouseDropdown(),
+                    const SizedBox(height: 12),
+                  ],
                   Row(
                     children: [
                       Checkbox(
@@ -1788,6 +1911,35 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         }
         return null;
       },
+    );
+  }
+
+  Widget _buildWarehouseDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _selectedWarehouseId,
+      decoration: const InputDecoration(labelText: 'Warehouse'),
+      items: _warehouses
+          .map(
+            (warehouse) => DropdownMenuItem<String>(
+              value: warehouse.id,
+              child: Text(_warehouseLabel(warehouse)),
+            ),
+          )
+          .toList(growable: false),
+      onChanged: (value) {
+        setState(() {
+          _selectedWarehouseId = value;
+          _markDirty();
+        });
+      },
+      validator: _itemsReceived
+          ? (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Warehouse is required when receiving items.';
+              }
+              return null;
+            }
+          : null,
     );
   }
 
