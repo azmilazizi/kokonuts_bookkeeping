@@ -740,7 +740,8 @@ class _DataCell extends StatelessWidget {
         child: Text(
           value,
           textAlign: textAlign ?? TextAlign.start,
-          overflow: TextOverflow.ellipsis,
+          overflow: TextOverflow.fade,
+          softWrap: false,
           maxLines: 1,
         ),
       ),

@@ -99,7 +99,8 @@ class DateRangeFilterButton extends StatelessWidget {
               Flexible(
                 child: Text(
                   buttonLabel,
-                  overflow: TextOverflow.ellipsis,
+                  overflow: TextOverflow.fade,
+                  softWrap: false,
                 ),
               ),
             ],

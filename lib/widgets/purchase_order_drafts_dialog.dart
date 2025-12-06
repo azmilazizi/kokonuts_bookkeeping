@@ -325,7 +325,8 @@ class _DraftCell extends StatelessWidget {
       child: Text(
         label,
         maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+        overflow: TextOverflow.fade,
+        softWrap: false,
         style: style ?? Theme.of(context).textTheme.bodyMedium,
       ),
     );

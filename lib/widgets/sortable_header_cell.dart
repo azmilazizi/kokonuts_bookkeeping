@@ -39,7 +39,7 @@ class SortableHeaderCell extends StatelessWidget {
               child: Text(
                 label,
                 textAlign: textAlign ?? TextAlign.start,
-                overflow: TextOverflow.ellipsis,
+                overflow: TextOverflow.fade,
                 maxLines: 2,
                 softWrap: true,
                 style: theme.textTheme.labelLarge?.copyWith(

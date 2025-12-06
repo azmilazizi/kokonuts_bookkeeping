@@ -42,7 +42,8 @@ class TabPageHeader extends StatelessWidget {
                   child: Text(
                     title,
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
                     style: titleStyle ??
                         theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,

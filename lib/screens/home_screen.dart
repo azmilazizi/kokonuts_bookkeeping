@@ -192,7 +192,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               Flexible(
                 child: Text(
                   currentTab.title,
-                  overflow: TextOverflow.ellipsis,
+                  overflow: TextOverflow.fade,
+                  softWrap: false,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
