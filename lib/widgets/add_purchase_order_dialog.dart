@@ -951,14 +951,16 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         }
       }
 
-      if (!_isEditing) {
-        await _moveDraftAttachmentsToPurchaseOrder(
-          headers: headers,
-          purchaseOrderId: created.id,
-        );
-      }
+      final movedDraftAttachments = _isEditing
+          ? true
+          : await _moveDraftAttachmentsToPurchaseOrder(
+              headers: headers,
+              purchaseOrderId: created.id,
+            );
 
-      await _deleteDraftIfNeeded(headers);
+      if (movedDraftAttachments) {
+        await _deleteDraftIfNeeded(headers);
+      }
 
       Navigator.of(context).pop(created);
     } on PurchaseOrdersException catch (error) {
@@ -1295,13 +1297,17 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     );
   }
 
-  Future<void> _moveDraftAttachmentsToPurchaseOrder({
+  Future<bool> _moveDraftAttachmentsToPurchaseOrder({
     required Map<String, String> headers,
     required String purchaseOrderId,
   }) async {
     final draftId = _activeDraftId;
     if (draftId == null || draftId.trim().isEmpty) {
-      return;
+      return true;
+    }
+
+    if (_draftAttachments.isEmpty) {
+      return true;
     }
 
     try {
@@ -1310,6 +1316,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         purchaseOrderId: purchaseOrderId,
         headers: headers,
       );
+      return true;
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1321,6 +1328,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         );
       }
     }
+
+    return false;
   }
 
   Future<void> _deleteDraftIfNeeded(Map<String, String> headers) async {
