@@ -274,6 +274,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _selectedVendorName = draft.vendorName;
     _selectedVendorId = draft.vendorId;
     _selectedVendorCode = draft.vendorCode;
+    _selectedWarehouseId = draft.warehouseId;
     _itemsReceived = draft.itemsReceived;
     _isPaid = draft.isPaid;
     _orderDiscountController.text =
@@ -1366,6 +1367,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       vendorId: _selectedVendorId,
       vendorName: _selectedVendorName,
       vendorCode: _selectedVendorCode,
+      warehouseId: _selectedWarehouseId,
       orderName: sanitizedOrderName,
       orderNumber: _orderNumberController.text.trim(),
       orderDate: _orderDate!,
@@ -2846,16 +2848,14 @@ class _DraftAttachmentsList extends StatelessWidget {
               subtitleParts.add('Uploaded by $uploadedBy');
             }
 
+            final downloadUrl = _resolveDraftAttachmentUrl(attachment);
             final previewType = _resolveAttachmentPreviewType(
               attachment.fileName,
-              attachment.downloadUrl,
+              downloadUrl,
             );
 
-            final downloadUrl = attachment.downloadUrl?.trim();
             final canPreview =
-                downloadUrl != null &&
-                downloadUrl.isNotEmpty &&
-                previewType != null;
+                downloadUrl != null && downloadUrl.isNotEmpty && previewType != null;
 
             final subtitle = subtitleParts.isEmpty
                 ? null
@@ -2917,6 +2917,23 @@ class _DraftAttachmentsList extends StatelessWidget {
     }
     return '$size B';
   }
+}
+
+String? _resolveDraftAttachmentUrl(PurchaseOrderDraftAttachment attachment) {
+  final sanitizedUrl = attachment.downloadUrl?.trim();
+  if (sanitizedUrl != null && sanitizedUrl.isNotEmpty) {
+    return sanitizedUrl;
+  }
+
+  final draftId = attachment.draftId.trim();
+  final fileName = attachment.fileName.trim();
+  if (draftId.isEmpty || fileName.isEmpty) {
+    return null;
+  }
+
+  final encodedDraftId = Uri.encodeComponent(draftId);
+  final encodedFileName = Uri.encodeComponent(fileName);
+  return 'https://crm.kokonuts.my/modules/purchase/uploads/pur_order_draft/$encodedDraftId/$encodedFileName';
 }
 
 enum _AttachmentPreviewType { image, pdf }
