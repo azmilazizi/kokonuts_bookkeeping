@@ -11,7 +11,7 @@ class InventoryOptionsService {
   final http.Client _client;
 
   static const _optionsUrl = 'https://crm.kokonuts.my/api/v1/options';
-  static const _optionByIdUrl = 'https://crm.kokonuts.my/api/v1/option';
+  static const _optionUrl = 'https://crm.kokonuts.my/api/v1/option';
 
   Future<String?> fetchInventoryReceivedPrefix({
     required Map<String, String> headers,
@@ -46,8 +46,8 @@ class InventoryOptionsService {
     required Map<String, String> headers,
   }) async {
     final values = await Future.wait([
-      _fetchOptionValue(headers: headers, optionId: '682'),
-      _fetchOptionValue(headers: headers, optionId: '683'),
+      _fetchOptionValue(headers: headers, optionKey: 'lot_number_prefix'),
+      _fetchOptionValue(headers: headers, optionKey: 'next_lot_number'),
     ]);
 
     final prefix = values[0];
@@ -64,12 +64,12 @@ class InventoryOptionsService {
 
   Future<String?> _fetchOptionValue({
     required Map<String, String> headers,
-    required String optionId,
+    required String optionKey,
   }) async {
     http.Response response;
     try {
       response = await _client.get(
-        Uri.parse('$_optionByIdUrl/$optionId'),
+        Uri.parse('$_optionUrl/$optionKey'),
         headers: {'Accept': 'application/json', ...headers},
       );
     } catch (error) {
@@ -78,7 +78,7 @@ class InventoryOptionsService {
 
     if (response.statusCode != 200) {
       throw InventoryOptionsException(
-        'Option $optionId request failed with status ${response.statusCode}: ${response.body}',
+        'Option $optionKey request failed with status ${response.statusCode}: ${response.body}',
       );
     }
 
@@ -86,7 +86,7 @@ class InventoryOptionsService {
     try {
       decoded = jsonDecode(response.body);
     } catch (error) {
-      throw InventoryOptionsException('Unable to parse option $optionId: $error');
+      throw InventoryOptionsException('Unable to parse option $optionKey: $error');
     }
 
     if (decoded is Map<String, dynamic>) {
