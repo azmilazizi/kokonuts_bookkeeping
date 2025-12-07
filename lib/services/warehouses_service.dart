@@ -96,7 +96,7 @@ class Warehouse {
 
   factory Warehouse.fromJson(Map<String, dynamic> json) {
     return Warehouse(
-      id: json['id']?.toString() ?? '',
+      id: json['warehouse_id']?.toString() ?? json['id']?.toString() ?? '',
       code: json['warehouse_code']?.toString() ??
           json['code']?.toString() ??
           '—',
