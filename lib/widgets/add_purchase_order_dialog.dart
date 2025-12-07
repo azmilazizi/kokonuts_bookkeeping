@@ -1094,8 +1094,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     required String warehouseId,
     required DateTime receiptDate,
   }) {
-    final lotDateSegment =
-        '${receiptDate.month.toString().padLeft(2, '0')}${receiptDate.year.toString().substring(2)}';
+    final lotDateSegment = DateFormat('MMyy').format(receiptDate);
 
     var nextLotNumber = lotNumberSettings.nextLotNumber;
 
