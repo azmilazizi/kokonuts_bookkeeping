@@ -122,6 +122,7 @@ class CreateGoodsReceiptRequest {
     required this.warehouseId,
     required this.total,
     required this.addedFrom,
+    required this.items,
   });
 
   final String supplierCode;
@@ -133,6 +134,7 @@ class CreateGoodsReceiptRequest {
   final String warehouseId;
   final double total;
   final String addedFrom;
+  final List<CreateGoodsReceiptItem> items;
 
   Map<String, dynamic> toJson() {
     final formattedDate = _formatDate(date);
@@ -159,6 +161,48 @@ class CreateGoodsReceiptRequest {
       'requester': '0',
       'expiry_date': null,
       'invoice_no': '',
+      'items': items.map((item) => item.toJson()).toList(growable: false),
+    };
+  }
+}
+
+class CreateGoodsReceiptItem {
+  const CreateGoodsReceiptItem({
+    required this.commodityCode,
+    required this.warehouseId,
+    required this.quantity,
+    required this.unitPrice,
+    required this.goodsMoney,
+    required this.subTotal,
+    required this.unitId,
+    required this.lotNumber,
+    this.taxes,
+    this.serialNumber = '',
+  });
+
+  final String commodityCode;
+  final String warehouseId;
+  final double quantity;
+  final double unitPrice;
+  final double goodsMoney;
+  final double subTotal;
+  final String unitId;
+  final String lotNumber;
+  final dynamic taxes;
+  final String serialNumber;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'commodity_code': commodityCode,
+      'warehouse_id': warehouseId,
+      'quantity': quantity,
+      'unit_price': unitPrice,
+      'goods_money': goodsMoney,
+      'sub_total': subTotal,
+      'unit_id': unitId,
+      'taxes': taxes,
+      'lot_number': lotNumber,
+      'serial_number': serialNumber,
     };
   }
 }

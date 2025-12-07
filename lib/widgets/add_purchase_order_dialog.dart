@@ -1038,6 +1038,28 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     final goodsReceiptCode =
         'IR-${cleanedPrefix.isNotEmpty ? cleanedPrefix : order.number}';
 
+    LotNumberSettings lotSettings;
+    try {
+      lotSettings = await _inventoryOptionsService.fetchLotNumberSettings(
+        headers: headers,
+      );
+    } catch (error) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Purchase order saved but failed to load lot numbers: $error',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final goodsReceiptItems = _buildGoodsReceiptItems(
+      lotNumberSettings: lotSettings,
+      warehouseId: warehouseId,
+      receiptDate: DateTime.now(),
+    );
+
     final request = CreateGoodsReceiptRequest(
       supplierCode: _selectedVendorId ?? '',
       supplierName: _selectedVendorName ?? '',
@@ -1048,6 +1070,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       warehouseId: warehouseId,
       total: _grandTotal,
       addedFrom: appState.currentUserId ?? '',
+      items: goodsReceiptItems,
     );
 
     try {
@@ -1064,6 +1087,41 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         ),
       );
     }
+  }
+
+  List<CreateGoodsReceiptItem> _buildGoodsReceiptItems({
+    required LotNumberSettings lotNumberSettings,
+    required String warehouseId,
+    required DateTime receiptDate,
+  }) {
+    final lotDateSegment =
+        '${receiptDate.month.toString().padLeft(2, '0')}${receiptDate.year.toString().substring(2)}';
+
+    var nextLotNumber = lotNumberSettings.nextLotNumber;
+
+    return _items
+        .where((item) => (item.itemId ?? '').isNotEmpty)
+        .map(
+          (item) {
+            final lotNumber =
+                '${lotNumberSettings.prefix}-$lotDateSegment-${nextLotNumber.toString().padLeft(5, '0')}';
+            nextLotNumber += 1;
+
+            return CreateGoodsReceiptItem(
+              commodityCode: item.itemId ?? '',
+              warehouseId: warehouseId,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              goodsMoney: item.subtotal,
+              subTotal: item.total,
+              unitId: item.itemId ?? '',
+              taxes: null,
+              lotNumber: lotNumber,
+              serialNumber: '',
+            );
+          },
+        )
+        .toList(growable: false);
   }
 
   Future<void> _handleCancel() async {
