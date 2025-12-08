@@ -115,14 +115,30 @@ class InventoryOptionsService {
   }
 
   String? _extractValue(dynamic decoded) {
-    if (decoded is Map<String, dynamic> && decoded.containsKey('value')) {
-      final rawValue = decoded['value'];
-      if (rawValue == null) {
-        return null;
+    if (decoded is Map<String, dynamic>) {
+      if (decoded.containsKey('value')) {
+        final rawValue = decoded['value'];
+        if (rawValue == null) {
+          return null;
+        }
+        final value = rawValue.toString().trim();
+        if (value.isNotEmpty) {
+          return value;
+        }
       }
-      final value = rawValue.toString().trim();
-      if (value.isNotEmpty) {
-        return value;
+
+      for (final child in decoded.values) {
+        final value = _extractValue(child);
+        if (value != null && value.isNotEmpty) {
+          return value;
+        }
+      }
+    } else if (decoded is List) {
+      for (final item in decoded) {
+        final value = _extractValue(item);
+        if (value != null && value.isNotEmpty) {
+          return value;
+        }
       }
     }
 
