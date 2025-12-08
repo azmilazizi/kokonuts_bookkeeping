@@ -51,18 +51,18 @@ class InventoryOptionsService {
     ]);
 
     final prefix = values[0];
-    final nextLotNumber = int.tryParse(values[1] ?? '');
+    final nextLotNumber = _parseInt(values[1]);
 
-    if (prefix == null || nextLotNumber == null) {
+    if (nextLotNumber == null) {
       throw InventoryOptionsException(
-        'Lot number options could not be loaded.',
+        'Lot number options could not be loaded: next_lot_number is not a valid integer.',
       );
     }
 
     return LotNumberSettings(prefix: prefix, nextLotNumber: nextLotNumber);
   }
 
-  Future<String?> _fetchOptionValue({
+  Future<String> _fetchOptionValue({
     required Map<String, String> headers,
     required String optionKey,
   }) async {
@@ -89,9 +89,39 @@ class InventoryOptionsService {
       throw InventoryOptionsException('Unable to parse option $optionKey: $error');
     }
 
-    if (decoded is Map<String, dynamic>) {
-      final value = decoded['value']?.toString();
-      if (value != null && value.isNotEmpty) {
+    final value = _extractValue(decoded);
+    if (value != null && value.isNotEmpty) {
+      return value;
+    }
+
+    throw InventoryOptionsException(
+      'Option $optionKey did not return a non-empty value.',
+    );
+  }
+
+  int? _parseInt(String source) {
+    final trimmed = source.trim();
+    final parsed = int.tryParse(trimmed);
+    if (parsed != null) {
+      return parsed;
+    }
+
+    final asDouble = double.tryParse(trimmed);
+    if (asDouble != null && asDouble.roundToDouble() == asDouble) {
+      return asDouble.toInt();
+    }
+
+    return null;
+  }
+
+  String? _extractValue(dynamic decoded) {
+    if (decoded is Map<String, dynamic> && decoded.containsKey('value')) {
+      final rawValue = decoded['value'];
+      if (rawValue == null) {
+        return null;
+      }
+      final value = rawValue.toString().trim();
+      if (value.isNotEmpty) {
         return value;
       }
     }
