@@ -1,8 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:cross_file/cross_file.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+
+import '../utils/platform_file_loader.dart';
 
 const Set<String> allowedAttachmentExtensions = {
   'pdf',
@@ -39,6 +44,7 @@ class AttachmentPicker extends StatefulWidget {
     required this.onPick,
     required this.onFilesSelected,
     required this.onFileRemoved,
+    this.enablePreview = false,
   });
 
   final String? label;
@@ -47,6 +53,7 @@ class AttachmentPicker extends StatefulWidget {
   final VoidCallback onPick;
   final ValueChanged<List<PlatformFile>> onFilesSelected;
   final ValueChanged<PlatformFile> onFileRemoved;
+  final bool enablePreview;
 
   @override
   State<AttachmentPicker> createState() => _AttachmentPickerState();
@@ -107,6 +114,9 @@ class _AttachmentPickerState extends State<AttachmentPicker> {
                               .map(
                                 (file) => SelectedFileChip(
                                   file: file,
+                                  onPreview: widget.enablePreview
+                                      ? () => _previewFile(file)
+                                      : null,
                                   onClear: () => widget.onFileRemoved(file),
                                 ),
                               )
@@ -254,13 +264,49 @@ class _AttachmentPickerState extends State<AttachmentPicker> {
       return null;
     }
   }
+
+  Future<void> _previewFile(PlatformFile file) async {
+    final previewType = _resolveLocalPreviewType(file.name);
+    if (previewType == null) {
+      _showPreviewError('Preview not available for this file type.');
+      return;
+    }
+
+    final bytes = await loadPlatformFileBytes(file);
+    if (!mounted) return;
+
+    if (bytes == null || bytes.isEmpty) {
+      _showPreviewError('Unable to load the selected file for preview.');
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      builder: (context) => _LocalAttachmentPreviewDialog(
+        fileName: file.name,
+        bytes: bytes,
+        previewType: previewType,
+      ),
+    );
+  }
+
+  void _showPreviewError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 }
 
 class SelectedFileChip extends StatelessWidget {
-  const SelectedFileChip({required this.file, required this.onClear});
+  const SelectedFileChip({
+    required this.file,
+    required this.onClear,
+    this.onPreview,
+  });
 
   final PlatformFile file;
   final VoidCallback onClear;
+  final VoidCallback? onPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -288,6 +334,12 @@ class SelectedFileChip extends StatelessWidget {
               softWrap: false,
             ),
           ),
+          if (onPreview != null)
+            IconButton(
+              tooltip: 'Preview attachment',
+              icon: const Icon(Icons.remove_red_eye_outlined, size: 18),
+              onPressed: onPreview,
+            ),
           IconButton(
             tooltip: 'Remove attachment',
             icon: const Icon(Icons.close, size: 18),
@@ -325,5 +377,95 @@ class SelectedFileChip extends StatelessWidget {
     }
 
     return '${name.substring(0, remainingLength)}...$extension';
+  }
+}
+
+enum _LocalPreviewType { image, pdf }
+
+_LocalPreviewType? _resolveLocalPreviewType(String fileName) {
+  final lower = fileName.toLowerCase();
+  if (lower.endsWith('.pdf')) return _LocalPreviewType.pdf;
+
+  for (final ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.heic']) {
+    if (lower.endsWith(ext)) return _LocalPreviewType.image;
+  }
+
+  return null;
+}
+
+class _LocalAttachmentPreviewDialog extends StatelessWidget {
+  const _LocalAttachmentPreviewDialog({
+    required this.fileName,
+    required this.bytes,
+    required this.previewType,
+  });
+
+  final String fileName;
+  final Uint8List bytes;
+  final _LocalPreviewType previewType;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    Widget content;
+
+    switch (previewType) {
+      case _LocalPreviewType.image:
+        content = InteractiveViewer(
+          child: Center(
+            child: Image.memory(
+              bytes,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('Unable to load image preview.'),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+        break;
+      case _LocalPreviewType.pdf:
+        content = SfPdfViewer.memory(bytes);
+        break;
+    }
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: SizedBox(
+        width: 720,
+        height: 560,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '$fileName preview',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close preview',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(child: content),
+          ],
+        ),
+      ),
+    );
   }
 }

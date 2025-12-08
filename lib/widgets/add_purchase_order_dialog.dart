@@ -1542,6 +1542,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                     description:
                         'Drag and drop receipts or supporting documents, or tap to browse.',
                     files: _supportingAttachments,
+                    enablePreview: true,
                     onPick: _pickAttachment,
                     onFilesSelected: (files) =>
                         _replaceAttachmentsWith(files, showErrorToast: true),

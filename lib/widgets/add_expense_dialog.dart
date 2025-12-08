@@ -232,6 +232,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                   description:
                       'Drag and drop receipts or supporting documents, or tap to browse.',
                   files: _attachments,
+                  enablePreview: true,
                   onPick: _pickAttachment,
                   onFilesSelected: (files) =>
                       setState(() => _attachments = files),

@@ -280,6 +280,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
                   description:
                       'Drag and drop supporting files here, or click to browse for uploads.',
                   files: _attachments,
+                  enablePreview: true,
                   onPick: _pickAttachments,
                   onFilesSelected: _onFilesSelected,
                   onFileRemoved: _removeAttachment,
