@@ -1558,10 +1558,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                       attachments: _draftAttachments,
                       pendingDeletionCount:
                           _attachmentsMarkedForDeletion.length,
+                      draftId: _activeDraftId,
                       onRemove: _removeDraftAttachment,
                     ),
                   ],
-                  if (_isEditing) ...[
+                if (_isEditing) ...[
                     const SizedBox(height: 12),
                     _ExistingAttachmentsList(
                       attachments: _existingAttachments,
@@ -2866,11 +2867,13 @@ class _DraftAttachmentsList extends StatelessWidget {
     required this.attachments,
     required this.onRemove,
     required this.pendingDeletionCount,
+    this.draftId,
   });
 
   final List<PurchaseOrderDraftAttachment> attachments;
   final ValueChanged<int> onRemove;
   final int pendingDeletionCount;
+  final String? draftId;
 
   @override
   Widget build(BuildContext context) {
@@ -2906,7 +2909,10 @@ class _DraftAttachmentsList extends StatelessWidget {
               subtitleParts.add('Uploaded by $uploadedBy');
             }
 
-            final downloadUrl = _resolveDraftAttachmentUrl(attachment);
+            final downloadUrl = _resolveDraftAttachmentUrl(
+              attachment,
+              draftId: draftId,
+            );
             final previewType = _resolveAttachmentPreviewType(
               attachment.fileName,
               downloadUrl,
@@ -2977,19 +2983,23 @@ class _DraftAttachmentsList extends StatelessWidget {
   }
 }
 
-String? _resolveDraftAttachmentUrl(PurchaseOrderDraftAttachment attachment) {
+String? _resolveDraftAttachmentUrl(
+  PurchaseOrderDraftAttachment attachment, {
+  String? draftId,
+}) {
   final sanitizedUrl = attachment.downloadUrl?.trim();
   if (sanitizedUrl != null && sanitizedUrl.isNotEmpty) {
     return sanitizedUrl;
   }
 
-  final draftId = attachment.draftId.trim();
+  final normalizedDraftId =
+      draftId?.trim().isNotEmpty == true ? draftId!.trim() : attachment.draftId.trim();
   final fileName = attachment.fileName.trim();
-  if (draftId.isEmpty || fileName.isEmpty) {
+  if (normalizedDraftId.isEmpty || fileName.isEmpty) {
     return null;
   }
 
-  final encodedDraftId = Uri.encodeComponent(draftId);
+  final encodedDraftId = Uri.encodeComponent(normalizedDraftId);
   final encodedFileName = Uri.encodeComponent(fileName);
   return 'https://crm.kokonuts.my/modules/purchase/uploads/pur_order_draft/$encodedDraftId/$encodedFileName';
 }
