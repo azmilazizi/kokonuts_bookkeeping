@@ -1057,7 +1057,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     final goodsReceiptItems = _buildGoodsReceiptItems(
       lotNumberSettings: lotSettings,
       warehouseId: warehouseId,
-      receiptDate: DateTime.now(),
+      receiptDate: _orderDate ?? DateTime.now(),
     );
 
     final request = CreateGoodsReceiptRequest(
@@ -1065,7 +1065,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       supplierName: _selectedVendorName ?? '',
       buyerId: appState.currentUserId ?? '',
       purOrderId: order.id,
-      date: DateTime.now(),
+      date: _orderDate ?? DateTime.now(),
       goodsReceiptCode: goodsReceiptCode,
       warehouseId: warehouseId,
       total: _grandTotal,
@@ -1579,6 +1579,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                         onChanged: (value) {
                           setState(() {
                             _itemsReceived = value ?? false;
+                            if (_itemsReceived) {
+                              _orderDate = DateTime.now();
+                            }
                             if (!_itemsReceived) {
                               _selectedWarehouseId = null;
                             }
