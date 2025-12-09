@@ -138,6 +138,7 @@ class CreateGoodsReceiptRequest {
 
   Map<String, dynamic> toJson() {
     final formattedDate = _formatDate(date);
+    final formattedAddedDate = _formatDate(DateTime.now());
     return {
       'supplier_code': supplierCode,
       'supplier_name': supplierName,
@@ -146,7 +147,7 @@ class CreateGoodsReceiptRequest {
       'description': '',
       'pr_order_id': purOrderId,
       'date_c': formattedDate,
-      'date_add': formattedDate,
+      'date_add': formattedAddedDate,
       'goods_receipt_code': goodsReceiptCode,
       'warehouse_id': warehouseId,
       'total_tax_money': '0',

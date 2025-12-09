@@ -597,7 +597,7 @@ class CreatePurchaseOrderRequest {
     final discountAmount =
         isDiscountPercentage ? subtotal * (discountValue / 100) : discountValue;
     final isDelivered = itemsReceived;
-    final deliveryDate = isDelivered ? _formatDate(DateTime.now()) : null;
+    final deliveryDate = isDelivered ? _formatDate(orderDate) : null;
     final payload = <String, dynamic>{
       'pur_order_name': orderName,
       'vendor': vendorId ?? '',
