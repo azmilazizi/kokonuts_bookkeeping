@@ -618,6 +618,7 @@ class CreatePurchaseOrderRequest {
       'buyer': userId ?? '',
       'status_goods': 1,
       'delivery_status': isDelivered ? 1 : 0,
+      'delivery_status_id': isDelivered ? 1 : 0,
       'project': 0,
       'pur_request': 0,
       'department': 0,
