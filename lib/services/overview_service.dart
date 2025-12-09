@@ -17,11 +17,18 @@ class OverviewService {
     required String type,
     required Map<String, String> headers,
   }) async {
-    final uri = Uri.parse(_baseUrl).replace(queryParameters: {
+    final params = {
       'start_date': startDate,
       'end_date': endDate,
       'type': type,
-    });
+    };
+
+    // Ensure cash accounting summary respects payment dates.
+    if (type == 'payment') {
+      params['date_field'] = 'payment_date';
+    }
+
+    final uri = Uri.parse(_baseUrl).replace(queryParameters: params);
 
     http.Response response;
     try {
@@ -65,11 +72,17 @@ class OverviewService {
     required String type,
     required Map<String, String> headers,
   }) async {
-    final uri = Uri.parse(_expensesByTypeUrl).replace(queryParameters: {
+    final params = {
       'start_date': startDate,
       'end_date': endDate,
       'type': type,
-    });
+    };
+
+    if (type == 'payment') {
+      params['date_field'] = 'payment_date';
+    }
+
+    final uri = Uri.parse(_expensesByTypeUrl).replace(queryParameters: params);
 
     http.Response response;
     try {
