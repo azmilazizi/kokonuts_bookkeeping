@@ -1054,10 +1054,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       return;
     }
 
+    final receiptDate = _orderDate ?? DateTime.now();
+
     final goodsReceiptItems = _buildGoodsReceiptItems(
       lotNumberSettings: lotSettings,
       warehouseId: warehouseId,
-      receiptDate: DateTime.now(),
+      receiptDate: receiptDate,
     );
 
     final request = CreateGoodsReceiptRequest(
@@ -1065,7 +1067,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       supplierName: _selectedVendorName ?? '',
       buyerId: appState.currentUserId ?? '',
       purOrderId: order.id,
-      date: DateTime.now(),
+      date: receiptDate,
       goodsReceiptCode: goodsReceiptCode,
       warehouseId: warehouseId,
       total: _grandTotal,
