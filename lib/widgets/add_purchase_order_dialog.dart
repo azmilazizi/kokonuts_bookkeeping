@@ -1056,6 +1056,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
     final receiptDate = _orderDate ?? DateTime.now();
 
+    final supplierName = _findVendorById(_selectedVendorId)?.name ??
+        _selectedVendorName ??
+        '';
+
     final goodsReceiptItems = _buildGoodsReceiptItems(
       lotNumberSettings: lotSettings,
       warehouseId: warehouseId,
@@ -1064,7 +1068,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
     final request = CreateGoodsReceiptRequest(
       supplierCode: _selectedVendorId ?? '',
-      supplierName: _selectedVendorName ?? '',
+      supplierName: supplierName,
       buyerId: appState.currentUserId ?? '',
       purOrderId: order.id,
       date: receiptDate,
@@ -2063,6 +2067,18 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     }
     for (final vendor in _vendors) {
       if (vendor.name == name) {
+        return vendor;
+      }
+    }
+    return null;
+  }
+
+  VendorSummary? _findVendorById(String? id) {
+    if (id == null || id.trim().isEmpty) {
+      return null;
+    }
+    for (final vendor in _vendors) {
+      if (vendor.id == id) {
         return vendor;
       }
     }
