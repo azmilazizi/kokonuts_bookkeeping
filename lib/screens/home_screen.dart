@@ -18,6 +18,7 @@ import '../widgets/add_purchase_order_dialog.dart';
 import '../widgets/create_bill_dialog.dart';
 import '../widgets/post_dialog.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/journal_entry_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -158,6 +159,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     }
   }
 
+  Future<void> _openJournalEntryDialog(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => const JournalEntryDialog(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -203,14 +211,22 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
           actions: [
             if (isCompact)
-               _HeaderMenuButton(appState: appState)
+              _HeaderMenuButton(
+                appState: appState,
+                onOpenJournalEntry: () => _openJournalEntryDialog(context),
+              )
             else ...[
-               _ThemeModeButton(appState: appState),
-               IconButton(
-                 tooltip: 'Log out',
-                 icon: const Icon(Icons.logout),
-                 onPressed: appState.logout,
-               ),
+              IconButton(
+                tooltip: 'Journal entry',
+                icon: const Icon(Icons.note_add_outlined),
+                onPressed: () => _openJournalEntryDialog(context),
+              ),
+              _ThemeModeButton(appState: appState),
+              IconButton(
+                tooltip: 'Log out',
+                icon: const Icon(Icons.logout),
+                onPressed: appState.logout,
+              ),
             ],
             const SizedBox(width: 8),
           ],
@@ -340,9 +356,13 @@ Future<void> _selectTheme(BuildContext context, AppState appState) async {
 }
 
 class _HeaderMenuButton extends StatelessWidget {
-  const _HeaderMenuButton({required this.appState});
+  const _HeaderMenuButton({
+    required this.appState,
+    required this.onOpenJournalEntry,
+  });
 
   final AppState appState;
+  final VoidCallback onOpenJournalEntry;
 
   @override
   Widget build(BuildContext context) {
@@ -358,6 +378,14 @@ class _HeaderMenuButton extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  ListTile(
+                    leading: const Icon(Icons.note_add_outlined),
+                    title: const Text('Journal entry'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      onOpenJournalEntry();
+                    },
+                  ),
                   ListTile(
                     leading: Icon(modeLabel.icon),
                     title: Text('Theme: ${modeLabel.tooltip}'),
