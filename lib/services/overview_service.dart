@@ -248,6 +248,8 @@ class ExpensesPieChartData {
     dynamic data = json;
     if (json.containsKey('data') && json['data'] is Map) {
       data = json['data'];
+    } else if (json.containsKey('result') && json['result'] is Map) {
+      data = json['result'];
     }
 
     return ExpensesPieChartData(
