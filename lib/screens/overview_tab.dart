@@ -1057,7 +1057,7 @@ class _PieChartCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final currencyFormat = NumberFormat.simpleCurrency(name: '');
+    final percentFormat = NumberFormat('#,##0.00');
     final sortedItems = List<ChartItem>.from(items)
       ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -1142,7 +1142,7 @@ class _PieChartCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          currencyFormat.format(item.value),
+                          '${percentFormat.format(item.percentage)}%',
                           style: theme.textTheme.bodySmall?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
