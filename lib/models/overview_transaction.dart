@@ -10,6 +10,7 @@ class OverviewTransaction {
   final DateTime date;
   final String number;
   final String? name;
+  final String? expenseName;
   final String vendor;
   final String type;
   final double amount;
@@ -21,6 +22,7 @@ class OverviewTransaction {
     required this.date,
     required this.number,
     this.name,
+    this.expenseName,
     required this.vendor,
     required this.type,
     required this.amount,
@@ -37,6 +39,11 @@ class OverviewTransaction {
   }
 
   String get displayName {
+    if (type.toLowerCase() == 'bill' &&
+        expenseName != null &&
+        expenseName!.trim().isNotEmpty) {
+      return expenseName!;
+    }
     if (name != null && name!.trim().isNotEmpty) {
       return name!;
     }
@@ -65,6 +72,7 @@ class OverviewTransaction {
       name: bill.payments.isNotEmpty
           ? bill.payments.first.payBillItemName
           : null,
+      expenseName: bill.expenseName,
       vendor: bill.vendorName?.isNotEmpty == true ? bill.vendorName! : 'Unknown',
       type: 'Bill',
       amount: bill.totalAmount ?? 0.0,
@@ -72,13 +80,18 @@ class OverviewTransaction {
     );
   }
 
-  factory OverviewTransaction.fromBillPayment(BillPayment payment, String vendorName) {
+  factory OverviewTransaction.fromBillPayment(
+    BillPayment payment,
+    String vendorName, {
+    String? expenseName,
+  }) {
     final resolvedReference = payment.referenceNo ?? payment.id;
     return OverviewTransaction(
       id: payment.id,
       date: payment.date ?? DateTime.now(),
       number: (resolvedReference == null || resolvedReference.isEmpty) ? '—' : resolvedReference,
       name: payment.payBillItemName,
+      expenseName: expenseName,
       vendor: vendorName.isEmpty ? 'Unknown' : vendorName,
       type: 'Bill',
       amount: payment.amount ?? 0.0,

@@ -120,14 +120,15 @@ class _OverviewTabState extends State<OverviewTab>
         for (final bill in billsPage.bills) {
           // Check existing payments in the bill object
           for (final payment in bill.payments) {
-             if (payment.date != null &&
+            if (payment.date != null &&
                 payment.date!.isAfter(_startDate.subtract(const Duration(days: 1))) &&
                 payment.date!.isBefore(_endDate.add(const Duration(days: 1)))) {
-                transactions.add(OverviewTransaction.fromBillPayment(
-                  payment,
-                  bill.vendorName ?? 'Unknown'
-                ));
-             }
+              transactions.add(OverviewTransaction.fromBillPayment(
+                payment,
+                bill.vendorName ?? 'Unknown',
+                expenseName: bill.expenseName,
+              ));
+            }
           }
 
           // If bill is paid or partially paid but payments list is empty or suspicious,
@@ -137,21 +138,22 @@ class _OverviewTabState extends State<OverviewTab>
           // The previous code didn't fetch individual payments, so we'll stick to bill.payments for now unless users complain or logic demands it.
           // Wait, memory says: "To reliably display bill payments, the application fetches individual payment details via BillsService.fetchBillPayments(billId) for bills marked as 'Paid' or 'Partially Paid'."
           if ((bill.status == BillStatus.paid || bill.status.code == 3) && bill.payments.isEmpty) { // 3 is partial usually?
-             try {
-               final payments = await _billsService.fetchBillPayments(billId: bill.id, headers: headers);
-               for (final payment in payments) {
-                 if (payment.date != null &&
+            try {
+              final payments = await _billsService.fetchBillPayments(billId: bill.id, headers: headers);
+              for (final payment in payments) {
+                if (payment.date != null &&
                     payment.date!.isAfter(_startDate.subtract(const Duration(days: 1))) &&
                     payment.date!.isBefore(_endDate.add(const Duration(days: 1)))) {
-                    transactions.add(OverviewTransaction.fromBillPayment(
-                      payment,
-                      bill.vendorName ?? 'Unknown'
-                    ));
-                 }
-               }
-             } catch (_) {
-               // Ignore errors fetching details
-             }
+                  transactions.add(OverviewTransaction.fromBillPayment(
+                    payment,
+                    bill.vendorName ?? 'Unknown',
+                    expenseName: bill.expenseName,
+                  ));
+                }
+              }
+            } catch (_) {
+              // Ignore errors fetching details
+            }
           }
         }
 
