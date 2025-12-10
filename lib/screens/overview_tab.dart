@@ -722,6 +722,12 @@ class _TransactionTableState extends State<_TransactionTable> {
       color: theme.textTheme.bodySmall?.color,
     );
 
+    final currencyFormat = NumberFormat.simpleCurrency(name: '');
+    final totalAmount = _sortedTransactions.fold<double>(
+      0,
+      (sum, transaction) => sum + transaction.amount,
+    );
+
     return Table(
       columnWidths: const {
         0: FlexColumnWidth(1.3),
@@ -791,6 +797,44 @@ class _TransactionTableState extends State<_TransactionTable> {
             ],
           );
         }),
+        TableRow(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceVariant,
+          ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+              child: Text(
+                'Total',
+                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+              child: SizedBox.shrink(),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+              child: SizedBox.shrink(),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+              child: SizedBox.shrink(),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+              child: SizedBox.shrink(),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+              child: Text(
+                currencyFormat.format(totalAmount),
+                textAlign: TextAlign.right,
+                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -1063,6 +1107,19 @@ class _PieChartCard extends StatelessWidget {
     final sortedItems = List<ChartItem>.from(items)
       ..sort((a, b) => b.value.compareTo(a.value));
 
+    const colorPalette = [
+      Colors.blue,
+      Colors.red,
+      Colors.green,
+      Colors.orange,
+      Colors.purple,
+      Colors.teal,
+      Colors.pink,
+      Colors.amber,
+      Colors.indigo,
+      Colors.cyan,
+    ];
+
     final displayItems = sortedItems.take(5).toList();
 
     final noDataMessage = accountingMethod == 'payment' ? 'No Payment' : 'No Outstanding';
@@ -1085,22 +1142,11 @@ class _PieChartCard extends StatelessWidget {
             SizedBox(
               height: 200,
               width: double.infinity,
-              child: items.isEmpty
+              child: sortedItems.isEmpty
                   ? Center(child: Text(noDataMessage, style: theme.textTheme.bodyMedium))
                   : _PieChart(
-                      items: items,
-                      colors: const [
-                        Colors.blue,
-                        Colors.red,
-                        Colors.green,
-                        Colors.orange,
-                        Colors.purple,
-                        Colors.teal,
-                        Colors.pink,
-                        Colors.amber,
-                        Colors.indigo,
-                        Colors.cyan,
-                      ],
+                      items: sortedItems,
+                      colors: colorPalette,
                     ),
             ),
             const SizedBox(height: 24),
@@ -1109,18 +1155,7 @@ class _PieChartCard extends StatelessWidget {
                 children: displayItems.asMap().entries.map((entry) {
                   final index = entry.key;
                   final item = entry.value;
-                  final color = [
-                    Colors.blue,
-                    Colors.red,
-                    Colors.green,
-                    Colors.orange,
-                    Colors.purple,
-                    Colors.teal,
-                    Colors.pink,
-                    Colors.amber,
-                    Colors.indigo,
-                    Colors.cyan,
-                  ][index % 10];
+                  final color = colorPalette[index % colorPalette.length];
 
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -1199,8 +1234,8 @@ class _PieChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = math.min(size.width, size.height) / 2;
-    final paint = Paint()..style = PaintingStyle.fill;
+        final radius = math.min(size.width, size.height) / 2;
+        final paint = Paint()..style = PaintingStyle.fill;
 
     double startAngle = -math.pi / 2;
     double totalValue = items.fold(0, (sum, item) => sum + item.value);
@@ -1227,7 +1262,7 @@ class _PieChartPainter extends CustomPainter {
         final dx = center.dx + textRadius * math.cos(middleAngle);
         final dy = center.dy + textRadius * math.sin(middleAngle);
 
-        final percentageText = '${item.percentage.toStringAsFixed(0)}%';
+        final percentageText = '${item.percentage.toStringAsFixed(2)}%';
 
         final textSpan = TextSpan(
           style: const TextStyle(
