@@ -75,11 +75,10 @@ class OverviewService {
     final params = {
       'start_date': startDate,
       'end_date': endDate,
-      'type': type,
     };
 
     if (type == 'payment') {
-      params['date_field'] = 'payment_date';
+      params['type'] = 'payment';
     }
 
     final uri = Uri.parse(_expensesByTypeUrl).replace(queryParameters: params);
@@ -261,8 +260,11 @@ class ExpensesPieChartData {
   static List<ChartItem> _parseList(dynamic list) {
     if (list is! List) return [];
 
-    final tempItems = list.map((e) {
-      if (e is! Map) return const ChartItem(label: '', value: 0, percentage: 0);
+    final tempItems = <ChartItem>[];
+    double? grandTotal;
+
+    for (final e in list) {
+      if (e is! Map) continue;
 
       // Explicit mapping as per API response structure
       // e.g. { "name": "Coconut Juice", "value": "864.00" }
@@ -271,7 +273,12 @@ class ExpensesPieChartData {
         label = e['name'].toString();
       } else {
         // Fallback to ChartItem logic if name is missing
-        return ChartItem.fromJson(e);
+        final chartItem = ChartItem.fromJson(e);
+        label = chartItem.label;
+        // Keep parsing value/percentage using the fallback result
+        if (chartItem.label.isEmpty && chartItem.value == 0) continue;
+        tempItems.add(chartItem);
+        continue;
       }
 
       double value = 0;
@@ -279,21 +286,36 @@ class ExpensesPieChartData {
         value = double.tryParse(e['value'].toString()) ?? 0;
       } else {
         // Fallback
-        return ChartItem.fromJson(e);
+        final chartItem = ChartItem.fromJson(e);
+        if (chartItem.label.isEmpty && chartItem.value == 0) continue;
+        tempItems.add(chartItem);
+        continue;
       }
 
-      return ChartItem(label: label, value: value, percentage: 0);
-    }).toList();
+      if (label.trim().toLowerCase() == 'grand total') {
+        grandTotal = value;
+        continue;
+      }
 
-    final totalValue = tempItems.fold(0.0, (sum, item) => sum + item.value);
+      tempItems.add(ChartItem(label: label, value: value, percentage: 0));
+    }
 
-    if (totalValue == 0) return tempItems;
+    if (tempItems.isEmpty) return [];
+
+    final totalValue = grandTotal ??
+        tempItems.fold<double>(0.0, (sum, item) => sum + item.value);
+
+    if (totalValue == 0) {
+      return tempItems
+          .map((item) => ChartItem(label: item.label, value: 0, percentage: 0))
+          .toList();
+    }
 
     return tempItems.map((item) {
       final percentage = (item.value / totalValue) * 100;
       return ChartItem(
         label: item.label,
-        value: item.value,
+        value: percentage,
         percentage: percentage,
       );
     }).toList();
