@@ -877,23 +877,25 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                   },
                   enabled: !_isSubmitting,
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
-                    alignLabelWithHint: true,
+                if (!_isTransfer) ...[
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Description',
+                      alignLabelWithHint: true,
+                    ),
+                    maxLines: 4,
+                    minLines: 3,
+                    enabled: !_isSubmitting,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Description is required';
+                      }
+                      return null;
+                    },
                   ),
-                  maxLines: 4,
-                  minLines: 3,
-                  enabled: !_isSubmitting,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Description is required';
-                    }
-                    return null;
-                  },
-                ),
+                ],
               ],
             ),
           ),
