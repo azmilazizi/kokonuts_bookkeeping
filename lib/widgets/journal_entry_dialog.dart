@@ -399,6 +399,13 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     );
   }
 
+  Future<void> _openJournalHistory() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => const JournalHistoryDialog(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final dialogWidth = (MediaQuery.of(context).size.width * 0.92).clamp(
@@ -415,6 +422,17 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
             child: Text(
               'Journal Entry/Transfer',
               style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                visualDensity: VisualDensity.compact,
+              ),
+              onPressed: _openJournalHistory,
+              child: const Text('View Journal Entry and Transfers'),
             ),
           ),
           IconButton(
