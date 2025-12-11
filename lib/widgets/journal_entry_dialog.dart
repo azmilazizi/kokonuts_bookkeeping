@@ -279,14 +279,21 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     double amount,
   ) {
     return {
-      'date': _formattedDate,
+      'journal_date': _formattedDate,
       'description': _descriptionController.text.trim(),
-      'type': _entryType?.label,
-      if (_paymentMode != null) 'payment_mode': _paymentMode!.label,
-      if (_owner != null) 'owner': _owner!.label,
-      'entries': [
-        {'account_id': accounts.debitAccountId, 'debit': amount, 'credit': 0},
-        {'account_id': accounts.creditAccountId, 'debit': 0, 'credit': amount},
+      'lines': [
+        {
+          'account': accounts.debitAccountId,
+          'debit': amount,
+          'credit': 0,
+          'description': _descriptionController.text.trim(),
+        },
+        {
+          'account': accounts.creditAccountId,
+          'debit': 0,
+          'credit': amount,
+          'description': _descriptionController.text.trim(),
+        },
       ],
     };
   }
