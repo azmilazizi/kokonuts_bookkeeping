@@ -162,8 +162,8 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     if (_nextEntryNumber == null) {
       return null;
     }
-    final formattedDate = DateFormat('MMyyyy').format(_journalDate);
-    return '#JE-$formattedDate-${_nextEntryNumber!.toString().padLeft(5, '0')}';
+    final formattedDate = DateFormat('ddMMyyyy').format(_journalDate);
+    return '#JE-${_nextEntryNumber!.toString().padLeft(5, '0')}-$formattedDate';
   }
 
   void _updateDateText() {
@@ -300,7 +300,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     }
 
     final formattedEntryId =
-        '#JE-${DateFormat('MMyyyy').format(_journalDate)}-${nextNumber.toString().padLeft(5, '0')}';
+        '#JE-${nextNumber.toString().padLeft(5, '0')}-${DateFormat('ddMMyyyy').format(_journalDate)}';
 
     setState(() {
       _nextEntryNumber = nextNumber;
