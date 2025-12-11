@@ -4,9 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
-import '../app/app_state.dart';
-import '../app/app_state_scope.dart';
-
 class JournalHistoryDialog extends StatefulWidget {
   const JournalHistoryDialog({super.key});
 
@@ -24,32 +21,15 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
   }
 
   Future<List<_JournalRecord>> _loadRecords() async {
-    final appState = AppStateScope.of(context);
-    final token = await appState.getValidAuthToken();
-    if (token == null || token.trim().isEmpty) {
-      throw Exception('You are not logged in.');
-    }
-
-    final headers = _buildAuthHeaders(appState, token);
-    final authKey = headers['authtoken'];
-
-    final authQuery = {
-      if (authKey != null && authKey.isNotEmpty) 'authkey': authKey,
-    };
-
-    final entriesUri = Uri.parse(
-      'https://crm.kokonuts.my/accounting/api/v1/journal_entries',
-    ).replace(queryParameters: authQuery);
-
-    final transfersUri = Uri.parse(
-      'https://crm.kokonuts.my/accounting/api/v1/transfers',
-    ).replace(queryParameters: authQuery);
-
     final client = http.Client();
     try {
       final responses = await Future.wait([
-        client.get(entriesUri, headers: headers),
-        client.get(transfersUri, headers: headers),
+        client.get(
+          Uri.parse('https://crm.kokonuts.my/accounting/api/v1/journal_entries'),
+        ),
+        client.get(
+          Uri.parse('https://crm.kokonuts.my/accounting/api/v1/transfers'),
+        ),
       ]);
 
       final journalEntries = _parseList(responses[0]);
@@ -74,19 +54,6 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
     } finally {
       client.close();
     }
-  }
-
-  Map<String, String> _buildAuthHeaders(AppState appState, String token) {
-    final rawToken = (appState.rawAuthToken ?? token).trim();
-    final sanitizedToken =
-        token.replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '').trim();
-    final normalizedAuth =
-        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
-    final autoTokenValue = rawToken
-        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
-        .trim();
-    final authtokenHeader = autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
-    return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
   }
 
   List<Map<String, dynamic>> _parseList(http.Response response) {
