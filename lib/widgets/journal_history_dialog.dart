@@ -406,7 +406,12 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _items.isEmpty
-                      ? const Center(child: Text('No journal entries or transfers found.'))
+                      ? const Center(
+                          child: Text(
+                            'No journal entries or transfers found. Please create a new entry first.',
+                            textAlign: TextAlign.center,
+                          ),
+                        )
                       : Scrollbar(
                           thumbVisibility: true,
                           child: SingleChildScrollView(
