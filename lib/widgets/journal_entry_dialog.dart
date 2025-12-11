@@ -71,13 +71,17 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   );
   final _descriptionController = TextEditingController();
   final _dateController = TextEditingController();
+  final _entryIdController = TextEditingController();
 
   DateTime _journalDate = DateTime.now();
   _EntryType? _entryType;
   _PaymentMode? _paymentMode;
   _Owner? _owner;
   bool _isSubmitting = false;
+  bool _isFetchingEntryId = false;
   String? _submitError;
+  String? _entryId;
+  String? _entryIdError;
   List<PlatformFile> _attachments = const [];
 
   @override
@@ -85,6 +89,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     _amountController.dispose();
     _descriptionController.dispose();
     _dateController.dispose();
+    _entryIdController.dispose();
     super.dispose();
   }
 
@@ -169,6 +174,15 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         _entryType != _EntryType.cashWithdrawal;
   }
 
+  bool get _isTransfer =>
+      _entryType == _EntryType.cashDeposit ||
+      _entryType == _EntryType.cashWithdrawal;
+
+  bool get _showsEntryIdField =>
+      _entryType != null &&
+      _entryType != _EntryType.cashDeposit &&
+      _entryType != _EntryType.cashWithdrawal;
+
   void _onEntryTypeChanged(_EntryType? type) {
     setState(() {
       _entryType = type;
@@ -178,6 +192,109 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       if (!_showsOwner) {
         _owner = null;
       }
+      if (!_showsEntryIdField) {
+        _entryId = null;
+        _entryIdController.clear();
+        _entryIdError = null;
+        _isFetchingEntryId = false;
+      }
+    });
+
+    if (_showsEntryIdField) {
+      _fetchNextEntryNumber();
+    }
+  }
+
+  Future<void> _fetchNextEntryNumber() async {
+    setState(() {
+      _isFetchingEntryId = true;
+      _entryIdError = null;
+      _entryId = null;
+      _entryIdController.clear();
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _entryIdError = 'You are not logged in.';
+        _isFetchingEntryId = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+    final client = createAuthAwareClient();
+    http.Response response;
+
+    try {
+      response = await client.get(
+        Uri.parse(
+          'https://crm.kokonuts.my/purchase/api/v1/options/next_je_number',
+        ),
+        headers: headers,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _entryIdError = 'Failed to fetch entry ID: $error';
+        _isFetchingEntryId = false;
+      });
+      return;
+    } finally {
+      client.close();
+    }
+
+    if (response.statusCode != 200) {
+      if (mounted) {
+        setState(() {
+          _entryIdError =
+              'Failed to fetch entry ID: ${response.statusCode} ${response.reasonPhrase ?? ''}'.trim();
+          _isFetchingEntryId = false;
+        });
+      }
+      return;
+    }
+
+    final decoded = jsonDecode(response.body);
+    int? nextNumber;
+
+    if (decoded is Map<String, dynamic>) {
+      final value = decoded['next_je_number'] ??
+          (decoded['data'] is Map<String, dynamic>
+              ? decoded['data']['next_je_number']
+              : null);
+      if (value is int) {
+        nextNumber = value;
+      } else if (value is String) {
+        nextNumber = int.tryParse(value);
+      }
+    }
+
+    if (nextNumber == null) {
+      setState(() {
+        _entryIdError = 'Invalid response when generating entry ID.';
+        _isFetchingEntryId = false;
+      });
+      return;
+    }
+
+    final formattedDate = DateFormat('MMyyyy').format(DateTime.now());
+    final formattedEntryId =
+        '#JE-$formattedDate-${nextNumber.toString().padLeft(5, '0')}';
+
+    setState(() {
+      _entryId = formattedEntryId;
+      _entryIdController.text = formattedEntryId;
+      _entryIdError = null;
+      _isFetchingEntryId = false;
     });
   }
 
@@ -281,7 +398,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     return {
       'journal_date': _formattedDate,
       'datecreated': _formattedDate,
-      'number': null,
+      'number': _entryId,
       'amount': amount,
       'description': _descriptionController.text.trim(),
       'lines': [
@@ -352,9 +469,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       'Content-Type': 'application/json',
     };
 
-    final isTransfer =
-        _entryType == _EntryType.cashDeposit ||
-        _entryType == _EntryType.cashWithdrawal;
+    final isTransfer = _isTransfer;
     final addedFrom = appState.currentUserId;
     final endpoint = isTransfer
         ? 'https://crm.kokonuts.my/accounting/api/v1/transfers'
@@ -365,6 +480,18 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         _submitError = 'Unable to determine the current user. Please log in again.';
         _isSubmitting = false;
       });
+      return;
+    }
+
+    if (!isTransfer && _entryId == null) {
+      setState(() {
+        _submitError = _entryIdError ??
+            'Unable to generate an entry ID. Please try again.';
+        _isSubmitting = false;
+      });
+      if (_entryIdError != null) {
+        _fetchNextEntryNumber();
+      }
       return;
     }
 
@@ -490,39 +617,106 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                   onFileRemoved: _removeAttachment,
                 ),
                 const SizedBox(height: 20),
-                TextFormField(
-                  readOnly: true,
-                  controller: _dateController,
-                  decoration: const InputDecoration(
-                    labelText: 'Journal Date',
-                    prefixIcon: Icon(Icons.event),
-                  ),
-                  onTap: _pickDate,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Journal date is required';
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide = constraints.maxWidth >= 620;
+                    final dateField = Expanded(
+                      child: TextFormField(
+                        readOnly: true,
+                        controller: _dateController,
+                        decoration: const InputDecoration(
+                          labelText: 'Journal Date',
+                          prefixIcon: Icon(Icons.event),
+                        ),
+                        onTap: _pickDate,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Journal date is required';
+                          }
+                          return null;
+                        },
+                      ),
+                    );
+
+                    final entryTypeField = Expanded(
+                      child: DropdownButtonFormField<_EntryType>(
+                        value: _entryType,
+                        decoration:
+                            const InputDecoration(labelText: 'Entry Type'),
+                        items: _EntryType.values
+                            .map(
+                              (type) => DropdownMenuItem(
+                                value: type,
+                                child: Text(type.label),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: _isSubmitting ? null : _onEntryTypeChanged,
+                        validator: (value) => value == null
+                            ? 'Please select a journal or transfer type'
+                            : null,
+                      ),
+                    );
+
+                    if (isWide) {
+                      return Row(
+                        children: [
+                          dateField,
+                          const SizedBox(width: 16),
+                          entryTypeField,
+                        ],
+                      );
                     }
-                    return null;
+
+                    return Column(
+                      children: [
+                        dateField,
+                        const SizedBox(height: 16),
+                        entryTypeField,
+                      ],
+                    );
                   },
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<_EntryType>(
-                  value: _entryType,
-                  decoration: const InputDecoration(labelText: 'Entry Type'),
-                  items: _EntryType.values
-                      .map(
-                        (type) => DropdownMenuItem(
-                          value: type,
-                          child: Text(type.label),
+                if (_showsEntryIdField)
+                  Column(
+                    children: [
+                      TextFormField(
+                        controller: _entryIdController,
+                        readOnly: true,
+                        decoration: InputDecoration(
+                          labelText: 'Entry ID',
+                          prefixIcon: const Icon(Icons.tag),
+                          errorText: _entryIdError,
+                          suffixIcon: _isFetchingEntryId
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child:
+                                        CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                )
+                              : (_entryIdError != null
+                                  ? IconButton(
+                                      tooltip: 'Retry',
+                                      onPressed: _fetchNextEntryNumber,
+                                      icon: const Icon(Icons.refresh),
+                                    )
+                                  : null),
                         ),
-                      )
-                      .toList(),
-                  onChanged: _isSubmitting ? null : _onEntryTypeChanged,
-                  validator: (value) => value == null
-                      ? 'Please select a journal or transfer type'
-                      : null,
-                ),
-                const SizedBox(height: 16),
+                        validator: (_) {
+                          if (_showsEntryIdField &&
+                              (_entryId == null || _entryId!.isEmpty)) {
+                            return _entryIdError ?? 'Entry ID is required';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
                 if (_showsPaymentMode || _showsOwner) ...[
                   LayoutBuilder(
                     builder: (context, constraints) {
