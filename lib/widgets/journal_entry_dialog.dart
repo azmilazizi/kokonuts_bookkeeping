@@ -209,6 +209,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   void _onEntryTypeChanged(_EntryType? type) {
     setState(() {
       _entryType = type;
+      _descriptionController.text = type?.label ?? '';
       if (!_showsPaymentMode) {
         _paymentMode = null;
       }
@@ -424,13 +425,21 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
 
     return {
       'date': _formattedDate,
-      'description': _descriptionController.text.trim(),
+      'description': _payloadDescription,
       'transfer_amount': amount,
       'transfer_funds_from': transferFundsFrom,
       'transfer_funds_to': transferFundsTo,
       'addedfrom': addedFromValue,
       if (_paymentMode != null) 'payment_mode': _paymentMode!.label,
     };
+  }
+
+  String get _payloadDescription {
+    final typeLabel = _entryType?.label.trim();
+    if (typeLabel != null && typeLabel.isNotEmpty) {
+      return typeLabel;
+    }
+    return _descriptionController.text.trim();
   }
 
   Map<String, dynamic> _buildJournalPayload(
@@ -442,19 +451,19 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       'datecreated': _formattedDate,
       'number': _entryId,
       'amount': amount,
-      'description': _descriptionController.text.trim(),
+      'description': _payloadDescription,
       'lines': [
         {
           'account': accounts.debitAccountId,
           'debit': amount,
           'credit': 0,
-          'description': _descriptionController.text.trim(),
+          'description': _payloadDescription,
         },
         {
           'account': accounts.creditAccountId,
           'debit': 0,
           'credit': amount,
-          'description': _descriptionController.text.trim(),
+          'description': _payloadDescription,
         },
       ],
     };
@@ -593,7 +602,14 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   Future<void> _openJournalHistory() async {
     await showDialog<void>(
       context: context,
-      builder: (context) => const JournalHistoryDialog(),
+      builder: (context) => JournalHistoryDialog(
+        onEdit: () async {
+          await showDialog(
+            context: context,
+            builder: (context) => const JournalEntryDialog(),
+          );
+        },
+      ),
     );
   }
 

@@ -8,72 +8,35 @@ import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
 
 class JournalHistoryDialog extends StatefulWidget {
-  const JournalHistoryDialog({super.key});
+  const JournalHistoryDialog({super.key, this.onEdit});
+
+  final Future<void> Function()? onEdit;
 
   @override
   State<JournalHistoryDialog> createState() => _JournalHistoryDialogState();
 }
 
 class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
-  late final Future<List<_JournalRecord>> _recordsFuture;
+  final _searchController = TextEditingController();
+  final _accountNameFutures = <int, Future<String?>>{};
+  DateTimeRange? _dateRange;
+  bool _isLoading = false;
+  String? _error;
+  List<_JournalListItem> _items = const [];
+  int _currentPage = 1;
+  final int _pageSize = 10;
+  bool _hasNextPage = false;
 
   @override
   void initState() {
     super.initState();
-    _recordsFuture = _loadRecords();
+    _fetchRecords();
   }
 
-  Future<List<_JournalRecord>> _loadRecords() async {
-    final appState = AppStateScope.of(context);
-    final token = await appState.getValidAuthToken();
-    if (token == null || token.trim().isEmpty) {
-      throw Exception('You are not logged in.');
-    }
-
-    final headers = _buildAuthHeaders(appState, token);
-    final authKey = headers['authtoken'];
-
-    final authQuery = {
-      if (authKey != null && authKey.isNotEmpty) 'authkey': authKey,
-    };
-
-    final entriesUri = Uri.parse(
-      'https://crm.kokonuts.my/accounting/api/v1/journal_entries',
-    ).replace(queryParameters: authQuery);
-
-    final transfersUri = Uri.parse(
-      'https://crm.kokonuts.my/accounting/api/v1/transfers',
-    ).replace(queryParameters: authQuery);
-
-    final client = http.Client();
-    try {
-      final responses = await Future.wait([
-        client.get(entriesUri, headers: headers),
-        client.get(transfersUri, headers: headers),
-      ]);
-
-      final journalEntries = _parseList(responses[0]);
-      final transfers = _parseList(responses[1]);
-
-      final records = <_JournalRecord>[
-        ...journalEntries.map(
-          (entry) => _JournalRecord.fromData(entry, _JournalRecordType.entry),
-        ),
-        ...transfers.map(
-          (entry) => _JournalRecord.fromData(entry, _JournalRecordType.transfer),
-        ),
-      ];
-
-      records.sort((a, b) {
-        final dateA = a.date ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final dateB = b.date ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return dateB.compareTo(dateA);
-      });
-
-      return records;
-    } finally {
-      client.close();
-    }
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Map<String, String> _buildAuthHeaders(AppState appState, String token) {
@@ -89,76 +52,322 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
     return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
   }
 
-  List<Map<String, dynamic>> _parseList(http.Response response) {
+  Future<void> _fetchRecords() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+    if (!mounted) return;
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _error = 'You are not logged in.';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+    final queryParameters = <String, String>{
+      'page': _currentPage.toString(),
+      'per_page': _pageSize.toString(),
+      if (_searchController.text.trim().isNotEmpty) 'search': _searchController.text.trim(),
+      if (_dateRange != null) ...{
+        'start_date': DateFormat('yyyy-MM-dd').format(_dateRange!.start),
+        'end_date': DateFormat('yyyy-MM-dd').format(_dateRange!.end),
+      },
+      if ((headers['authtoken'] ?? '').isNotEmpty) 'authkey': headers['authtoken']!,
+    };
+
+    final uri = Uri.parse(
+      'https://crm.kokonuts.my/accounting/api/v1/journal_entries_and_transfers',
+    ).replace(queryParameters: queryParameters);
+
+    http.Response response;
+    final client = http.Client();
+    try {
+      response = await client.get(uri, headers: headers);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load records: $error';
+          _isLoading = false;
+        });
+      }
+      return;
+    } finally {
+      client.close();
+    }
+
     if (response.statusCode != 200) {
-      throw Exception('Failed to load data (${response.statusCode})');
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load records (${response.statusCode})';
+          _isLoading = false;
+        });
+      }
+      return;
     }
 
-    final decoded = jsonDecode(response.body);
-    final data = decoded is Map<String, dynamic> ? decoded['data'] ?? decoded : decoded;
+    final parsed = jsonDecode(response.body);
+    final records = _extractList(parsed).map(_JournalListItem.fromMap).toList();
 
-    if (data is List) {
-      return data.cast<Map<String, dynamic>>();
-    }
+    if (!mounted) return;
 
-    throw Exception('Unexpected response format');
+    setState(() {
+      _items = records;
+      _hasNextPage = _determineHasMore(parsed, records.length);
+      _isLoading = false;
+    });
   }
 
-  void _showRecordDetails(_JournalRecord record) {
-    final entries = record.raw.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
+  List<Map<String, dynamic>> _extractList(dynamic parsed) {
+    dynamic data = parsed;
+    if (parsed is Map<String, dynamic>) {
+      data = parsed['data'] ?? parsed['result'] ?? parsed['items'] ?? parsed;
+      if (data is Map<String, dynamic>) {
+        data = data['data'] ?? data['items'] ?? data['list'] ??
+            data.values.firstWhere((value) => value is List, orElse: () => data);
+      }
+    }
 
-    showDialog<void>(
+    if (data is List) {
+      return data.whereType<Map<String, dynamic>>().toList();
+    }
+
+    return const [];
+  }
+
+  bool _determineHasMore(dynamic parsed, int recordCount) {
+    if (parsed is Map<String, dynamic>) {
+      final pagination = parsed['pagination'] ?? parsed['meta'] ?? parsed['result'];
+      if (pagination is Map<String, dynamic>) {
+        final currentPage = _asInt(
+              pagination['page'] ?? pagination['current_page'],
+            ) ??
+            _currentPage;
+        final totalPages = _asInt(pagination['total_pages'] ?? pagination['last_page']);
+        if (totalPages != null) {
+          return currentPage < totalPages;
+        }
+      }
+    }
+    return recordCount >= _pageSize;
+  }
+
+  int? _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  Future<void> _pickDateRange() async {
+    final now = DateTime.now();
+    final range = await showDateRangePicker(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('${record.type.label} Details'),
-          content: SizedBox(
-            width: 460,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Reference: ${record.reference ?? '-'}'),
-                  const SizedBox(height: 8),
-                  Text('Date: ${record.formattedDate ?? '-'}'),
-                  const SizedBox(height: 8),
-                  Text('Amount: ${record.amount ?? '-'}'),
-                  const SizedBox(height: 8),
-                  Text('Description: ${record.description ?? '-'}'),
-                  const Divider(height: 24),
-                  ...entries.map(
-                    (entry) => Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Text('${entry.key}: ${entry.value}'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Delete'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Edit'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 5),
+      initialDateRange: _dateRange,
     );
+
+    if (range != null) {
+      setState(() {
+        _dateRange = range;
+        _currentPage = 1;
+      });
+      await _fetchRecords();
+    }
+  }
+
+  void _clearDateFilter() {
+    setState(() {
+      _dateRange = null;
+      _currentPage = 1;
+    });
+    _fetchRecords();
+  }
+
+  Future<String?> _accountName(int? id) {
+    if (id == null) {
+      return Future.value(null);
+    }
+
+    return _accountNameFutures.putIfAbsent(id, () => _loadAccountName(id));
+  }
+
+  Future<String?> _loadAccountName(int id) async {
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+    if (!mounted) return null;
+    if (token == null || token.trim().isEmpty) {
+      return 'Account $id';
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+    final uri = Uri.parse(
+      'https://crm.kokonuts.my/accounting/api/v1/account/$id',
+    ).replace(queryParameters: {
+      if ((headers['authtoken'] ?? '').isNotEmpty) 'authkey': headers['authtoken']!,
+    });
+
+    try {
+      final response = await http.get(uri, headers: headers);
+      if (response.statusCode != 200) {
+        return 'Account $id';
+      }
+
+      final decoded = jsonDecode(response.body);
+      final data = decoded is Map<String, dynamic>
+          ? decoded['data'] ?? decoded['result'] ?? decoded
+          : decoded;
+
+      if (data is Map<String, dynamic>) {
+        final name = data['name'] ?? data['account_name'] ?? data['label'];
+        if (name != null && name.toString().isNotEmpty) {
+          return name.toString();
+        }
+      }
+    } catch (_) {
+      return 'Account $id';
+    }
+
+    return 'Account $id';
+  }
+
+  Future<void> _deleteRecord(_JournalListItem item) async {
+    final id = item.id;
+    if (id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to delete item without an id.')),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete record'),
+        content: Text('Are you sure you want to delete ${item.number ?? 'this record'}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+    if (!mounted) return;
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _error = 'You are not logged in.';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+    final endpoint = item.type == 'transfer'
+        ? 'https://crm.kokonuts.my/accounting/api/v1/transfers'
+        : 'https://crm.kokonuts.my/accounting/api/v1/journal_entries';
+
+    final uri = Uri.parse('$endpoint/$id').replace(queryParameters: {
+      if ((headers['authtoken'] ?? '').isNotEmpty) 'authkey': headers['authtoken']!,
+    });
+
+    http.Response response;
+    final client = http.Client();
+    try {
+      response = await client.delete(uri, headers: headers);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to delete record: $error';
+          _isLoading = false;
+        });
+      }
+      return;
+    } finally {
+      client.close();
+    }
+
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      if (mounted) {
+        setState(() {
+          _error = 'Unable to delete record (${response.statusCode}).';
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${item.displayType} deleted successfully.')),
+    );
+
+    await _fetchRecords();
+  }
+
+  Future<void> _editRecord(_JournalListItem item) async {
+    if (widget.onEdit == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Editing is not available right now.')),
+      );
+      return;
+    }
+
+    await widget.onEdit!();
+    await _fetchRecords();
+  }
+
+  void _applySearch() {
+    setState(() {
+      _currentPage = 1;
+    });
+    _fetchRecords();
+  }
+
+  void _previousPage() {
+    if (_currentPage <= 1 || _isLoading) return;
+    setState(() {
+      _currentPage -= 1;
+    });
+    _fetchRecords();
+  }
+
+  void _nextPage() {
+    if (!_hasNextPage || _isLoading) return;
+    setState(() {
+      _currentPage += 1;
+    });
+    _fetchRecords();
   }
 
   @override
   Widget build(BuildContext context) {
-    final dialogWidth = (MediaQuery.of(context).size.width * 0.92).clamp(420.0, 840.0);
+    final dialogWidth = (MediaQuery.of(context).size.width * 0.92).clamp(420.0, 960.0);
 
     return AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
@@ -167,7 +376,7 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
         children: [
           const Expanded(
             child: Text(
-              'Journal Entries & Transfers',
+              'View Journal Entry and Transfers',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
@@ -180,64 +389,85 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
       ),
       content: SizedBox(
         width: dialogWidth,
-        child: FutureBuilder<List<_JournalRecord>>(
-          future: _recordsFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (snapshot.hasError) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Text('Unable to load records: ${snapshot.error}'),
-              );
-            }
-
-            final records = snapshot.data ?? const [];
-            if (records.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('No journal entries or transfers found.'),
-              );
-            }
-
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 620),
-                child: SingleChildScrollView(
-                  child: DataTable(
-                    columns: const [
-                      DataColumn(label: Text('Type')),
-                      DataColumn(label: Text('Reference')),
-                      DataColumn(label: Text('Date')),
-                      DataColumn(label: Text('Amount')),
-                      DataColumn(label: Text('Description')),
-                    ],
-                    rows: records
-                        .map(
-                          (record) => DataRow(
-                            cells: [
-                              DataCell(Text(record.type.label)),
-                              DataCell(Text(record.reference ?? '-')),
-                              DataCell(Text(record.formattedDate ?? '-')),
-                              DataCell(Text(record.amount ?? '-')),
-                              DataCell(Text(record.description ?? '-')),
-                            ],
-                            onSelectChanged: (selected) {
-                              if (selected == true) {
-                                _showRecordDetails(record);
-                              }
-                            },
-                          ),
-                        )
-                        .toList(),
-                  ),
+        height: 560,
+        child: Column(
+          children: [
+            _buildFilters(),
+            const SizedBox(height: 12),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(_error!, style: const TextStyle(color: Colors.red)),
                 ),
               ),
-            );
-          },
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _items.isEmpty
+                      ? const Center(child: Text('No journal entries or transfers found.'))
+                      : Scrollbar(
+                          thumbVisibility: true,
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(minWidth: 760),
+                              child: SingleChildScrollView(
+                                child: DataTable(
+                                  columns: const [
+                                    DataColumn(label: Text('ID/Description')),
+                                    DataColumn(label: Text('Credit Account')),
+                                    DataColumn(label: Text('Debit Account')),
+                                    DataColumn(label: Text('Amount')),
+                                    DataColumn(label: Text('Type')),
+                                    DataColumn(label: Text('Actions')),
+                                  ],
+                                  rows: _items
+                                      .map(
+                                        (item) => DataRow(
+                                          cells: [
+                                            DataCell(Text(item.number ?? '-')),
+                                            DataCell(_AccountNameCell(
+                                              fetcher: _accountName,
+                                              accountId: item.creditAccountId,
+                                            )),
+                                            DataCell(_AccountNameCell(
+                                              fetcher: _accountName,
+                                              accountId: item.debitAccountId,
+                                            )),
+                                            DataCell(Text(item.amountLabel)),
+                                            DataCell(Text(item.displayType)),
+                                            DataCell(
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  IconButton(
+                                                    tooltip: 'Edit',
+                                                    icon: const Icon(Icons.edit_outlined),
+                                                    onPressed: () => _editRecord(item),
+                                                  ),
+                                                  IconButton(
+                                                    tooltip: 'Delete',
+                                                    icon: const Icon(Icons.delete_outline),
+                                                    onPressed: () => _deleteRecord(item),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+            ),
+            const SizedBox(height: 8),
+            _buildPagination(),
+          ],
         ),
       ),
       actions: [
@@ -248,86 +478,156 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
       ],
     );
   }
-}
 
-class _JournalRecord {
-  _JournalRecord({
-    required this.type,
-    required this.raw,
-    this.reference,
-    this.amount,
-    this.description,
-    this.date,
-  });
+  Widget _buildFilters() {
+    final dateLabel = _dateRange != null
+        ? '${DateFormat('yyyy-MM-dd').format(_dateRange!.start)} - ${DateFormat('yyyy-MM-dd').format(_dateRange!.end)}'
+        : 'Select date range';
 
-  final _JournalRecordType type;
-  final Map<String, dynamic> raw;
-  final String? reference;
-  final String? amount;
-  final String? description;
-  final DateTime? date;
-
-  String? get formattedDate =>
-      date != null ? DateFormat('yyyy-MM-dd').format(date!) : raw['date']?.toString();
-
-  static _JournalRecord fromData(Map<String, dynamic> data, _JournalRecordType type) {
-    return _JournalRecord(
-      type: type,
-      raw: data,
-      reference: _firstNonEmpty(
-        data, const ['reference', 'reference_no', 'id', 'journal_entry_id', 'transfer_id'],
-      ),
-      amount: _firstNonEmpty(data, const ['amount', 'total', 'transfer_amount', 'debit', 'credit']),
-      description: _firstNonEmpty(
-        data,
-        const ['description', 'note', 'memo', 'remarks'],
-      ),
-      date: _parseDate(
-        _firstNonEmpty(
-          data,
-          const ['date', 'journal_date', 'transfer_date', 'created_at'],
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  labelText: 'Search',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      _searchController.clear();
+                      _applySearch();
+                    },
+                  ),
+                ),
+                onSubmitted: (_) => _applySearch(),
+              ),
+            ),
+            const SizedBox(width: 12),
+            OutlinedButton.icon(
+              onPressed: _pickDateRange,
+              icon: const Icon(Icons.event),
+              label: Text(dateLabel),
+            ),
+            if (_dateRange != null)
+              IconButton(
+                tooltip: 'Clear date filter',
+                onPressed: _clearDateFilter,
+                icon: const Icon(Icons.close),
+              ),
+          ],
         ),
-      ),
+      ],
     );
   }
 
-  static String? _firstNonEmpty(Map<String, dynamic> data, List<String> keys) {
-    for (final key in keys) {
-      final value = data[key];
-      if (value == null) continue;
-      final stringValue = value.toString();
-      if (stringValue.isNotEmpty) {
-        return stringValue;
-      }
-    }
-    return null;
-  }
-
-  static DateTime? _parseDate(String? value) {
-    if (value == null || value.isEmpty) {
-      return null;
-    }
-
-    final formats = [
-      DateFormat('yyyy-MM-dd'),
-      DateFormat('yyyy-MM-ddTHH:mm:ss'),
-      DateFormat('yyyy-MM-dd HH:mm:ss'),
-    ];
-
-    for (final format in formats) {
-      try {
-        return format.parse(value, true).toLocal();
-      } catch (_) {
-        continue;
-      }
-    }
-
-    return null;
+  Widget _buildPagination() {
+    return Row(
+      children: [
+        Text('Page $_currentPage'),
+        const Spacer(),
+        IconButton(
+          onPressed: _currentPage > 1 && !_isLoading ? _previousPage : null,
+          icon: const Icon(Icons.chevron_left),
+        ),
+        IconButton(
+          onPressed: _hasNextPage && !_isLoading ? _nextPage : null,
+          icon: const Icon(Icons.chevron_right),
+        ),
+      ],
+    );
   }
 }
 
-enum _JournalRecordType { entry, transfer }
+class _AccountNameCell extends StatelessWidget {
+  const _AccountNameCell({required this.fetcher, required this.accountId});
 
-extension on _JournalRecordType {
-  String get label => this == _JournalRecordType.entry ? 'Journal Entry' : 'Transfer';
+  final Future<String?> Function(int? id) fetcher;
+  final int? accountId;
+
+  @override
+  Widget build(BuildContext context) {
+    if (accountId == null) {
+      return const Text('-');
+    }
+
+    return FutureBuilder<String?>(
+      future: fetcher(accountId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            height: 18,
+            width: 90,
+            child: LinearProgressIndicator(minHeight: 3),
+          );
+        }
+
+        return Text(snapshot.data ?? 'Account ${accountId ?? ''}');
+      },
+    );
+  }
+}
+
+class _JournalListItem {
+  _JournalListItem({
+    required this.id,
+    required this.number,
+    required this.creditAccountId,
+    required this.debitAccountId,
+    required this.amount,
+    required this.type,
+    this.description,
+  });
+
+  final dynamic id;
+  final String? number;
+  final int? creditAccountId;
+  final int? debitAccountId;
+  final double? amount;
+  final String? type;
+  final String? description;
+
+  static final _amountFormat = NumberFormat('#,##0.00');
+
+  String get displayType {
+    if (type == null || type!.isEmpty) return '-';
+    final words = type!.split('_').where((word) => word.isNotEmpty).map(
+          (word) => '${word[0].toUpperCase()}${word.substring(1)}',
+        );
+    final value = words.join(' ');
+    return value.isNotEmpty ? value : type!;
+  }
+
+  String get amountLabel {
+    if (amount == null) return '-';
+    return _amountFormat.format(amount);
+  }
+
+  factory _JournalListItem.fromMap(Map<String, dynamic> map) {
+    return _JournalListItem(
+      id: map['id'] ?? map['journal_entry_id'] ?? map['transfer_id'],
+      number: map['number']?.toString() ?? map['description']?.toString(),
+      creditAccountId: _asInt(map['credit_account'] ?? map['transfer_funds_from'] ?? map['credit']),
+      debitAccountId: _asInt(map['debit_account'] ?? map['transfer_funds_to'] ?? map['debit']),
+      amount: _asDouble(map['amount'] ?? map['transfer_amount'] ?? map['total']),
+      type: map['type']?.toString(),
+      description: map['description']?.toString(),
+    );
+  }
+
+  static int? _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  static double? _asDouble(dynamic value) {
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
 }
