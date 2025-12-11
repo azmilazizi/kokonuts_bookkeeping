@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:kokonuts_bookkeeping/widgets/journal_history_dialog.dart';
 
 import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
@@ -108,9 +109,8 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
 
     final validFiles = result.files
         .where(
-          (file) => isAllowedAttachmentExtension(
-            attachmentExtension(file.name),
-          ),
+          (file) =>
+              isAllowedAttachmentExtension(attachmentExtension(file.name)),
         )
         .toList();
 
@@ -186,13 +186,15 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     final sanitizedToken = token
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
-    final normalizedAuth =
-        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
     final autoTokenValue = rawToken
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
-    final authtokenHeader =
-        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
     return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
   }
 
@@ -277,16 +279,8 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       if (_paymentMode != null) 'payment_mode': _paymentMode!.label,
       if (_owner != null) 'owner': _owner!.label,
       'entries': [
-        {
-          'account_id': accounts.debitAccountId,
-          'debit': amount,
-          'credit': 0,
-        },
-        {
-          'account_id': accounts.creditAccountId,
-          'debit': 0,
-          'credit': amount,
-        },
+        {'account_id': accounts.debitAccountId, 'debit': amount, 'credit': 0},
+        {'account_id': accounts.creditAccountId, 'debit': 0, 'credit': amount},
       ],
     };
   }
@@ -342,7 +336,8 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       'Content-Type': 'application/json',
     };
 
-    final isTransfer = _entryType == _EntryType.cashDeposit ||
+    final isTransfer =
+        _entryType == _EntryType.cashDeposit ||
         _entryType == _EntryType.cashWithdrawal;
     final endpoint = isTransfer
         ? 'https://crm.kokonuts.my/accounting/api/v1/transfers'
@@ -393,7 +388,9 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          isTransfer ? 'Transfer submitted successfully.' : 'Journal entry submitted successfully.',
+          isTransfer
+              ? 'Transfer submitted successfully.'
+              : 'Journal entry submitted successfully.',
         ),
       ),
     );
@@ -428,7 +425,10 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
             padding: const EdgeInsets.only(right: 4),
             child: OutlinedButton(
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 visualDensity: VisualDensity.compact,
               ),
               onPressed: _openJournalHistory,
@@ -457,7 +457,8 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                 ],
                 AttachmentPicker(
                   label: 'Attachments',
-                  description: 'Upload receipts, statements, or supporting files.',
+                  description:
+                      'Upload receipts, statements, or supporting files.',
                   files: _attachments,
                   onPick: _pickAttachments,
                   onFilesSelected: _onFilesSelected,
@@ -486,8 +487,9 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                       )
                       .toList(),
                   onChanged: _isSubmitting ? null : _onEntryTypeChanged,
-                  validator: (value) =>
-                      value == null ? 'Please select a journal or transfer type' : null,
+                  validator: (value) => value == null
+                      ? 'Please select a journal or transfer type'
+                      : null,
                 ),
                 const SizedBox(height: 16),
                 if (_showsPaymentMode || _showsOwner) ...[
@@ -501,8 +503,9 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                           Expanded(
                             child: DropdownButtonFormField<_PaymentMode>(
                               value: _paymentMode,
-                              decoration:
-                                  const InputDecoration(labelText: 'Payment Mode'),
+                              decoration: const InputDecoration(
+                                labelText: 'Payment Mode',
+                              ),
                               items: _PaymentMode.values
                                   .map(
                                     (mode) => DropdownMenuItem(
@@ -513,8 +516,10 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                                   .toList(),
                               onChanged: _isSubmitting
                                   ? null
-                                  : (value) => setState(() => _paymentMode = value),
-                              validator: (value) => _showsPaymentMode && value == null
+                                  : (value) =>
+                                        setState(() => _paymentMode = value),
+                              validator: (value) =>
+                                  _showsPaymentMode && value == null
                                   ? 'Select a payment mode'
                                   : null,
                             ),
@@ -530,7 +535,9 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                           Expanded(
                             child: DropdownButtonFormField<_Owner>(
                               value: _owner,
-                              decoration: const InputDecoration(labelText: 'Owner'),
+                              decoration: const InputDecoration(
+                                labelText: 'Owner',
+                              ),
                               items: _Owner.values
                                   .map(
                                     (owner) => DropdownMenuItem(
