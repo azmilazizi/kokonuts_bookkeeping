@@ -235,7 +235,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     try {
       response = await client.get(
         Uri.parse(
-          'https://crm.kokonuts.my/purchase/api/v1/option/next_je_number',
+          'https://crm.kokonuts.my/api/v1/option/next_je_number',
         ),
         headers: headers,
       );
