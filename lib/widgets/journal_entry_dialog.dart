@@ -209,7 +209,11 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   void _onEntryTypeChanged(_EntryType? type) {
     setState(() {
       _entryType = type;
-      _descriptionController.text = type?.label ?? '';
+      if (_isTransfer && type != null) {
+        _descriptionController.text = type.label;
+      } else {
+        _descriptionController.clear();
+      }
       if (!_showsPaymentMode) {
         _paymentMode = null;
       }
@@ -435,9 +439,8 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   }
 
   String get _payloadDescription {
-    final typeLabel = _entryType?.label.trim();
-    if (typeLabel != null && typeLabel.isNotEmpty) {
-      return typeLabel;
+    if (_isTransfer && _entryType != null) {
+      return _entryType!.label;
     }
     return _descriptionController.text.trim();
   }
