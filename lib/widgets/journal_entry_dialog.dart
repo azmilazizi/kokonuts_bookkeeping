@@ -256,20 +256,14 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   Map<String, dynamic> _buildTransferPayload(
     _AccountMapping accounts,
     double amount,
-    String addedFrom,
   ) {
-    final transferFundsFrom = accounts.creditAccountId;
-    final transferFundsTo = accounts.debitAccountId;
-
-    final addedFromValue = int.tryParse(addedFrom) ?? addedFrom;
-
     return {
       'date': _formattedDate,
       'description': _descriptionController.text.trim(),
-      'transfer_amount': amount,
-      'transfer_funds_from': transferFundsFrom,
-      'transfer_funds_to': transferFundsTo,
-      'addedfrom': addedFromValue,
+      'amount': amount,
+      'debit_account_id': accounts.debitAccountId,
+      'credit_account_id': accounts.creditAccountId,
+      'type': _entryType?.label,
       if (_paymentMode != null) 'payment_mode': _paymentMode!.label,
     };
   }
@@ -345,21 +339,12 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     final isTransfer =
         _entryType == _EntryType.cashDeposit ||
         _entryType == _EntryType.cashWithdrawal;
-    final addedFrom = appState.currentUserId;
     final endpoint = isTransfer
         ? 'https://crm.kokonuts.my/accounting/api/v1/transfers'
         : 'https://crm.kokonuts.my/accounting/api/v1/journal_entries';
 
-    if (isTransfer && (addedFrom == null || addedFrom.trim().isEmpty)) {
-      setState(() {
-        _submitError = 'Unable to determine the current user. Please log in again.';
-        _isSubmitting = false;
-      });
-      return;
-    }
-
     final payload = isTransfer
-        ? _buildTransferPayload(accountMapping, amount, addedFrom!)
+        ? _buildTransferPayload(accountMapping, amount)
         : _buildJournalPayload(accountMapping, amount);
 
     http.Response response;
@@ -488,12 +473,6 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                     prefixIcon: Icon(Icons.event),
                   ),
                   onTap: _pickDate,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Journal date is required';
-                    }
-                    return null;
-                  },
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<_EntryType>(
@@ -622,12 +601,6 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                   maxLines: 4,
                   minLines: 3,
                   enabled: !_isSubmitting,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Description is required';
-                    }
-                    return null;
-                  },
                 ),
               ],
             ),
