@@ -280,6 +280,9 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   ) {
     return {
       'journal_date': _formattedDate,
+      'datecreated': _formattedDate,
+      'number': null,
+      'amount': amount,
       'description': _descriptionController.text.trim(),
       'lines': [
         {
