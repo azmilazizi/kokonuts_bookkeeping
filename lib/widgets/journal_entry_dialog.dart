@@ -74,6 +74,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   final _entryIdController = TextEditingController();
 
   DateTime _journalDate = DateTime.now();
+  int? _nextEntryNumber;
   _EntryType? _entryType;
   _PaymentMode? _paymentMode;
   _Owner? _owner;
@@ -151,13 +152,35 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         _journalDate = selected;
         _updateDateText();
       });
+      _updateEntryIdWithCurrentDate();
     }
   }
 
   String get _formattedDate => DateFormat('yyyy-MM-dd').format(_journalDate);
 
+  String? get _formattedEntryId {
+    if (_nextEntryNumber == null) {
+      return null;
+    }
+    final formattedDate = DateFormat('MMyyyy').format(_journalDate);
+    return '#JE-$formattedDate-${_nextEntryNumber!.toString().padLeft(5, '0')}';
+  }
+
   void _updateDateText() {
     _dateController.text = _formattedDate;
+  }
+
+  void _updateEntryIdWithCurrentDate() {
+    final formattedEntryId = _formattedEntryId;
+
+    if (!_showsEntryIdField || formattedEntryId == null) {
+      return;
+    }
+
+    setState(() {
+      _entryId = formattedEntryId;
+      _entryIdController.text = formattedEntryId;
+    });
   }
 
   bool get _showsPaymentMode {
@@ -195,6 +218,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       if (!_showsEntryIdField) {
         _entryId = null;
         _entryIdController.clear();
+        _nextEntryNumber = null;
         _entryIdError = null;
         _isFetchingEntryId = false;
       }
@@ -210,6 +234,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       _isFetchingEntryId = true;
       _entryIdError = null;
       _entryId = null;
+      _nextEntryNumber = null;
       _entryIdController.clear();
     });
 
@@ -264,19 +289,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     }
 
     final decoded = jsonDecode(response.body);
-    int? nextNumber;
-
-    if (decoded is Map<String, dynamic>) {
-      final value = decoded['next_je_number'] ??
-          (decoded['data'] is Map<String, dynamic>
-              ? decoded['data']['next_je_number']
-              : null);
-      if (value is int) {
-        nextNumber = value;
-      } else if (value is String) {
-        nextNumber = int.tryParse(value);
-      }
-    }
+    final nextNumber = _parseNextEntryNumber(decoded);
 
     if (nextNumber == null) {
       setState(() {
@@ -286,16 +299,45 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       return;
     }
 
-    final formattedDate = DateFormat('MMyyyy').format(DateTime.now());
     final formattedEntryId =
-        '#JE-$formattedDate-${nextNumber.toString().padLeft(5, '0')}';
+        '#JE-${DateFormat('MMyyyy').format(_journalDate)}-${nextNumber.toString().padLeft(5, '0')}';
 
     setState(() {
+      _nextEntryNumber = nextNumber;
       _entryId = formattedEntryId;
       _entryIdController.text = formattedEntryId;
       _entryIdError = null;
       _isFetchingEntryId = false;
     });
+  }
+
+  int? _parseNextEntryNumber(dynamic decoded) {
+    int? tryParseValue(dynamic value) {
+      if (value is int) {
+        return value;
+      }
+      if (value is String) {
+        return int.tryParse(value);
+      }
+      return null;
+    }
+
+    if (decoded is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final data = decoded['data'];
+    final result = decoded['result'];
+
+    return tryParseValue(decoded['next_je_number']) ??
+        tryParseValue(decoded['value']) ??
+        (data is Map<String, dynamic>
+            ? tryParseValue(data['next_je_number']) ?? tryParseValue(data['value'])
+            : null) ??
+        (result is Map<String, dynamic>
+            ? tryParseValue(result['next_je_number']) ??
+                tryParseValue(result['value'])
+            : null);
   }
 
   Map<String, String> _buildAuthHeaders(AppState appState, String token) {
