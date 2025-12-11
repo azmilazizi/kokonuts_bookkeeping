@@ -30,7 +30,11 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
   @override
   void initState() {
     super.initState();
-    _fetchRecords();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _fetchRecords();
+      }
+    });
   }
 
   @override
