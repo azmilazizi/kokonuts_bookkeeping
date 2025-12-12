@@ -295,14 +295,16 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
         ? 'https://crm.kokonuts.my/accounting/api/v1/transfers'
         : 'https://crm.kokonuts.my/accounting/api/v1/journal_entries';
 
-    final uri = Uri.parse('$endpoint/$id').replace(queryParameters: {
+    final uri = Uri.parse('$endpoint/$id');
+    final deleteHeaders = {
+      ...headers,
       if ((headers['authtoken'] ?? '').isNotEmpty) 'authkey': headers['authtoken']!,
-    });
+    };
 
     http.Response response;
     final client = http.Client();
     try {
-      response = await client.delete(uri, headers: headers);
+      response = await client.delete(uri, headers: deleteHeaders);
     } catch (error) {
       if (mounted) {
         setState(() {
@@ -437,9 +439,30 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                         DataColumn(label: Text('Description')),
                                         DataColumn(label: Text('Credit Account')),
                                         DataColumn(label: Text('Debit Account')),
-                                        DataColumn(label: Text('Amount')),
-                                        DataColumn(label: Text('Type')),
-                                        DataColumn(label: Text('Actions')),
+                                        DataColumn(
+                                          label: Center(
+                                            child: Text(
+                                              'Amount',
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Center(
+                                            child: Text(
+                                              'Type',
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        ),
+                                        DataColumn(
+                                          label: Center(
+                                            child: Text(
+                                              'Actions',
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        ),
                                       ],
                                       rows: _items
                                           .map(
@@ -455,7 +478,11 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                                   fetcher: _accountName,
                                                   accountId: item.debitAccountId,
                                                 )),
-                                                DataCell(Text(item.amountLabel)),
+                                                DataCell(
+                                                  Center(
+                                                    child: Text(item.amountLabel),
+                                                  ),
+                                                ),
                                                 DataCell(
                                                   Center(
                                                     child: Container(
@@ -479,24 +506,26 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                                   ),
                                                 ),
                                                 DataCell(
-                                                  Row(
-                                                    mainAxisSize: MainAxisSize.min,
-                                                    children: [
-                                                      IconButton(
-                                                        key: ValueKey('edit_${item.id}'),
-                                                        tooltip: 'Edit',
-                                                        icon: const Icon(
-                                                            Icons.edit_outlined),
-                                                        onPressed: () => _editRecord(item),
-                                                      ),
-                                                      IconButton(
-                                                        key: ValueKey('delete_${item.id}'),
-                                                        tooltip: 'Delete',
-                                                        icon: const Icon(
-                                                            Icons.delete_outline),
-                                                        onPressed: () => _deleteRecord(item),
-                                                      ),
-                                                    ],
+                                                  Center(
+                                                    child: Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        IconButton(
+                                                          key: ValueKey('edit_${item.id}'),
+                                                          tooltip: 'Edit',
+                                                          icon: const Icon(
+                                                              Icons.edit_outlined),
+                                                          onPressed: () => _editRecord(item),
+                                                        ),
+                                                        IconButton(
+                                                          key: ValueKey('delete_${item.id}'),
+                                                          tooltip: 'Delete',
+                                                          icon: const Icon(
+                                                              Icons.delete_outline),
+                                                          onPressed: () => _deleteRecord(item),
+                                                        ),
+                                                      ],
+                                                    ),
                                                   ),
                                                 ),
                                               ],
