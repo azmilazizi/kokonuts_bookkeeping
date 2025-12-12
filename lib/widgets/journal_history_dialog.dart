@@ -311,21 +311,21 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
     }
 
     final headers = _buildAuthHeaders(appState, token);
+    final deleteHeaders = {
+      ...headers,
+      if ((headers['authtoken'] ?? '').isNotEmpty)
+        'authkey': headers['authtoken']!,
+    };
     final endpoint = item.type == 'transfer'
         ? 'https://crm.kokonuts.my/accounting/api/v1/transfers'
         : 'https://crm.kokonuts.my/accounting/api/v1/journal_entries';
 
-    final uri = Uri.parse('$endpoint/$id').replace(
-      queryParameters: {
-        if ((headers['authtoken'] ?? '').isNotEmpty)
-          'authkey': headers['authtoken']!,
-      },
-    );
+    final uri = Uri.parse('$endpoint/$id');
 
     http.Response response;
     final client = http.Client();
     try {
-      response = await client.delete(uri, headers: headers);
+      response = await client.delete(uri, headers: deleteHeaders);
     } catch (error) {
       if (mounted) {
         setState(() {
@@ -466,9 +466,21 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                     DataColumn(label: Text('Description')),
                                     DataColumn(label: Text('Credit Account')),
                                     DataColumn(label: Text('Debit Account')),
-                                    DataColumn(label: Text('Amount')),
-                                    DataColumn(label: Text('Type')),
-                                    DataColumn(label: Text('Actions')),
+                                    DataColumn(
+                                      label: Center(
+                                        child: Text('Amount'),
+                                      ),
+                                    ),
+                                    DataColumn(
+                                      label: Center(
+                                        child: Text('Type'),
+                                      ),
+                                    ),
+                                    DataColumn(
+                                      label: Center(
+                                        child: Text('Actions'),
+                                      ),
+                                    ),
                                   ],
                                   rows: _items
                                       .map(
