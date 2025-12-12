@@ -470,37 +470,13 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                     DataColumn(label: Text('Credit Account')),
                                     DataColumn(label: Text('Debit Account')),
                                     DataColumn(
-                                      label: SizedBox(
-                                        width: double.infinity,
-                                        child: Center(
-                                          child: Text(
-                                            'Amount',
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
-                                      ),
+                                      label: _CenteredHeaderLabel('Amount'),
                                     ),
                                     DataColumn(
-                                      label: SizedBox(
-                                        width: double.infinity,
-                                        child: Center(
-                                          child: Text(
-                                            'Type',
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
-                                      ),
+                                      label: _CenteredHeaderLabel('Type'),
                                     ),
                                     DataColumn(
-                                      label: SizedBox(
-                                        width: double.infinity,
-                                        child: Center(
-                                          child: Text(
-                                            'Actions',
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
-                                      ),
+                                      label: _CenteredHeaderLabel('Actions'),
                                     ),
                                   ],
                                   rows: _items
@@ -681,6 +657,25 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
           icon: const Icon(Icons.chevron_right),
         ),
       ],
+    );
+  }
+}
+
+class _CenteredHeaderLabel extends StatelessWidget {
+  const _CenteredHeaderLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: Center(
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+        ),
+      ),
     );
   }
 }
