@@ -45,14 +45,18 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
 
   Map<String, String> _buildAuthHeaders(AppState appState, String token) {
     final rawToken = (appState.rawAuthToken ?? token).trim();
-    final sanitizedToken =
-        token.replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '').trim();
-    final normalizedAuth =
-        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
     final autoTokenValue = rawToken
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
-    final authtokenHeader = autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
     return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
   }
 
@@ -78,12 +82,14 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
     final queryParameters = <String, String>{
       'page': _currentPage.toString(),
       'per_page': _pageSize.toString(),
-      if (_searchController.text.trim().isNotEmpty) 'search': _searchController.text.trim(),
+      if (_searchController.text.trim().isNotEmpty)
+        'search': _searchController.text.trim(),
       if (_dateRange != null) ...{
         'start_date': DateFormat('yyyy-MM-dd').format(_dateRange!.start),
         'end_date': DateFormat('yyyy-MM-dd').format(_dateRange!.end),
       },
-      if ((headers['authtoken'] ?? '').isNotEmpty) 'authkey': headers['authtoken']!,
+      if ((headers['authtoken'] ?? '').isNotEmpty)
+        'authkey': headers['authtoken']!,
     };
 
     final uri = Uri.parse(
@@ -133,8 +139,14 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
     if (parsed is Map<String, dynamic>) {
       data = parsed['data'] ?? parsed['result'] ?? parsed['items'] ?? parsed;
       if (data is Map<String, dynamic>) {
-        data = data['data'] ?? data['items'] ?? data['list'] ??
-            data.values.firstWhere((value) => value is List, orElse: () => data);
+        data =
+            data['data'] ??
+            data['items'] ??
+            data['list'] ??
+            data.values.firstWhere(
+              (value) => value is List,
+              orElse: () => data,
+            );
       }
     }
 
@@ -147,13 +159,15 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
 
   bool _determineHasMore(dynamic parsed, int recordCount) {
     if (parsed is Map<String, dynamic>) {
-      final pagination = parsed['pagination'] ?? parsed['meta'] ?? parsed['result'];
+      final pagination =
+          parsed['pagination'] ?? parsed['meta'] ?? parsed['result'];
       if (pagination is Map<String, dynamic>) {
-        final currentPage = _asInt(
-              pagination['page'] ?? pagination['current_page'],
-            ) ??
+        final currentPage =
+            _asInt(pagination['page'] ?? pagination['current_page']) ??
             _currentPage;
-        final totalPages = _asInt(pagination['total_pages'] ?? pagination['last_page']);
+        final totalPages = _asInt(
+          pagination['total_pages'] ?? pagination['last_page'],
+        );
         if (totalPages != null) {
           return currentPage < totalPages;
         }
@@ -212,11 +226,15 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
     }
 
     final headers = _buildAuthHeaders(appState, token);
-    final uri = Uri.parse(
-      'https://crm.kokonuts.my/accounting/api/v1/account/$id',
-    ).replace(queryParameters: {
-      if ((headers['authtoken'] ?? '').isNotEmpty) 'authkey': headers['authtoken']!,
-    });
+    final uri =
+        Uri.parse(
+          'https://crm.kokonuts.my/accounting/api/v1/account/$id',
+        ).replace(
+          queryParameters: {
+            if ((headers['authtoken'] ?? '').isNotEmpty)
+              'authkey': headers['authtoken']!,
+          },
+        );
 
     try {
       final response = await http.get(uri, headers: headers);
@@ -255,7 +273,9 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete record'),
-        content: Text('Are you sure you want to delete ${item.number ?? 'this record'}?'),
+        content: Text(
+          'Are you sure you want to delete ${item.number ?? 'this record'}?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -295,9 +315,12 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
         ? 'https://crm.kokonuts.my/accounting/api/v1/transfers'
         : 'https://crm.kokonuts.my/accounting/api/v1/journal_entries';
 
-    final uri = Uri.parse('$endpoint/$id').replace(queryParameters: {
-      if ((headers['authtoken'] ?? '').isNotEmpty) 'authkey': headers['authtoken']!,
-    });
+    final uri = Uri.parse('$endpoint/$id').replace(
+      queryParameters: {
+        if ((headers['authtoken'] ?? '').isNotEmpty)
+          'authkey': headers['authtoken']!,
+      },
+    );
 
     http.Response response;
     final client = http.Client();
@@ -342,7 +365,7 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
       return;
     }
 
-    await widget.onEdit!();
+    await widget.onEdit!(item);
     await _fetchRecords();
   }
 
@@ -373,7 +396,10 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
     final dialogWidth = (screenSize.width * 0.92).clamp(420.0, 840.0);
-    final dialogHeight = (screenSize.height * 0.88).clamp(420.0, screenSize.height);
+    final dialogHeight = (screenSize.height * 0.88).clamp(
+      420.0,
+      screenSize.height,
+    );
 
     return AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
@@ -405,111 +431,136 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
                 ),
               ),
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _items.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No journal entries or transfers found. Please create a new entry first.',
-                            textAlign: TextAlign.center,
-                          ),
-                        )
-                      : Scrollbar(
-                          thumbVisibility: true,
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              final tableWidth = constraints.maxWidth < 760
-                                  ? 760.0
-                                  : constraints.maxWidth;
+                  ? const Center(
+                      child: Text(
+                        'No journal entries or transfers found. Please create a new entry first.',
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  : Scrollbar(
+                      thumbVisibility: true,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final tableWidth = constraints.maxWidth < 760
+                              ? 760.0
+                              : constraints.maxWidth;
 
-                              return SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(minWidth: tableWidth),
-                                  child: SingleChildScrollView(
-                                    child: DataTable(
-                                      columnSpacing: 18,
-                                      columns: const [
-                                        DataColumn(label: Text('Description')),
-                                        DataColumn(label: Text('Credit Account')),
-                                        DataColumn(label: Text('Debit Account')),
-                                        DataColumn(label: Text('Amount')),
-                                        DataColumn(label: Text('Type')),
-                                        DataColumn(label: Text('Actions')),
-                                      ],
-                                      rows: _items
-                                          .map(
-                                            (item) => DataRow(
-                                              cells: [
-                                                DataCell(Text(
-                                                    item.description ?? item.number ?? '-')),
-                                                DataCell(_AccountNameCell(
-                                                  fetcher: _accountName,
-                                                  accountId: item.creditAccountId,
-                                                )),
-                                                DataCell(_AccountNameCell(
-                                                  fetcher: _accountName,
-                                                  accountId: item.debitAccountId,
-                                                )),
-                                                DataCell(Text(item.amountLabel)),
-                                                DataCell(
-                                                  Center(
-                                                    child: Container(
-                                                      padding: const EdgeInsets.symmetric(
+                          return SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(minWidth: tableWidth),
+                              child: SingleChildScrollView(
+                                child: DataTable(
+                                  columnSpacing: 18,
+                                  columns: const [
+                                    DataColumn(label: Text('Description')),
+                                    DataColumn(label: Text('Credit Account')),
+                                    DataColumn(label: Text('Debit Account')),
+                                    DataColumn(label: Text('Amount')),
+                                    DataColumn(label: Text('Type')),
+                                    DataColumn(label: Text('Actions')),
+                                  ],
+                                  rows: _items
+                                      .map(
+                                        (item) => DataRow(
+                                          cells: [
+                                            DataCell(
+                                              Text(
+                                                item.description ??
+                                                    item.number ??
+                                                    '-',
+                                              ),
+                                            ),
+                                            DataCell(
+                                              _AccountNameCell(
+                                                fetcher: _accountName,
+                                                accountId: item.creditAccountId,
+                                              ),
+                                            ),
+                                            DataCell(
+                                              _AccountNameCell(
+                                                fetcher: _accountName,
+                                                accountId: item.debitAccountId,
+                                              ),
+                                            ),
+                                            DataCell(Text(item.amountLabel)),
+                                            DataCell(
+                                              Center(
+                                                child: Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
                                                         horizontal: 10,
                                                         vertical: 6,
                                                       ),
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.blue
-                                                            .withOpacity(0.08),
-                                                        borderRadius: BorderRadius.circular(20),
-                                                      ),
-                                                      child: Text(
-                                                        item.displayType,
-                                                        style: const TextStyle(
-                                                          fontWeight: FontWeight.w600,
-                                                          color: Colors.blue,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.blue
+                                                        .withOpacity(0.08),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          20,
                                                         ),
-                                                      ),
+                                                  ),
+                                                  child: Text(
+                                                    item.displayType,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Colors.blue,
                                                     ),
                                                   ),
                                                 ),
-                                                DataCell(
-                                                  Row(
-                                                    mainAxisSize: MainAxisSize.min,
-                                                    children: [
-                                                      IconButton(
-                                                        key: ValueKey('edit_${item.id}'),
-                                                        tooltip: 'Edit',
-                                                        icon: const Icon(
-                                                            Icons.edit_outlined),
-                                                        onPressed: () => _editRecord(item),
-                                                      ),
-                                                      IconButton(
-                                                        key: ValueKey('delete_${item.id}'),
-                                                        tooltip: 'Delete',
-                                                        icon: const Icon(
-                                                            Icons.delete_outline),
-                                                        onPressed: () => _deleteRecord(item),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
+                                              ),
                                             ),
-                                          )
-                                          .toList(),
-                                    ),
-                                  ),
+                                            DataCell(
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  IconButton(
+                                                    key: ValueKey(
+                                                      'edit_${item.id}',
+                                                    ),
+                                                    tooltip: 'Edit',
+                                                    icon: const Icon(
+                                                      Icons.edit_outlined,
+                                                    ),
+                                                    onPressed: () =>
+                                                        _editRecord(item),
+                                                  ),
+                                                  IconButton(
+                                                    key: ValueKey(
+                                                      'delete_${item.id}',
+                                                    ),
+                                                    tooltip: 'Delete',
+                                                    icon: const Icon(
+                                                      Icons.delete_outline,
+                                                    ),
+                                                    onPressed: () =>
+                                                        _deleteRecord(item),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                      .toList(),
                                 ),
-                              );
-                            },
-                          ),
-                        ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
             ),
             const SizedBox(height: 8),
             _buildPagination(),
@@ -637,9 +688,10 @@ class JournalListItem {
 
   String get displayType {
     if (type == null || type!.isEmpty) return '-';
-    final words = type!.split('_').where((word) => word.isNotEmpty).map(
-          (word) => '${word[0].toUpperCase()}${word.substring(1)}',
-        );
+    final words = type!
+        .split('_')
+        .where((word) => word.isNotEmpty)
+        .map((word) => '${word[0].toUpperCase()}${word.substring(1)}');
     final value = words.join(' ');
     return value.isNotEmpty ? value : type!;
   }
@@ -662,11 +714,18 @@ class JournalListItem {
       id: source['id'] ?? map['journal_entry_id'] ?? map['transfer_id'],
       number: source['number']?.toString() ?? source['description']?.toString(),
       creditAccountId: _asInt(
-          source['credit_account'] ?? source['transfer_funds_from'] ?? source['credit']),
+        source['credit_account'] ??
+            source['transfer_funds_from'] ??
+            source['credit'],
+      ),
       debitAccountId: _asInt(
-          source['debit_account'] ?? source['transfer_funds_to'] ?? source['debit']),
+        source['debit_account'] ??
+            source['transfer_funds_to'] ??
+            source['debit'],
+      ),
       amount: _asDouble(
-          source['amount'] ?? source['transfer_amount'] ?? source['total']),
+        source['amount'] ?? source['transfer_amount'] ?? source['total'],
+      ),
       type: type,
       description: source['description']?.toString(),
       entryId: source['entry_id']?.toString() ?? source['number']?.toString(),

@@ -113,7 +113,9 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     _journalDate = item.date ?? _journalDate;
     _entryType = _entryTypeFromString(item.type) ?? _entryType;
     _descriptionController.text = item.description ?? '';
-    _amountController.text = CurrencyInputFormatter.normalizeExistingValue(item.amount);
+    _amountController.text = CurrencyInputFormatter.normalizeExistingValue(
+      item.amount.toString(),
+    );
     _entryId = item.entryId ?? item.number;
     _entryIdController.text = _entryId ?? '';
 
@@ -266,9 +268,13 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
 
   _EntryType? _entryTypeFromString(String? value) {
     if (value == null) return null;
-    final normalized = value.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toLowerCase();
+    final normalized = value
+        .replaceAll(RegExp(r'[^A-Za-z0-9]'), '')
+        .toLowerCase();
     for (final type in _EntryType.values) {
-      final key = type.name.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toLowerCase();
+      final key = type.name
+          .replaceAll(RegExp(r'[^A-Za-z0-9]'), '')
+          .toLowerCase();
       if (key == normalized) {
         return type;
       }
@@ -306,9 +312,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
 
     try {
       response = await client.get(
-        Uri.parse(
-          'https://crm.kokonuts.my/api/v1/option/next_je_number',
-        ),
+        Uri.parse('https://crm.kokonuts.my/api/v1/option/next_je_number'),
         headers: headers,
       );
     } catch (error) {
@@ -328,7 +332,8 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       if (mounted) {
         setState(() {
           _entryIdError =
-              'Failed to fetch entry ID: ${response.statusCode} ${response.reasonPhrase ?? ''}'.trim();
+              'Failed to fetch entry ID: ${response.statusCode} ${response.reasonPhrase ?? ''}'
+                  .trim();
           _isFetchingEntryId = false;
         });
       }
@@ -379,11 +384,12 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     return tryParseValue(decoded['next_je_number']) ??
         tryParseValue(decoded['value']) ??
         (data is Map<String, dynamic>
-            ? tryParseValue(data['next_je_number']) ?? tryParseValue(data['value'])
+            ? tryParseValue(data['next_je_number']) ??
+                  tryParseValue(data['value'])
             : null) ??
         (result is Map<String, dynamic>
             ? tryParseValue(result['next_je_number']) ??
-                tryParseValue(result['value'])
+                  tryParseValue(result['value'])
             : null);
   }
 
@@ -577,7 +583,8 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         isTransfer &&
         (addedFrom == null || addedFrom.trim().isEmpty)) {
       setState(() {
-        _submitError = 'Unable to determine the current user. Please log in again.';
+        _submitError =
+            'Unable to determine the current user. Please log in again.';
         _isSubmitting = false;
       });
       return;
@@ -585,7 +592,8 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
 
     if (!_isEditing && !isTransfer && _entryId == null) {
       setState(() {
-        _submitError = _entryIdError ??
+        _submitError =
+            _entryIdError ??
             'Unable to generate an entry ID. Please try again.';
         _isSubmitting = false;
       });
@@ -664,11 +672,11 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         content: Text(
           _isEditing
               ? (isTransfer
-                  ? 'Transfer updated successfully.'
-                  : 'Journal entry updated successfully.')
+                    ? 'Transfer updated successfully.'
+                    : 'Journal entry updated successfully.')
               : (isTransfer
-                  ? 'Transfer submitted successfully.'
-                  : 'Journal entry submitted successfully.'),
+                    ? 'Transfer submitted successfully.'
+                    : 'Journal entry submitted successfully.'),
         ),
       ),
     );
@@ -777,8 +785,9 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                     final entryTypeField = Expanded(
                       child: DropdownButtonFormField<_EntryType>(
                         value: _entryType,
-                        decoration:
-                            const InputDecoration(labelText: 'Entry Type'),
+                        decoration: const InputDecoration(
+                          labelText: 'Entry Type',
+                        ),
                         items: _EntryType.values
                             .map(
                               (type) => DropdownMenuItem(
@@ -787,8 +796,9 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                               ),
                             )
                             .toList(),
-                        onChanged:
-                            _isSubmitting || _isEditing ? null : _onEntryTypeChanged,
+                        onChanged: _isSubmitting || _isEditing
+                            ? null
+                            : _onEntryTypeChanged,
                         validator: (value) => _isEditing || value != null
                             ? null
                             : 'Please select a journal or transfer type',
@@ -831,17 +841,18 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                                   child: SizedBox(
                                     width: 16,
                                     height: 16,
-                                    child:
-                                        CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
                                   ),
                                 )
                               : (_entryIdError != null
-                                  ? IconButton(
-                                      tooltip: 'Retry',
-                                      onPressed: _fetchNextEntryNumber,
-                                      icon: const Icon(Icons.refresh),
-                                    )
-                                  : null),
+                                    ? IconButton(
+                                        tooltip: 'Retry',
+                                        onPressed: _fetchNextEntryNumber,
+                                        icon: const Icon(Icons.refresh),
+                                      )
+                                    : null),
                         ),
                         validator: (_) {
                           if (_showsEntryIdField &&
