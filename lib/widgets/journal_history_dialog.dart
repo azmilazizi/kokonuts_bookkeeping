@@ -10,7 +10,7 @@ import '../app/app_state_scope.dart';
 class JournalHistoryDialog extends StatefulWidget {
   const JournalHistoryDialog({super.key, this.onEdit});
 
-  final Future<void> Function()? onEdit;
+  final Future<void> Function(JournalListItem item)? onEdit;
 
   @override
   State<JournalHistoryDialog> createState() => _JournalHistoryDialogState();
@@ -22,7 +22,7 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
   DateTimeRange? _dateRange;
   bool _isLoading = false;
   String? _error;
-  List<_JournalListItem> _items = const [];
+  List<JournalListItem> _items = const [];
   int _currentPage = 1;
   final int _pageSize = 10;
   bool _hasNextPage = false;
@@ -117,7 +117,7 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
     }
 
     final parsed = jsonDecode(response.body);
-    final records = _extractList(parsed).map(_JournalListItem.fromMap).toList();
+    final records = _extractList(parsed).map(JournalListItem.fromMap).toList();
 
     if (!mounted) return;
 
@@ -242,7 +242,7 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
     return 'Account $id';
   }
 
-  Future<void> _deleteRecord(_JournalListItem item) async {
+  Future<void> _deleteRecord(JournalListItem item) async {
     final id = item.id;
     if (id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -334,7 +334,7 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
     await _fetchRecords();
   }
 
-  Future<void> _editRecord(_JournalListItem item) async {
+  Future<void> _editRecord(JournalListItem item) async {
     if (widget.onEdit == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Editing is not available right now.')),
@@ -371,7 +371,9 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final dialogWidth = (MediaQuery.of(context).size.width * 0.92).clamp(420.0, 960.0);
+    final screenSize = MediaQuery.of(context).size;
+    final dialogWidth = (screenSize.width * 0.98).clamp(420.0, screenSize.width);
+    final dialogHeight = (screenSize.height * 0.88).clamp(420.0, screenSize.height);
 
     return AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
@@ -393,7 +395,7 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
       ),
       content: SizedBox(
         width: dialogWidth,
-        height: 560,
+        height: dialogHeight,
         child: Column(
           children: [
             _buildFilters(),
@@ -424,8 +426,9 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                               constraints: const BoxConstraints(minWidth: 760),
                               child: SingleChildScrollView(
                                 child: DataTable(
+                                  columnSpacing: 18,
                                   columns: const [
-                                    DataColumn(label: Text('ID/Description')),
+                                    DataColumn(label: Text('Description')),
                                     DataColumn(label: Text('Credit Account')),
                                     DataColumn(label: Text('Debit Account')),
                                     DataColumn(label: Text('Amount')),
@@ -436,7 +439,8 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                       .map(
                                         (item) => DataRow(
                                           cells: [
-                                            DataCell(Text(item.number ?? '-')),
+                                            DataCell(Text(
+                                                item.description ?? item.number ?? '-')),
                                             DataCell(_AccountNameCell(
                                               fetcher: _accountName,
                                               accountId: item.creditAccountId,
@@ -446,17 +450,39 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                               accountId: item.debitAccountId,
                                             )),
                                             DataCell(Text(item.amountLabel)),
-                                            DataCell(Text(item.displayType)),
+                                            DataCell(
+                                              Center(
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 6,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.blue.withOpacity(0.08),
+                                                    borderRadius: BorderRadius.circular(20),
+                                                  ),
+                                                  child: Text(
+                                                    item.displayType,
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.w600,
+                                                      color: Colors.blue,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
                                             DataCell(
                                               Row(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
                                                   IconButton(
+                                                    key: ValueKey('edit_${item.id}'),
                                                     tooltip: 'Edit',
                                                     icon: const Icon(Icons.edit_outlined),
                                                     onPressed: () => _editRecord(item),
                                                   ),
                                                   IconButton(
+                                                    key: ValueKey('delete_${item.id}'),
                                                     tooltip: 'Delete',
                                                     icon: const Icon(Icons.delete_outline),
                                                     onPressed: () => _deleteRecord(item),
@@ -479,12 +505,6 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Close'),
-        ),
-      ],
     );
   }
 
@@ -579,8 +599,8 @@ class _AccountNameCell extends StatelessWidget {
   }
 }
 
-class _JournalListItem {
-  _JournalListItem({
+class JournalListItem {
+  JournalListItem({
     required this.id,
     required this.number,
     required this.creditAccountId,
@@ -588,6 +608,8 @@ class _JournalListItem {
     required this.amount,
     required this.type,
     this.description,
+    this.date,
+    this.entryId,
   });
 
   final dynamic id;
@@ -597,6 +619,8 @@ class _JournalListItem {
   final double? amount;
   final String? type;
   final String? description;
+  final DateTime? date;
+  final String? entryId;
 
   static final _amountFormat = NumberFormat('#,##0.00');
 
@@ -614,15 +638,27 @@ class _JournalListItem {
     return _amountFormat.format(amount);
   }
 
-  factory _JournalListItem.fromMap(Map<String, dynamic> map) {
-    return _JournalListItem(
-      id: map['id'] ?? map['journal_entry_id'] ?? map['transfer_id'],
-      number: map['number']?.toString() ?? map['description']?.toString(),
-      creditAccountId: _asInt(map['credit_account'] ?? map['transfer_funds_from'] ?? map['credit']),
-      debitAccountId: _asInt(map['debit_account'] ?? map['transfer_funds_to'] ?? map['debit']),
-      amount: _asDouble(map['amount'] ?? map['transfer_amount'] ?? map['total']),
-      type: map['type']?.toString(),
-      description: map['description']?.toString(),
+  bool get isTransfer =>
+      (type ?? '').toLowerCase() == 'transfer' ||
+      (type ?? '').toLowerCase() == 'cash_deposit' ||
+      (type ?? '').toLowerCase() == 'cash_withdrawal';
+
+  factory JournalListItem.fromMap(Map<String, dynamic> map) {
+    final data = map['data'];
+    final source = data is Map<String, dynamic> ? data : map;
+    return JournalListItem(
+      id: source['id'] ?? map['journal_entry_id'] ?? map['transfer_id'],
+      number: source['number']?.toString() ?? source['description']?.toString(),
+      creditAccountId: _asInt(
+          source['credit_account'] ?? source['transfer_funds_from'] ?? source['credit']),
+      debitAccountId: _asInt(
+          source['debit_account'] ?? source['transfer_funds_to'] ?? source['debit']),
+      amount: _asDouble(
+          source['amount'] ?? source['transfer_amount'] ?? source['total']),
+      type: source['type']?.toString(),
+      description: source['description']?.toString(),
+      entryId: source['entry_id']?.toString() ?? source['number']?.toString(),
+      date: _parseDate(source['date'] ?? source['created_at']),
     );
   }
 
@@ -637,6 +673,14 @@ class _JournalListItem {
     if (value is double) return value;
     if (value is int) return value.toDouble();
     if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value is DateTime) return value;
+    if (value is String) {
+      return DateTime.tryParse(value);
+    }
     return null;
   }
 }
