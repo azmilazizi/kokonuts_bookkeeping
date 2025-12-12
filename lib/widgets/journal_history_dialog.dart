@@ -458,80 +458,66 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                               ? 760.0
                               : constraints.maxWidth;
 
-                          final theme = Theme.of(context);
-
                           return SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: ConstrainedBox(
                               constraints: BoxConstraints(minWidth: tableWidth),
                               child: SingleChildScrollView(
-                                child: Theme(
-                                  data: theme.copyWith(
-                                    dataTableTheme: theme.dataTableTheme.copyWith(
-                                      headingTextStyle: theme.textTheme.labelLarge?.copyWith(
-                                        color: theme.colorScheme.onSurface,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                      headingRowColor: MaterialStateProperty.all(
-                                        theme.colorScheme.surfaceVariant,
-                                      ),
+                                child: DataTable(
+                                  columnSpacing: 18,
+                                  columns: const [
+                                    DataColumn(label: Text('Description')),
+                                    DataColumn(label: Text('Credit Account')),
+                                    DataColumn(label: Text('Debit Account')),
+                                    DataColumn(
+                                      label: _CenteredHeaderLabel('Amount'),
                                     ),
-                                  ),
-                                  child: DataTable(
-                                    columnSpacing: 18,
-                                    columns: const [
-                                      DataColumn(label: Text('Description')),
-                                      DataColumn(label: Text('Credit Account')),
-                                      DataColumn(label: Text('Debit Account')),
-                                      DataColumn(
-                                        label: _CenteredHeaderLabel('Amount'),
-                                      ),
-                                      DataColumn(
-                                        label: _CenteredHeaderLabel('Type'),
-                                      ),
-                                      DataColumn(
-                                        label: _CenteredHeaderLabel('Actions'),
-                                      ),
-                                    ],
-                                    rows: _items
-                                        .map(
-                                          (item) => DataRow(
-                                            cells: [
-                                              DataCell(
-                                                Text(
-                                                  item.description ??
-                                                      item.number ??
-                                                      '-',
-                                                ),
+                                    DataColumn(
+                                      label: _CenteredHeaderLabel('Type'),
+                                    ),
+                                    DataColumn(
+                                      label: _CenteredHeaderLabel('Actions'),
+                                    ),
+                                  ],
+                                  rows: _items
+                                      .map(
+                                        (item) => DataRow(
+                                          cells: [
+                                            DataCell(
+                                              Text(
+                                                item.description ??
+                                                    item.number ??
+                                                    '-',
                                               ),
-                                              DataCell(
-                                                _AccountNameCell(
-                                                  fetcher: _accountName,
-                                                  accountId: item.creditAccountId,
-                                                ),
+                                            ),
+                                            DataCell(
+                                              _AccountNameCell(
+                                                fetcher: _accountName,
+                                                accountId: item.creditAccountId,
                                               ),
-                                              DataCell(
-                                                _AccountNameCell(
-                                                  fetcher: _accountName,
-                                                  accountId: item.debitAccountId,
-                                                ),
+                                            ),
+                                            DataCell(
+                                              _AccountNameCell(
+                                                fetcher: _accountName,
+                                                accountId: item.debitAccountId,
                                               ),
-                                              DataCell(
-                                                SizedBox(
-                                                  width: double.infinity,
-                                                  child: Center(
-                                                    child: Text(
-                                                      item.amountLabel,
-                                                      textAlign: TextAlign.center,
-                                                    ),
+                                            ),
+                                            DataCell(
+                                              SizedBox(
+                                                width: double.infinity,
+                                                child: Center(
+                                                  child: Text(
+                                                    item.amountLabel,
+                                                    textAlign: TextAlign.center,
                                                   ),
                                                 ),
                                               ),
-                                              DataCell(
-                                                SizedBox(
-                                                  width: double.infinity,
-                                                  child: Center(
-                                                    child: Container(
+                                            ),
+                                            DataCell(
+                                              SizedBox(
+                                                width: double.infinity,
+                                                child: Center(
+                                                  child: Container(
                                                     padding:
                                                         const EdgeInsets
                                                             .symmetric(
