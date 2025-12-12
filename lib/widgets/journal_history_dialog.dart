@@ -48,9 +48,7 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
     final sanitizedToken = token
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
-    final normalizedAuth = sanitizedToken.isNotEmpty
-        ? 'Bearer $sanitizedToken'
-        : token.trim();
+    final normalizedAuth = _buildAuthorizationHeader(token)['Authorization']!;
     final autoTokenValue = rawToken
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
@@ -58,6 +56,16 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
         ? autoTokenValue
         : sanitizedToken;
     return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
+  }
+
+  Map<String, String> _buildAuthorizationHeader(String token) {
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
+    return {'Authorization': normalizedAuth};
   }
 
   Future<void> _fetchRecords() async {
@@ -310,12 +318,7 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
       return;
     }
 
-    final headers = _buildAuthHeaders(appState, token);
-    final deleteHeaders = {
-      ...headers,
-      if ((headers['authtoken'] ?? '').isNotEmpty)
-        'authkey': headers['authtoken']!,
-    };
+    final deleteHeaders = _buildAuthorizationHeader(token);
     final endpoint = item.type == 'transfer'
         ? 'https://crm.kokonuts.my/accounting/api/v1/transfer'
         : 'https://crm.kokonuts.my/accounting/api/v1/journal_entries';
