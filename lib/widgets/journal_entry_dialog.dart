@@ -622,7 +622,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         final endpoint = isTransfer
             ? 'https://crm.kokonuts.my/accounting/api/v1/transfers/$recordId'
             : 'https://crm.kokonuts.my/accounting/api/v1/journal_entries/$recordId';
-        response = await client.patch(
+        response = await client.put(
           Uri.parse(endpoint),
           headers: headers,
           body: jsonEncode(payload),

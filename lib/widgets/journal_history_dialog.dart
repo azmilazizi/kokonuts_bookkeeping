@@ -379,6 +379,18 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
     _fetchRecords();
   }
 
+  void _resetTable() {
+    setState(() {
+      _searchController.clear();
+      _dateRange = null;
+      _currentPage = 1;
+      _items = const [];
+      _hasNextPage = false;
+      _error = null;
+    });
+    _fetchRecords();
+  }
+
   void _previousPage() {
     if (_currentPage <= 1 || _isLoading) return;
     setState(() {
@@ -637,6 +649,12 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                 onPressed: _clearDateFilter,
                 icon: const Icon(Icons.close),
               ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: _isLoading ? null : _resetTable,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reset Table'),
+            ),
           ],
         ),
       ],
