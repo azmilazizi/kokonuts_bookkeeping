@@ -782,46 +782,68 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                       ),
                     );
 
-                    final entryTypeField = Expanded(
-                      child: DropdownButtonFormField<_EntryType>(
-                        value: _entryType,
-                        decoration: const InputDecoration(
-                          labelText: 'Entry Type',
-                        ),
-                        items: _EntryType.values
-                            .map(
-                              (type) => DropdownMenuItem(
-                                value: type,
-                                child: Text(type.label),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: _isSubmitting || _isEditing
-                            ? null
-                            : _onEntryTypeChanged,
-                        validator: (value) => _isEditing || value != null
-                            ? null
-                            : 'Please select a journal or transfer type',
-                      ),
-                    );
+                    final fields = <Widget>[dateField];
 
-                    if (isWide) {
-                      return Row(
-                        children: [
-                          dateField,
+                    if (!_isEditing) {
+                      if (isWide) {
+                        fields.addAll([
                           const SizedBox(width: 16),
-                          entryTypeField,
-                        ],
-                      );
+                          Expanded(
+                            child: DropdownButtonFormField<_EntryType>(
+                              value: _entryType,
+                              decoration: const InputDecoration(
+                                labelText: 'Entry Type',
+                              ),
+                              items: _EntryType.values
+                                  .map(
+                                    (type) => DropdownMenuItem(
+                                      value: type,
+                                      child: Text(type.label),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: _isSubmitting
+                                  ? null
+                                  : _onEntryTypeChanged,
+                              validator: (value) => value != null
+                                  ? null
+                                  : 'Please select a journal or transfer type',
+                            ),
+                          ),
+                        ]);
+
+                        return Row(children: fields);
+                      }
+
+                      fields.addAll([
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<_EntryType>(
+                          value: _entryType,
+                          decoration: const InputDecoration(
+                            labelText: 'Entry Type',
+                          ),
+                          items: _EntryType.values
+                              .map(
+                                (type) => DropdownMenuItem(
+                                  value: type,
+                                  child: Text(type.label),
+                                ),
+                              )
+                              .toList(),
+                          onChanged:
+                              _isSubmitting ? null : _onEntryTypeChanged,
+                          validator: (value) => value != null
+                              ? null
+                              : 'Please select a journal or transfer type',
+                        ),
+                      ]);
                     }
 
-                    return Column(
-                      children: [
-                        dateField,
-                        const SizedBox(height: 16),
-                        entryTypeField,
-                      ],
-                    );
+                    if (isWide) {
+                      return Row(children: fields);
+                    }
+
+                    return Column(children: fields);
                   },
                 ),
                 const SizedBox(height: 16),

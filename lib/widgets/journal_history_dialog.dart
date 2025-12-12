@@ -317,7 +317,7 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
         'authkey': headers['authtoken']!,
     };
     final endpoint = item.type == 'transfer'
-        ? 'https://crm.kokonuts.my/accounting/api/v1/transfers'
+        ? 'https://crm.kokonuts.my/accounting/api/v1/transfer'
         : 'https://crm.kokonuts.my/accounting/api/v1/journal_entries';
 
     final uri = Uri.parse('$endpoint/$id');
@@ -468,17 +468,26 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                     DataColumn(label: Text('Debit Account')),
                                     DataColumn(
                                       label: Center(
-                                        child: Text('Amount'),
+                                        child: Text(
+                                          'Amount',
+                                          textAlign: TextAlign.center,
+                                        ),
                                       ),
                                     ),
                                     DataColumn(
                                       label: Center(
-                                        child: Text('Type'),
+                                        child: Text(
+                                          'Type',
+                                          textAlign: TextAlign.center,
+                                        ),
                                       ),
                                     ),
                                     DataColumn(
                                       label: Center(
-                                        child: Text('Actions'),
+                                        child: Text(
+                                          'Actions',
+                                          textAlign: TextAlign.center,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -505,7 +514,14 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                                 accountId: item.debitAccountId,
                                               ),
                                             ),
-                                            DataCell(Text(item.amountLabel)),
+                                            DataCell(
+                                              Center(
+                                                child: Text(
+                                                  item.amountLabel,
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                              ),
+                                            ),
                                             DataCell(
                                               Center(
                                                 child: Container(
@@ -534,32 +550,34 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                               ),
                                             ),
                                             DataCell(
-                                              Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  IconButton(
-                                                    key: ValueKey(
-                                                      'edit_${item.id}',
+                                              Center(
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    IconButton(
+                                                      key: ValueKey(
+                                                        'edit_${item.id}',
+                                                      ),
+                                                      tooltip: 'Edit',
+                                                      icon: const Icon(
+                                                        Icons.edit_outlined,
+                                                      ),
+                                                      onPressed: () =>
+                                                          _editRecord(item),
                                                     ),
-                                                    tooltip: 'Edit',
-                                                    icon: const Icon(
-                                                      Icons.edit_outlined,
+                                                    IconButton(
+                                                      key: ValueKey(
+                                                        'delete_${item.id}',
+                                                      ),
+                                                      tooltip: 'Delete',
+                                                      icon: const Icon(
+                                                        Icons.delete_outline,
+                                                      ),
+                                                      onPressed: () =>
+                                                          _deleteRecord(item),
                                                     ),
-                                                    onPressed: () =>
-                                                        _editRecord(item),
-                                                  ),
-                                                  IconButton(
-                                                    key: ValueKey(
-                                                      'delete_${item.id}',
-                                                    ),
-                                                    tooltip: 'Delete',
-                                                    icon: const Icon(
-                                                      Icons.delete_outline,
-                                                    ),
-                                                    onPressed: () =>
-                                                        _deleteRecord(item),
-                                                  ),
-                                                ],
+                                                  ],
+                                                ),
                                               ),
                                             ),
                                           ],
