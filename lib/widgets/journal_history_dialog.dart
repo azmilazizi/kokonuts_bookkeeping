@@ -476,36 +476,18 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                       label: Text('Debit Account'),
                                     ),
                                     DataColumn(
-                                      label: SizedBox(
-                                        width: double.infinity,
-                                        child: Center(
-                                          child: Text(
-                                            'Amount',
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
+                                      label: const Center(
+                                        child: Text('Amount'),
                                       ),
                                     ),
                                     DataColumn(
-                                      label: SizedBox(
-                                        width: double.infinity,
-                                        child: Center(
-                                          child: Text(
-                                            'Type',
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
+                                      label: const Center(
+                                        child: Text('Type'),
                                       ),
                                     ),
                                     DataColumn(
-                                      label: SizedBox(
-                                        width: double.infinity,
-                                        child: Center(
-                                          child: Text(
-                                            'Actions',
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
+                                      label: const Center(
+                                        child: Text('Actions'),
                                       ),
                                     ),
                                   ],
