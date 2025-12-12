@@ -548,11 +548,15 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                       onSort: _onSort,
                                     ),
                                     DataColumn(
-                                      label: const Text('Type'),
+                                      label: const Center(
+                                        child: Text('Type'),
+                                      ),
                                       onSort: _onSort,
                                     ),
                                     const DataColumn(
-                                      label: Text('Actions'),
+                                      label: Center(
+                                        child: Text('Actions'),
+                                      ),
                                     ),
                                   ],
                                   rows: _items
@@ -579,13 +583,11 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                               ),
                                             ),
                                             DataCell(
-                                              SizedBox(
-                                                width: double.infinity,
-                                                child: Center(
-                                                  child: Text(
-                                                    item.amountLabel,
-                                                    textAlign: TextAlign.center,
-                                                  ),
+                                              Align(
+                                                alignment: Alignment.centerRight,
+                                                child: Text(
+                                                  item.amountLabel,
+                                                  textAlign: TextAlign.right,
                                                 ),
                                               ),
                                             ),
