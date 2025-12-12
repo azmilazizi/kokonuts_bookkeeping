@@ -379,18 +379,6 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
     _fetchRecords();
   }
 
-  void _resetTable() {
-    setState(() {
-      _searchController.clear();
-      _dateRange = null;
-      _currentPage = 1;
-      _items = const [];
-      _hasNextPage = false;
-      _error = null;
-    });
-    _fetchRecords();
-  }
-
   void _previousPage() {
     if (_currentPage <= 1 || _isLoading) return;
     setState(() {
@@ -482,13 +470,37 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                     DataColumn(label: Text('Credit Account')),
                                     DataColumn(label: Text('Debit Account')),
                                     DataColumn(
-                                      label: _CenteredHeaderLabel('Amount'),
+                                      label: SizedBox(
+                                        width: double.infinity,
+                                        child: Center(
+                                          child: Text(
+                                            'Amount',
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                     DataColumn(
-                                      label: _CenteredHeaderLabel('Type'),
+                                      label: SizedBox(
+                                        width: double.infinity,
+                                        child: Center(
+                                          child: Text(
+                                            'Type',
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                     DataColumn(
-                                      label: _CenteredHeaderLabel('Actions'),
+                                      label: SizedBox(
+                                        width: double.infinity,
+                                        child: Center(
+                                          child: Text(
+                                            'Actions',
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   ],
                                   rows: _items
@@ -649,12 +661,6 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                 onPressed: _clearDateFilter,
                 icon: const Icon(Icons.close),
               ),
-            const SizedBox(width: 8),
-            TextButton.icon(
-              onPressed: _isLoading ? null : _resetTable,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Reset Table'),
-            ),
           ],
         ),
       ],
@@ -675,25 +681,6 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
           icon: const Icon(Icons.chevron_right),
         ),
       ],
-    );
-  }
-}
-
-class _CenteredHeaderLabel extends StatelessWidget {
-  const _CenteredHeaderLabel(this.label);
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: Center(
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-        ),
-      ),
     );
   }
 }
