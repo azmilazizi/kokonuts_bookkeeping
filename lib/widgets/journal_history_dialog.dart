@@ -466,9 +466,15 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                 child: DataTable(
                                   columnSpacing: 18,
                                   columns: const [
-                                    DataColumn(label: Text('Description')),
-                                    DataColumn(label: Text('Credit Account')),
-                                    DataColumn(label: Text('Debit Account')),
+                                    DataColumn(
+                                      label: Text('Description'),
+                                    ),
+                                    DataColumn(
+                                      label: Text('Credit Account'),
+                                    ),
+                                    DataColumn(
+                                      label: Text('Debit Account'),
+                                    ),
                                     DataColumn(
                                       label: SizedBox(
                                         width: double.infinity,
