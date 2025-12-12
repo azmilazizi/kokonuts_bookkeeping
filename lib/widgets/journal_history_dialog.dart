@@ -548,14 +548,20 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                       onSort: _onSort,
                                     ),
                                     DataColumn(
-                                      label: const Center(
-                                        child: Text('Type'),
+                                      label: const SizedBox(
+                                        width: double.infinity,
+                                        child: Center(
+                                          child: Text('Type'),
+                                        ),
                                       ),
                                       onSort: _onSort,
                                     ),
                                     const DataColumn(
-                                      label: Center(
-                                        child: Text('Actions'),
+                                      label: SizedBox(
+                                        width: double.infinity,
+                                        child: Center(
+                                          child: Text('Actions'),
+                                        ),
                                       ),
                                     ),
                                   ],
