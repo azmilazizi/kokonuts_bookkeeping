@@ -26,6 +26,8 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
   int _currentPage = 1;
   final int _pageSize = 10;
   bool _hasNextPage = false;
+  int? _sortColumnIndex;
+  bool _sortAscending = true;
 
   @override
   void initState() {
@@ -136,9 +138,69 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
     if (!mounted) return;
 
     setState(() {
-      _items = records;
+      _items = _sortRecords(records);
       _hasNextPage = _determineHasMore(parsed, records.length);
       _isLoading = false;
+    });
+  }
+
+  List<JournalListItem> _sortRecords(List<JournalListItem> records) {
+    if (_sortColumnIndex == null) return records;
+
+    final sorted = [...records];
+
+    int compareNullable<T extends Comparable>(T? a, T? b) {
+      if (a == null && b == null) return 0;
+      if (a == null) return -1;
+      if (b == null) return 1;
+      return a.compareTo(b);
+    }
+
+    int compareAmounts(double? a, double? b) {
+      if (a == null && b == null) return 0;
+      if (a == null) return -1;
+      if (b == null) return 1;
+      return a.compareTo(b);
+    }
+
+    int compareStrings(String? a, String? b) => compareNullable(
+          a?.toLowerCase(),
+          b?.toLowerCase(),
+        );
+
+    sorted.sort((a, b) {
+      int result;
+      switch (_sortColumnIndex) {
+        case 0:
+          result = compareStrings(a.description ?? a.number, b.description ?? b.number);
+          break;
+        case 1:
+          result = compareNullable(a.creditAccountId, b.creditAccountId);
+          break;
+        case 2:
+          result = compareNullable(a.debitAccountId, b.debitAccountId);
+          break;
+        case 3:
+          result = compareAmounts(a.amount, b.amount);
+          break;
+        case 4:
+          result = compareStrings(a.displayType, b.displayType);
+          break;
+        default:
+          result = 0;
+      }
+
+      return _sortAscending ? result : -result;
+    });
+
+    return sorted;
+  }
+
+  void _onSort(int columnIndex, bool ascending) {
+    setState(() {
+      _sortColumnIndex = columnIndex;
+      _sortAscending = ascending;
+      _items = _sortRecords(_items);
     });
   }
 
@@ -464,31 +526,33 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                               constraints: BoxConstraints(minWidth: tableWidth),
                               child: SingleChildScrollView(
                                 child: DataTable(
+                                  sortColumnIndex: _sortColumnIndex,
+                                  sortAscending: _sortAscending,
                                   columnSpacing: 18,
-                                  columns: const [
+                                  columns: [
                                     DataColumn(
-                                      label: Text('Description'),
+                                      label: const Text('Description'),
+                                      onSort: _onSort,
                                     ),
                                     DataColumn(
-                                      label: Text('Credit Account'),
+                                      label: const Text('Credit Account'),
+                                      onSort: _onSort,
                                     ),
                                     DataColumn(
-                                      label: Text('Debit Account'),
+                                      label: const Text('Debit Account'),
+                                      onSort: _onSort,
                                     ),
                                     DataColumn(
-                                      label: const Center(
-                                        child: Text('Amount'),
-                                      ),
+                                      label: const Text('Amount'),
+                                      numeric: true,
+                                      onSort: _onSort,
                                     ),
                                     DataColumn(
-                                      label: const Center(
-                                        child: Text('Type'),
-                                      ),
+                                      label: const Text('Type'),
+                                      onSort: _onSort,
                                     ),
-                                    DataColumn(
-                                      label: const Center(
-                                        child: Text('Actions'),
-                                      ),
+                                    const DataColumn(
+                                      label: Text('Actions'),
                                     ),
                                   ],
                                   rows: _items
