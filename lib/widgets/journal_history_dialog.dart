@@ -372,7 +372,7 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
-    final dialogWidth = (screenSize.width * 0.98).clamp(420.0, screenSize.width);
+    final dialogWidth = (screenSize.width * 0.92).clamp(420.0, 840.0);
     final dialogHeight = (screenSize.height * 0.88).clamp(420.0, screenSize.height);
 
     return AlertDialog(
@@ -420,83 +420,94 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                         )
                       : Scrollbar(
                           thumbVisibility: true,
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(minWidth: 760),
-                              child: SingleChildScrollView(
-                                child: DataTable(
-                                  columnSpacing: 18,
-                                  columns: const [
-                                    DataColumn(label: Text('Description')),
-                                    DataColumn(label: Text('Credit Account')),
-                                    DataColumn(label: Text('Debit Account')),
-                                    DataColumn(label: Text('Amount')),
-                                    DataColumn(label: Text('Type')),
-                                    DataColumn(label: Text('Actions')),
-                                  ],
-                                  rows: _items
-                                      .map(
-                                        (item) => DataRow(
-                                          cells: [
-                                            DataCell(Text(
-                                                item.description ?? item.number ?? '-')),
-                                            DataCell(_AccountNameCell(
-                                              fetcher: _accountName,
-                                              accountId: item.creditAccountId,
-                                            )),
-                                            DataCell(_AccountNameCell(
-                                              fetcher: _accountName,
-                                              accountId: item.debitAccountId,
-                                            )),
-                                            DataCell(Text(item.amountLabel)),
-                                            DataCell(
-                                              Center(
-                                                child: Container(
-                                                  padding: const EdgeInsets.symmetric(
-                                                    horizontal: 10,
-                                                    vertical: 6,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.blue.withOpacity(0.08),
-                                                    borderRadius: BorderRadius.circular(20),
-                                                  ),
-                                                  child: Text(
-                                                    item.displayType,
-                                                    style: const TextStyle(
-                                                      fontWeight: FontWeight.w600,
-                                                      color: Colors.blue,
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final tableWidth = constraints.maxWidth < 760
+                                  ? 760.0
+                                  : constraints.maxWidth;
+
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(minWidth: tableWidth),
+                                  child: SingleChildScrollView(
+                                    child: DataTable(
+                                      columnSpacing: 18,
+                                      columns: const [
+                                        DataColumn(label: Text('Description')),
+                                        DataColumn(label: Text('Credit Account')),
+                                        DataColumn(label: Text('Debit Account')),
+                                        DataColumn(label: Text('Amount')),
+                                        DataColumn(label: Text('Type')),
+                                        DataColumn(label: Text('Actions')),
+                                      ],
+                                      rows: _items
+                                          .map(
+                                            (item) => DataRow(
+                                              cells: [
+                                                DataCell(Text(
+                                                    item.description ?? item.number ?? '-')),
+                                                DataCell(_AccountNameCell(
+                                                  fetcher: _accountName,
+                                                  accountId: item.creditAccountId,
+                                                )),
+                                                DataCell(_AccountNameCell(
+                                                  fetcher: _accountName,
+                                                  accountId: item.debitAccountId,
+                                                )),
+                                                DataCell(Text(item.amountLabel)),
+                                                DataCell(
+                                                  Center(
+                                                    child: Container(
+                                                      padding: const EdgeInsets.symmetric(
+                                                        horizontal: 10,
+                                                        vertical: 6,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.blue
+                                                            .withOpacity(0.08),
+                                                        borderRadius: BorderRadius.circular(20),
+                                                      ),
+                                                      child: Text(
+                                                        item.displayType,
+                                                        style: const TextStyle(
+                                                          fontWeight: FontWeight.w600,
+                                                          color: Colors.blue,
+                                                        ),
+                                                      ),
                                                     ),
                                                   ),
                                                 ),
-                                              ),
-                                            ),
-                                            DataCell(
-                                              Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  IconButton(
-                                                    key: ValueKey('edit_${item.id}'),
-                                                    tooltip: 'Edit',
-                                                    icon: const Icon(Icons.edit_outlined),
-                                                    onPressed: () => _editRecord(item),
+                                                DataCell(
+                                                  Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      IconButton(
+                                                        key: ValueKey('edit_${item.id}'),
+                                                        tooltip: 'Edit',
+                                                        icon: const Icon(
+                                                            Icons.edit_outlined),
+                                                        onPressed: () => _editRecord(item),
+                                                      ),
+                                                      IconButton(
+                                                        key: ValueKey('delete_${item.id}'),
+                                                        tooltip: 'Delete',
+                                                        icon: const Icon(
+                                                            Icons.delete_outline),
+                                                        onPressed: () => _deleteRecord(item),
+                                                      ),
+                                                    ],
                                                   ),
-                                                  IconButton(
-                                                    key: ValueKey('delete_${item.id}'),
-                                                    tooltip: 'Delete',
-                                                    icon: const Icon(Icons.delete_outline),
-                                                    onPressed: () => _deleteRecord(item),
-                                                  ),
-                                                ],
-                                              ),
+                                                ),
+                                              ],
                                             ),
-                                          ],
-                                        ),
-                                      )
-                                      .toList(),
+                                          )
+                                          .toList(),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
+                              );
+                            },
                           ),
                         ),
             ),
@@ -646,6 +657,7 @@ class JournalListItem {
   factory JournalListItem.fromMap(Map<String, dynamic> map) {
     final data = map['data'];
     final source = data is Map<String, dynamic> ? data : map;
+    final type = (source['type'] ?? map['type'])?.toString();
     return JournalListItem(
       id: source['id'] ?? map['journal_entry_id'] ?? map['transfer_id'],
       number: source['number']?.toString() ?? source['description']?.toString(),
@@ -655,7 +667,7 @@ class JournalListItem {
           source['debit_account'] ?? source['transfer_funds_to'] ?? source['debit']),
       amount: _asDouble(
           source['amount'] ?? source['transfer_amount'] ?? source['total']),
-      type: source['type']?.toString(),
+      type: type,
       description: source['description']?.toString(),
       entryId: source['entry_id']?.toString() ?? source['number']?.toString(),
       date: _parseDate(source['date'] ?? source['created_at']),
