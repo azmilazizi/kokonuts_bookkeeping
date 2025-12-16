@@ -592,68 +592,61 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                               ),
                                             ),
                                             DataCell(
-                                              SizedBox(
-                                                width: double.infinity,
-                                                child: Center(
-                                                  child: Container(
-                                                    padding:
-                                                        const EdgeInsets
-                                                            .symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 6,
+                                              Center(
+                                                child: Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 6,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.blue
+                                                        .withOpacity(0.08),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                      20,
                                                     ),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.blue
-                                                          .withOpacity(0.08),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                        20,
-                                                      ),
-                                                    ),
-                                                    child: Text(
-                                                      item.displayType,
-                                                      style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        color: Colors.blue,
-                                                      ),
+                                                  ),
+                                                  child: Text(
+                                                    item.displayType,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Colors.blue,
                                                     ),
                                                   ),
                                                 ),
                                               ),
                                             ),
                                             DataCell(
-                                              SizedBox(
-                                                width: double.infinity,
-                                                child: Center(
-                                                  child: Row(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      IconButton(
-                                                        key: ValueKey(
-                                                          'edit_${item.id}',
-                                                        ),
-                                                        tooltip: 'Edit',
-                                                        icon: const Icon(
-                                                          Icons.edit_outlined,
-                                                        ),
-                                                        onPressed: () =>
-                                                            _editRecord(item),
+                                              Center(
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    IconButton(
+                                                      key: ValueKey(
+                                                        'edit_${item.id}',
                                                       ),
-                                                      IconButton(
-                                                        key: ValueKey(
-                                                          'delete_${item.id}',
-                                                        ),
-                                                        tooltip: 'Delete',
-                                                        icon: const Icon(
-                                                          Icons.delete_outline,
-                                                        ),
-                                                        onPressed: () =>
-                                                            _deleteRecord(item),
+                                                      tooltip: 'Edit',
+                                                      icon: const Icon(
+                                                        Icons.edit_outlined,
                                                       ),
-                                                    ],
-                                                  ),
+                                                      onPressed: () =>
+                                                          _editRecord(item),
+                                                    ),
+                                                    IconButton(
+                                                      key: ValueKey(
+                                                        'delete_${item.id}',
+                                                      ),
+                                                      tooltip: 'Delete',
+                                                      icon: const Icon(
+                                                        Icons.delete_outline,
+                                                      ),
+                                                      onPressed: () =>
+                                                          _deleteRecord(item),
+                                                    ),
+                                                  ],
                                                 ),
                                               ),
                                             ),
