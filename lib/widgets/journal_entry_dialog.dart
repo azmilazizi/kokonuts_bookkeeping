@@ -621,10 +621,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       Uri.parse(endpoint),
     );
 
-    final normalizedHeaders = {
-      'Accept': 'application/json',
-      ...headers,
-    };
+    final normalizedHeaders = {'Accept': 'application/json', ...headers};
     normalizedHeaders.removeWhere(
       (key, _) => key.toLowerCase() == 'content-type',
     );
@@ -757,10 +754,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         if (isTransfer) {
           response = await client.put(
             Uri.parse(endpoint),
-            headers: {
-              ...authHeaders,
-              'Content-Type': 'application/json',
-            },
+            headers: {...authHeaders, 'Content-Type': 'application/json'},
             body: jsonEncode(payload),
           );
         } else {
@@ -780,10 +774,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         if (isTransfer) {
           response = await client.post(
             Uri.parse(endpoint),
-            headers: {
-              ...authHeaders,
-              'Content-Type': 'application/json',
-            },
+            headers: {...authHeaders, 'Content-Type': 'application/json'},
             body: jsonEncode(payload),
           );
         } else {
@@ -830,8 +821,9 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       } catch (_) {}
     }
 
-    final attachmentErrors =
-        isTransfer ? const <String>[] : _extractAttachmentErrors(decodedBody);
+    final attachmentErrors = isTransfer
+        ? const <String>[]
+        : _extractAttachmentErrors(decodedBody);
 
     if (!mounted) {
       return;
@@ -860,9 +852,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
           ? attachmentErrors.first
           : 'Some attachments could not be uploaded: ${attachmentErrors.join('; ')}';
 
-      messenger.showSnackBar(
-        SnackBar(content: Text(attachmentMessage)),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(attachmentMessage)));
     }
   }
 
@@ -1014,8 +1004,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                                 ),
                               )
                               .toList(),
-                          onChanged:
-                              _isSubmitting ? null : _onEntryTypeChanged,
+                          onChanged: _isSubmitting ? null : _onEntryTypeChanged,
                           validator: (value) => value != null
                               ? null
                               : 'Please select a journal or transfer type',
