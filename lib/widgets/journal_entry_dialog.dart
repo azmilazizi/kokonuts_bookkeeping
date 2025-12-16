@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -524,6 +525,139 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     };
   }
 
+  Future<List<int>> _readFileBytes(PlatformFile file) async {
+    final inMemoryBytes = file.bytes;
+    if (inMemoryBytes != null) {
+      return inMemoryBytes;
+    }
+
+    final stream = file.readStream;
+    if (stream == null) {
+      return const <int>[];
+    }
+
+    final builder = BytesBuilder(copy: false);
+    await for (final chunk in stream) {
+      builder.add(chunk);
+    }
+
+    return builder.takeBytes();
+  }
+
+  void _addJournalFields(
+    http.MultipartRequest request,
+    Map<String, dynamic> payload,
+  ) {
+    void addField(String key, dynamic value) {
+      if (value == null) {
+        return;
+      }
+      request.fields[key] = value.toString();
+    }
+
+    addField('journal_date', payload['journal_date']);
+    addField('datecreated', payload['datecreated']);
+    addField('number', payload['number']);
+    addField('amount', payload['amount']);
+    addField('description', payload['description']);
+
+    final lines = payload['lines'];
+    if (lines is List) {
+      request.fields['lines'] = jsonEncode(lines);
+      request.fields['details'] = jsonEncode(lines);
+
+      for (var index = 0; index < lines.length; index++) {
+        final line = lines[index];
+        if (line is! Map<String, dynamic>) {
+          continue;
+        }
+
+        void addLineField(String key, dynamic value) {
+          if (value == null) return;
+          request.fields['details[$index][$key]'] = value.toString();
+        }
+
+        addLineField('account', line['account']);
+        addLineField('debit', line['debit']);
+        addLineField('credit', line['credit']);
+        addLineField('description', line['description']);
+      }
+    } else if (lines != null) {
+      request.fields['lines'] = jsonEncode(lines);
+    }
+  }
+
+  Future<void> _addAttachmentFiles(http.MultipartRequest request) async {
+    if (_attachments.isEmpty) {
+      return;
+    }
+
+    for (var index = 0; index < _attachments.length; index++) {
+      final file = _attachments[index];
+      final bytes = await _readFileBytes(file);
+      if (bytes.isEmpty) {
+        continue;
+      }
+
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'attachments[$index]',
+          bytes,
+          filename: file.name,
+        ),
+      );
+    }
+  }
+
+  Future<http.Response> _sendJournalEntryRequest({
+    required http.Client client,
+    required String endpoint,
+    required Map<String, dynamic> payload,
+    required Map<String, String> headers,
+    required bool isUpdate,
+  }) async {
+    final request = http.MultipartRequest(
+      isUpdate ? 'PUT' : 'POST',
+      Uri.parse(endpoint),
+    );
+
+    final normalizedHeaders = {
+      'Accept': 'application/json',
+      ...headers,
+    };
+    normalizedHeaders.removeWhere(
+      (key, _) => key.toLowerCase() == 'content-type',
+    );
+
+    request.headers.addAll(normalizedHeaders);
+    _addJournalFields(request, payload);
+    await _addAttachmentFiles(request);
+
+    final streamedResponse = await client.send(request);
+    return http.Response.fromStream(streamedResponse);
+  }
+
+  List<String> _extractAttachmentErrors(Map<String, dynamic>? decoded) {
+    if (decoded == null) {
+      return const [];
+    }
+
+    final errors = decoded['attachment_errors'];
+    if (errors is List) {
+      return errors.whereType<String>().toList(growable: false);
+    }
+
+    if (errors is Map<String, dynamic>) {
+      return errors.values.whereType<String>().toList(growable: false);
+    }
+
+    if (errors is String && errors.trim().isNotEmpty) {
+      return [errors];
+    }
+
+    return const [];
+  }
+
   Future<void> _submit() async {
     if (_isSubmitting) {
       return;
@@ -570,10 +704,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       return;
     }
 
-    final headers = {
-      ..._buildAuthHeaders(appState, token),
-      'Content-Type': 'application/json',
-    };
+    final authHeaders = _buildAuthHeaders(appState, token);
 
     final isTransfer = _isTransfer;
     final addedFrom = appState.currentUserId;
@@ -622,20 +753,48 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         final endpoint = isTransfer
             ? 'https://crm.kokonuts.my/accounting/api/v1/transfers/$recordId'
             : 'https://crm.kokonuts.my/accounting/api/v1/journal_entries/$recordId';
-        response = await client.put(
-          Uri.parse(endpoint),
-          headers: headers,
-          body: jsonEncode(payload),
-        );
+
+        if (isTransfer) {
+          response = await client.put(
+            Uri.parse(endpoint),
+            headers: {
+              ...authHeaders,
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(payload),
+          );
+        } else {
+          response = await _sendJournalEntryRequest(
+            client: client,
+            endpoint: endpoint,
+            payload: payload,
+            headers: authHeaders,
+            isUpdate: true,
+          );
+        }
       } else {
         final endpoint = isTransfer
             ? 'https://crm.kokonuts.my/accounting/api/v1/transfers'
             : 'https://crm.kokonuts.my/accounting/api/v1/journal_entries';
-        response = await client.post(
-          Uri.parse(endpoint),
-          headers: headers,
-          body: jsonEncode(payload),
-        );
+
+        if (isTransfer) {
+          response = await client.post(
+            Uri.parse(endpoint),
+            headers: {
+              ...authHeaders,
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(payload),
+          );
+        } else {
+          response = await _sendJournalEntryRequest(
+            client: client,
+            endpoint: endpoint,
+            payload: payload,
+            headers: authHeaders,
+            isUpdate: false,
+          );
+        }
       }
     } catch (error) {
       if (!mounted) {
@@ -661,13 +820,28 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       return;
     }
 
+    Map<String, dynamic>? decodedBody;
+    if (!isTransfer) {
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          decodedBody = decoded;
+        }
+      } catch (_) {}
+    }
+
+    final attachmentErrors =
+        isTransfer ? const <String>[] : _extractAttachmentErrors(decodedBody);
+
     if (!mounted) {
       return;
     }
 
     setState(() => _isSubmitting = false);
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
       SnackBar(
         content: Text(
           _isEditing
@@ -680,6 +854,16 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         ),
       ),
     );
+
+    if (attachmentErrors.isNotEmpty) {
+      final attachmentMessage = attachmentErrors.length == 1
+          ? attachmentErrors.first
+          : 'Some attachments could not be uploaded: ${attachmentErrors.join('; ')}';
+
+      messenger.showSnackBar(
+        SnackBar(content: Text(attachmentMessage)),
+      );
+    }
   }
 
   Future<void> _openJournalHistory() async {
