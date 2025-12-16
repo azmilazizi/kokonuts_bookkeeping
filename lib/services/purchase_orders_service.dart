@@ -597,6 +597,7 @@ class CreatePurchaseOrderRequest {
     final discountAmount =
         isDiscountPercentage ? subtotal * (discountValue / 100) : discountValue;
     final isDelivered = itemsReceived;
+    final deliveryStatusValue = isDelivered ? 1 : 0;
     final deliveryDate = isDelivered ? _formatDate(orderDate) : null;
     final payload = <String, dynamic>{
       'pur_order_name': orderName,
@@ -617,8 +618,8 @@ class CreatePurchaseOrderRequest {
       'discount_type': 'after_tax',
       'buyer': userId ?? '',
       'status_goods': 1,
-      'delivery_status': isDelivered ? 1 : 0,
-      'delivery_status_id': isDelivered ? 1 : 0,
+      'delivery_status': deliveryStatusValue,
+      'delivery_status_id': deliveryStatusValue,
       'project': 0,
       'pur_request': 0,
       'department': 0,
@@ -1024,4 +1025,3 @@ double? _parseDouble(dynamic value) {
   }
   return null;
 }
-
