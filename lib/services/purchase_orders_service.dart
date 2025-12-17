@@ -617,7 +617,7 @@ class CreatePurchaseOrderRequest {
       'discount_%': discountPercent,
       'discount_type': 'after_tax',
       'buyer': userId ?? '',
-      'status_goods': 1,
+      'status_goods': isDelivered ? 1 : 0,
       'delivery_status': deliveryStatusValue,
       'delivery_status_id': deliveryStatusValue,
       'project': 0,
