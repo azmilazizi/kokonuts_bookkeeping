@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'session_manager.dart';
+import 'http_client_factory.dart';
 
 /// Thrown when authentication fails.
 class AuthException implements Exception {
@@ -18,7 +19,7 @@ class AuthException implements Exception {
 /// Handles authentication-related network requests.
 class AuthService {
   AuthService({http.Client? client, required SessionManager sessionManager})
-      : _client = client ?? http.Client(),
+      : _client = client ?? createHttpClient(),
         _sessionManager = sessionManager;
 
   static const _loginUrl = 'https://crm.kokonuts.my/timesheets/api/login';
