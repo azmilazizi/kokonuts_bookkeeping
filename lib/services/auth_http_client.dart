@@ -1,7 +1,6 @@
 import 'package:http/http.dart' as http;
 
 import 'auth_expiration_handler.dart';
-import 'http_client_factory.dart';
 
 http.Client createAuthAwareClient({http.Client? innerClient}) {
   return AuthAwareHttpClient(
@@ -15,7 +14,7 @@ class AuthAwareHttpClient extends http.BaseClient {
     http.Client? innerClient,
     Future<void> Function()? onUnauthorized,
     Set<int>? unauthorizedStatusCodes,
-  })  : _innerClient = innerClient ?? createHttpClient(),
+  })  : _innerClient = innerClient ?? http.Client(),
         _onUnauthorized = onUnauthorized,
         _unauthorizedStatusCodes =
             unauthorizedStatusCodes ?? const {401, 403, 419};

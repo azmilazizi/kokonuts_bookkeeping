@@ -14,13 +14,6 @@ Kokonuts Bookkeeping is a Flutter application. This is the latest commit. This R
    flutter run
    ```
 
-### Avoiding CORS issues on web
-
-Browser builds now route requests through a CORS proxy by default to prevent cross‑origin failures when calling the CRM APIs from `localhost`. The proxy template defaults to `https://corsproxy.io/?`.
-
-- To change or disable the proxy, pass a different value (or an empty string) via `--dart-define=CORS_PROXY_TEMPLATE=<value>` when running or building.
-- The template should include `{url}` where the target URL should be injected, or end with `?`/`&` so the encoded target URL can be appended.
-
 ## Making the web build PWA-ready
 
 The repository already contains a web manifest and the HTML hooks that Flutter uses to generate and register a service worker in release builds. To produce an installable PWA:
