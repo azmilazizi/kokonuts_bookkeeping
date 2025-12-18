@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
+import '../services/http_client_factory.dart';
 
 class JournalHistoryDialog extends StatefulWidget {
   const JournalHistoryDialog({super.key, this.onEdit});
@@ -107,7 +108,7 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
     ).replace(queryParameters: queryParameters);
 
     http.Response response;
-    final client = http.Client();
+    final client = createHttpClient();
     try {
       response = await client.get(uri, headers: headers);
     } catch (error) {
@@ -388,7 +389,7 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
     final uri = Uri.parse('$endpoint/$id');
 
     http.Response response;
-    final client = http.Client();
+    final client = createHttpClient();
     try {
       response = await client.delete(uri, headers: deleteHeaders);
     } catch (error) {

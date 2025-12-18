@@ -1,5 +1,7 @@
 import 'package:http/http.dart' as http;
 
+import 'http_client_factory.dart';
+
 /// Builds an authorization header value for a given token.
 typedef AuthorizationHeaderBuilder = String Function(String token);
 
@@ -49,7 +51,7 @@ class AuthenticatedHttpClient extends http.BaseClient {
     http.Client? innerClient,
     AuthorizationHeaderBuilder? authorizationBuilder,
   })  : _tokenProvider = tokenProvider,
-        _innerClient = innerClient ?? http.Client(),
+        _innerClient = innerClient ?? createHttpClient(),
         _authorizationBuilder = authorizationBuilder ??
             ((token) => token.isEmpty ? token : 'Token $token');
 
