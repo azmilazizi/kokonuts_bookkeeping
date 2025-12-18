@@ -545,8 +545,6 @@ class _CreateInventoryItemDialogState extends State<_CreateInventoryItemDialog> 
       'description': itemName,
       'sku_code': itemCode,
       'sku_name': itemName,
-      'can_be_sold': '',
-      'can_be_manufacturing': '',
       'group_id': _selectedGroupId,
       'unit_id': _selectedUnitId,
       'rate': 0,
