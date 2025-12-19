@@ -880,66 +880,69 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     return AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
       titlePadding: const EdgeInsets.fromLTRB(24, 20, 12, 0),
-      title: LayoutBuilder(
-        builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 520;
-          final titleText = Text(
-            _isEditing
-                ? 'Edit Journal Entry/Transfers'
-                : 'Journal Entry/Transfer',
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          );
-          final historyButton = !_isEditing
-              ? Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    onPressed: _openJournalHistory,
-                    child: const Text('View Journal Entry and Transfers'),
-                  ),
-                )
-              : null;
-
-          if (!isCompact) {
-            return Row(
-              children: [
-                Expanded(child: titleText),
-                if (historyButton != null) historyButton,
-                IconButton(
-                  tooltip: 'Close',
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
+      title: SizedBox(
+        width: dialogWidth,
+        child: Builder(
+          builder: (context) {
+            final isCompact = dialogWidth < 520;
+            final titleText = Text(
+              _isEditing
+                  ? 'Edit Journal Entry/Transfers'
+                  : 'Journal Entry/Transfer',
+              style: const TextStyle(fontWeight: FontWeight.w700),
             );
-          }
+            final historyButton = !_isEditing
+                ? Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: _openJournalHistory,
+                      child: const Text('View Journal Entry and Transfers'),
+                    ),
+                  )
+                : null;
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+            if (!isCompact) {
+              return Row(
                 children: [
                   Expanded(child: titleText),
+                  if (historyButton != null) historyButton,
                   IconButton(
                     tooltip: 'Close',
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.close),
                   ),
                 ],
-              ),
-              if (historyButton != null) ...[
-                const SizedBox(height: 8),
-                Align(alignment: Alignment.centerLeft, child: historyButton),
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: titleText),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                if (historyButton != null) ...[
+                  const SizedBox(height: 8),
+                  Align(alignment: Alignment.centerLeft, child: historyButton),
+                ],
               ],
-            ],
-          );
-        },
+            );
+          },
+        ),
       ),
       content: SizedBox(
         width: dialogWidth,
@@ -969,22 +972,20 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                   LayoutBuilder(
                     builder: (context, constraints) {
                       final isWide = constraints.maxWidth >= 620;
-                      final dateField = Expanded(
-                        child: TextFormField(
-                          readOnly: true,
-                          controller: _dateController,
-                          decoration: const InputDecoration(
-                            labelText: 'Journal Date',
-                            prefixIcon: Icon(Icons.event),
-                          ),
-                          onTap: _pickDate,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Journal date is required';
-                            }
-                            return null;
-                          },
+                      final dateField = TextFormField(
+                        readOnly: true,
+                        controller: _dateController,
+                        decoration: const InputDecoration(
+                          labelText: 'Journal Date',
+                          prefixIcon: Icon(Icons.event),
                         ),
+                        onTap: _pickDate,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Journal date is required';
+                          }
+                          return null;
+                        },
                       );
 
                       final fields = <Widget>[dateField];
@@ -1017,7 +1018,14 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                             ),
                           ]);
 
-                          return Row(children: fields);
+                          return Row(
+                            children: fields.map((field) {
+                              if (field == dateField) {
+                                return Expanded(child: field);
+                              }
+                              return field;
+                            }).toList(),
+                          );
                         }
 
                         fields.addAll([
@@ -1045,7 +1053,14 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                       }
 
                       if (isWide) {
-                        return Row(children: fields);
+                        return Row(
+                          children: fields.map((field) {
+                            if (field == dateField) {
+                              return Expanded(child: field);
+                            }
+                            return field;
+                          }).toList(),
+                        );
                       }
 
                       return Column(children: fields);
@@ -1096,80 +1111,78 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final isWide = constraints.maxWidth >= 620;
-                        final fieldWidgets = <Widget>[];
-
+                        Widget? paymentModeField;
                         if (_showsPaymentMode) {
-                          fieldWidgets.add(
-                            Expanded(
-                              child: DropdownButtonFormField<_PaymentMode>(
-                                value: _paymentMode,
-                                decoration: const InputDecoration(
-                                  labelText: 'Payment Mode',
-                                ),
-                                items: _PaymentMode.values
-                                    .map(
-                                      (mode) => DropdownMenuItem(
-                                        value: mode,
-                                        child: Text(mode.label),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: _isSubmitting
-                                    ? null
-                                    : (value) =>
-                                          setState(() => _paymentMode = value),
-                                validator: (value) =>
-                                    _showsPaymentMode && value == null
-                                    ? 'Select a payment mode'
-                                    : null,
-                              ),
+                          paymentModeField =
+                              DropdownButtonFormField<_PaymentMode>(
+                            value: _paymentMode,
+                            decoration: const InputDecoration(
+                              labelText: 'Payment Mode',
                             ),
+                            items: _PaymentMode.values
+                                .map(
+                                  (mode) => DropdownMenuItem(
+                                    value: mode,
+                                    child: Text(mode.label),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: _isSubmitting
+                                ? null
+                                : (value) =>
+                                      setState(() => _paymentMode = value),
+                            validator: (value) =>
+                                _showsPaymentMode && value == null
+                                ? 'Select a payment mode'
+                                : null,
                           );
                         }
 
+                        Widget? ownerField;
                         if (_showsOwner) {
-                          if (fieldWidgets.isNotEmpty) {
-                            fieldWidgets.add(const SizedBox(width: 16));
-                          }
-                          fieldWidgets.add(
-                            Expanded(
-                              child: DropdownButtonFormField<_Owner>(
-                                value: _owner,
-                                decoration: const InputDecoration(
-                                  labelText: 'Owner',
-                                ),
-                                items: _Owner.values
-                                    .map(
-                                      (owner) => DropdownMenuItem(
-                                        value: owner,
-                                        child: Text(owner.label),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: _isSubmitting
-                                    ? null
-                                    : (value) => setState(() => _owner = value),
-                                validator: (value) =>
-                                    _showsOwner && value == null
-                                    ? 'Select an owner'
-                                    : null,
-                              ),
+                          ownerField = DropdownButtonFormField<_Owner>(
+                            value: _owner,
+                            decoration: const InputDecoration(
+                              labelText: 'Owner',
                             ),
+                            items: _Owner.values
+                                .map(
+                                  (owner) => DropdownMenuItem(
+                                    value: owner,
+                                    child: Text(owner.label),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: _isSubmitting
+                                ? null
+                                : (value) => setState(() => _owner = value),
+                            validator: (value) =>
+                                _showsOwner && value == null
+                                ? 'Select an owner'
+                                : null,
                           );
                         }
 
                         if (isWide) {
-                          return Row(children: fieldWidgets);
+                          return Row(
+                            children: [
+                              if (paymentModeField != null)
+                                Expanded(child: paymentModeField),
+                              if (paymentModeField != null &&
+                                  ownerField != null)
+                                const SizedBox(width: 16),
+                              if (ownerField != null)
+                                Expanded(child: ownerField),
+                            ],
+                          );
                         }
 
                         return Column(
                           children: [
-                            ...fieldWidgets.expand((field) sync* {
-                              yield field;
-                              if (field != fieldWidgets.last) {
-                                yield const SizedBox(height: 12);
-                              }
-                            }),
+                            if (paymentModeField != null) paymentModeField,
+                            if (paymentModeField != null && ownerField != null)
+                              const SizedBox(height: 12),
+                            if (ownerField != null) ownerField,
                           ],
                         );
                       },
