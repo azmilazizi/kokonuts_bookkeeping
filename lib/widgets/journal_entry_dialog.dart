@@ -628,7 +628,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   }) {
     final baseUrl = isTransfer
         ? 'https://crm.kokonuts.my/accounting/api/v1/transfers'
-        : 'https://crm.kokonuts.my/accounting/api/v1/journal_entries';
+        : 'https://crm.kokonuts.my/accounting/api/v1/journal_entry';
     return '$baseUrl/$recordId/attachments';
   }
 
