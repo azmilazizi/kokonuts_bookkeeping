@@ -972,22 +972,20 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                   LayoutBuilder(
                     builder: (context, constraints) {
                       final isWide = constraints.maxWidth >= 620;
-                      final dateField = Expanded(
-                        child: TextFormField(
-                          readOnly: true,
-                          controller: _dateController,
-                          decoration: const InputDecoration(
-                            labelText: 'Journal Date',
-                            prefixIcon: Icon(Icons.event),
-                          ),
-                          onTap: _pickDate,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Journal date is required';
-                            }
-                            return null;
-                          },
+                      final dateField = TextFormField(
+                        readOnly: true,
+                        controller: _dateController,
+                        decoration: const InputDecoration(
+                          labelText: 'Journal Date',
+                          prefixIcon: Icon(Icons.event),
                         ),
+                        onTap: _pickDate,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Journal date is required';
+                          }
+                          return null;
+                        },
                       );
 
                       final fields = <Widget>[dateField];
@@ -1020,7 +1018,14 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                             ),
                           ]);
 
-                          return Row(children: fields);
+                          return Row(
+                            children: fields.map((field) {
+                              if (field == dateField) {
+                                return Expanded(child: field);
+                              }
+                              return field;
+                            }).toList(),
+                          );
                         }
 
                         fields.addAll([
@@ -1048,7 +1053,14 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                       }
 
                       if (isWide) {
-                        return Row(children: fields);
+                        return Row(
+                          children: fields.map((field) {
+                            if (field == dateField) {
+                              return Expanded(child: field);
+                            }
+                            return field;
+                          }).toList(),
+                        );
                       }
 
                       return Column(children: fields);
