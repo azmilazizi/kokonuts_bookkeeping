@@ -982,7 +982,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         order: created,
       );
 
-      Navigator.of(context).pop(created);
+      final resolvedOrder = _resolveDeliveryStatus(created);
+      Navigator.of(context).pop(resolvedOrder);
     } on PurchaseOrdersException catch (error) {
       setState(() {
         _submitError = error.message;
@@ -1093,6 +1094,26 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         ),
       );
     }
+  }
+
+  PurchaseOrder _resolveDeliveryStatus(PurchaseOrder order) {
+    if (!_itemsReceived || order.deliveryStatus == 1) {
+      return order;
+    }
+
+    return PurchaseOrder(
+      id: order.id,
+      number: order.number,
+      name: order.name,
+      vendorName: order.vendorName,
+      orderDate: order.orderDate,
+      deliveryDate: order.deliveryDate ?? order.orderDate,
+      totalAmount: order.totalAmount,
+      totalLabel: order.totalLabel,
+      currencySymbol: order.currencySymbol,
+      deliveryStatus: 1,
+      totalPaid: order.totalPaid,
+    );
   }
 
   List<CreateGoodsReceiptItem> _buildGoodsReceiptItems({
