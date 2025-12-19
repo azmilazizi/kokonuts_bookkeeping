@@ -1099,80 +1099,78 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final isWide = constraints.maxWidth >= 620;
-                        final fieldWidgets = <Widget>[];
-
+                        Widget? paymentModeField;
                         if (_showsPaymentMode) {
-                          fieldWidgets.add(
-                            Expanded(
-                              child: DropdownButtonFormField<_PaymentMode>(
-                                value: _paymentMode,
-                                decoration: const InputDecoration(
-                                  labelText: 'Payment Mode',
-                                ),
-                                items: _PaymentMode.values
-                                    .map(
-                                      (mode) => DropdownMenuItem(
-                                        value: mode,
-                                        child: Text(mode.label),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: _isSubmitting
-                                    ? null
-                                    : (value) =>
-                                          setState(() => _paymentMode = value),
-                                validator: (value) =>
-                                    _showsPaymentMode && value == null
-                                    ? 'Select a payment mode'
-                                    : null,
-                              ),
+                          paymentModeField =
+                              DropdownButtonFormField<_PaymentMode>(
+                            value: _paymentMode,
+                            decoration: const InputDecoration(
+                              labelText: 'Payment Mode',
                             ),
+                            items: _PaymentMode.values
+                                .map(
+                                  (mode) => DropdownMenuItem(
+                                    value: mode,
+                                    child: Text(mode.label),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: _isSubmitting
+                                ? null
+                                : (value) =>
+                                      setState(() => _paymentMode = value),
+                            validator: (value) =>
+                                _showsPaymentMode && value == null
+                                ? 'Select a payment mode'
+                                : null,
                           );
                         }
 
+                        Widget? ownerField;
                         if (_showsOwner) {
-                          if (fieldWidgets.isNotEmpty) {
-                            fieldWidgets.add(const SizedBox(width: 16));
-                          }
-                          fieldWidgets.add(
-                            Expanded(
-                              child: DropdownButtonFormField<_Owner>(
-                                value: _owner,
-                                decoration: const InputDecoration(
-                                  labelText: 'Owner',
-                                ),
-                                items: _Owner.values
-                                    .map(
-                                      (owner) => DropdownMenuItem(
-                                        value: owner,
-                                        child: Text(owner.label),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: _isSubmitting
-                                    ? null
-                                    : (value) => setState(() => _owner = value),
-                                validator: (value) =>
-                                    _showsOwner && value == null
-                                    ? 'Select an owner'
-                                    : null,
-                              ),
+                          ownerField = DropdownButtonFormField<_Owner>(
+                            value: _owner,
+                            decoration: const InputDecoration(
+                              labelText: 'Owner',
                             ),
+                            items: _Owner.values
+                                .map(
+                                  (owner) => DropdownMenuItem(
+                                    value: owner,
+                                    child: Text(owner.label),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: _isSubmitting
+                                ? null
+                                : (value) => setState(() => _owner = value),
+                            validator: (value) =>
+                                _showsOwner && value == null
+                                ? 'Select an owner'
+                                : null,
                           );
                         }
 
                         if (isWide) {
-                          return Row(children: fieldWidgets);
+                          return Row(
+                            children: [
+                              if (paymentModeField != null)
+                                Expanded(child: paymentModeField),
+                              if (paymentModeField != null &&
+                                  ownerField != null)
+                                const SizedBox(width: 16),
+                              if (ownerField != null)
+                                Expanded(child: ownerField),
+                            ],
+                          );
                         }
 
                         return Column(
                           children: [
-                            ...fieldWidgets.expand((field) sync* {
-                              yield field;
-                              if (field != fieldWidgets.last) {
-                                yield const SizedBox(height: 12);
-                              }
-                            }),
+                            if (paymentModeField != null) paymentModeField,
+                            if (paymentModeField != null && ownerField != null)
+                              const SizedBox(height: 12),
+                            if (ownerField != null) ownerField,
                           ],
                         );
                       },
