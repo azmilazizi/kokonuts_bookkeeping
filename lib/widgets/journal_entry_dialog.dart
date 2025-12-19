@@ -882,9 +882,9 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       titlePadding: const EdgeInsets.fromLTRB(24, 20, 12, 0),
       title: SizedBox(
         width: dialogWidth,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isCompact = constraints.maxWidth < 520;
+        child: Builder(
+          builder: (context) {
+            final isCompact = dialogWidth < 520;
             final titleText = Text(
               _isEditing
                   ? 'Edit Journal Entry/Transfers'
