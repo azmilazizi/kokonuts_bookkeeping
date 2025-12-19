@@ -873,9 +873,11 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final dialogWidth = math.min(
-      MediaQuery.of(context).size.width * 0.92,
-      840.0,
+    final screenSize = MediaQuery.of(context).size;
+    final dialogWidth = math.min(screenSize.width * 0.92, 840.0);
+    final dialogHeight = (screenSize.height * 0.9).clamp(
+      360.0,
+      screenSize.height,
     );
 
     return AlertDialog(
@@ -944,6 +946,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       ),
       content: SizedBox(
         width: dialogWidth,
+        height: dialogHeight,
         child: SingleChildScrollView(
           padding: const EdgeInsets.only(right: 12, bottom: 12),
           child: Form(
@@ -957,8 +960,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                 ],
                 AttachmentPicker(
                   label: 'Attachments',
-                  description:
-                      'Upload receipts, statements, or supporting files.',
+                  description: 'Upload receipts, statements, or supporting files.',
                   files: _attachments,
                   onPick: _pickAttachments,
                   onFilesSelected: _onFilesSelected,
@@ -1006,9 +1008,8 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                                     ),
                                   )
                                   .toList(),
-                              onChanged: _isSubmitting
-                                  ? null
-                                  : _onEntryTypeChanged,
+                              onChanged:
+                                  _isSubmitting ? null : _onEntryTypeChanged,
                               validator: (value) => value != null
                                   ? null
                                   : 'Please select a journal or transfer type',
@@ -1147,7 +1148,8 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                               onChanged: _isSubmitting
                                   ? null
                                   : (value) => setState(() => _owner = value),
-                              validator: (value) => _showsOwner && value == null
+                              validator: (value) =>
+                                  _showsOwner && value == null
                                   ? 'Select an owner'
                                   : null,
                             ),
