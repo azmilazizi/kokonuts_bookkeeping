@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 
 import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
+import 'attachment_pdf_preview.dart';
+import 'authenticated_image.dart';
 
 class JournalHistoryDialog extends StatefulWidget {
   const JournalHistoryDialog({super.key, this.onEdit});
@@ -434,6 +436,36 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
     await _fetchRecords();
   }
 
+  Future<void> _previewAttachment(JournalListItem item) async {
+    final fileName = item.attachmentFileName;
+    if (fileName == null || fileName.trim().isEmpty) {
+      return;
+    }
+
+    final downloadUrl = _buildAttachmentUrl(fileName);
+    final previewType = _resolvePreviewType(fileName, downloadUrl);
+    if (previewType == null) {
+      return;
+    }
+
+    final appState = AppStateScope.of(context);
+    Map<String, String>? headers;
+    final token = await appState.getValidAuthToken();
+    if (token != null && token.trim().isNotEmpty) {
+      headers = _buildAuthHeaders(appState, token);
+    }
+
+    if (!mounted) return;
+
+    _showAttachmentPreview(
+      context: context,
+      fileName: fileName,
+      downloadUrl: downloadUrl,
+      previewType: previewType,
+      apiHeaders: headers,
+    );
+  }
+
   void _applySearch() {
     setState(() {
       _currentPage = 1;
@@ -653,6 +685,24 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                                         onPressed: () =>
                                                             _editRecord(item),
                                                       ),
+                                                      if (item
+                                                              .attachmentPreviewType !=
+                                                          null)
+                                                        IconButton(
+                                                          key: ValueKey(
+                                                            'attachment_${item.id}',
+                                                          ),
+                                                          tooltip:
+                                                              'View attachment',
+                                                          icon: const Icon(
+                                                            Icons
+                                                                .attachment_outlined,
+                                                          ),
+                                                          onPressed: () =>
+                                                              _previewAttachment(
+                                                            item,
+                                                          ),
+                                                        ),
                                                       IconButton(
                                                         key: ValueKey(
                                                           'delete_${item.id}',
@@ -791,6 +841,7 @@ class JournalListItem {
     this.description,
     this.date,
     this.entryId,
+    this.attachmentFileName,
   });
 
   final dynamic id;
@@ -802,6 +853,7 @@ class JournalListItem {
   final String? description;
   final DateTime? date;
   final String? entryId;
+  final String? attachmentFileName;
 
   static final _amountFormat = NumberFormat('#,##0.00');
 
@@ -824,6 +876,14 @@ class JournalListItem {
       (type ?? '').toLowerCase() == 'transfer' ||
       (type ?? '').toLowerCase() == 'cash_deposit' ||
       (type ?? '').toLowerCase() == 'cash_withdrawal';
+
+  _AttachmentPreviewType? get attachmentPreviewType {
+    final fileName = attachmentFileName;
+    if (fileName == null || fileName.trim().isEmpty) {
+      return null;
+    }
+    return _resolvePreviewType(fileName, _buildAttachmentUrl(fileName));
+  }
 
   factory JournalListItem.fromMap(Map<String, dynamic> map) {
     final data = map['data'];
@@ -849,7 +909,31 @@ class JournalListItem {
       description: source['description']?.toString(),
       entryId: source['entry_id']?.toString() ?? source['number']?.toString(),
       date: _parseDate(source['date'] ?? source['created_at']),
+      attachmentFileName: _extractAttachmentFileName(source, map),
     );
+  }
+
+  static String? _extractAttachmentFileName(
+    Map<String, dynamic> source,
+    Map<String, dynamic> map,
+  ) {
+    dynamic attachments =
+        source['attachments'] ?? map['attachments'] ?? map['result'];
+    if (attachments is Map<String, dynamic>) {
+      attachments = attachments['attachments'] ?? attachments;
+    }
+    if (attachments is List && attachments.isNotEmpty) {
+      attachments = attachments.first;
+    }
+    if (attachments is Map<String, dynamic>) {
+      return attachments['file_name']?.toString() ??
+          attachments['fileName']?.toString() ??
+          attachments['filename']?.toString();
+    }
+    if (attachments is String) {
+      return attachments;
+    }
+    return null;
   }
 
   static int? _asInt(dynamic value) {
@@ -872,5 +956,199 @@ class JournalListItem {
       return DateTime.tryParse(value);
     }
     return null;
+  }
+}
+
+String _buildAttachmentUrl(String fileName) {
+  final encodedName = Uri.encodeFull(fileName.trim());
+  return 'https://crm.kokonuts.my/modules/accounting/uploads/$encodedName';
+}
+
+enum _AttachmentPreviewType { image, pdf }
+
+_AttachmentPreviewType? _resolvePreviewType(
+  String fileName,
+  String? downloadUrl,
+) {
+  if (_matchesExtension(fileName, _imageExtensions) ||
+      _matchesExtension(downloadUrl, _imageExtensions)) {
+    return _AttachmentPreviewType.image;
+  }
+
+  if (_matchesExtension(fileName, _pdfExtensions) ||
+      _matchesExtension(downloadUrl, _pdfExtensions)) {
+    return _AttachmentPreviewType.pdf;
+  }
+
+  return null;
+}
+
+const _imageExtensions = <String>{
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.bmp',
+  '.webp',
+  '.heic',
+};
+
+const _pdfExtensions = <String>{'.pdf'};
+
+bool _matchesExtension(String? value, Set<String> extensions) {
+  if (value == null || value.trim().isEmpty) {
+    return false;
+  }
+
+  bool match(String candidate) {
+    final lower = candidate.toLowerCase();
+    for (final ext in extensions) {
+      final normalizedExt = ext.startsWith('.') ? ext : '.$ext';
+      if (lower.endsWith(normalizedExt)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  final trimmed = value.trim();
+  if (match(trimmed)) {
+    return true;
+  }
+
+  final parsed = Uri.tryParse(trimmed);
+  if (parsed != null && match(parsed.path)) {
+    return true;
+  }
+
+  return false;
+}
+
+void _showAttachmentPreview({
+  required BuildContext context,
+  required String fileName,
+  required String downloadUrl,
+  required _AttachmentPreviewType previewType,
+  Map<String, String>? apiHeaders,
+}) {
+  showDialog<void>(
+    context: context,
+    builder: (context) => _AttachmentPreviewDialog(
+      fileName: fileName,
+      downloadUrl: downloadUrl,
+      previewType: previewType,
+      apiHeaders: apiHeaders,
+    ),
+  );
+}
+
+class _AttachmentPreviewDialog extends StatelessWidget {
+  const _AttachmentPreviewDialog({
+    required this.fileName,
+    required this.downloadUrl,
+    required this.previewType,
+    this.apiHeaders,
+  });
+
+  final String fileName;
+  final String downloadUrl;
+  final _AttachmentPreviewType previewType;
+  final Map<String, String>? apiHeaders;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = '$fileName preview';
+    final theme = Theme.of(context);
+    Widget content;
+
+    switch (previewType) {
+      case _AttachmentPreviewType.image:
+        content = _ImagePreview(
+          downloadUrl: downloadUrl,
+          apiHeaders: apiHeaders,
+        );
+        break;
+      case _AttachmentPreviewType.pdf:
+        content = _PdfPreview(downloadUrl: downloadUrl, apiHeaders: apiHeaders);
+        break;
+    }
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: SizedBox(
+        width: 720,
+        height: 560,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close preview',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(child: content),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ImagePreview extends StatelessWidget {
+  const _ImagePreview({required this.downloadUrl, this.apiHeaders});
+
+  final String downloadUrl;
+  final Map<String, String>? apiHeaders;
+
+  @override
+  Widget build(BuildContext context) {
+    return InteractiveViewer(
+      child: Center(
+        child: AuthenticatedImage(
+          imageUrl: downloadUrl,
+          headers: apiHeaders,
+          fit: BoxFit.contain,
+          loadingBuilder: (context, child, loadingProgress) {
+            return const Center(child: CircularProgressIndicator());
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Unable to load image preview.'),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _PdfPreview extends StatelessWidget {
+  const _PdfPreview({required this.downloadUrl, this.apiHeaders});
+
+  final String downloadUrl;
+  final Map<String, String>? apiHeaders;
+
+  @override
+  Widget build(BuildContext context) {
+    return buildAttachmentPdfPreview(downloadUrl, headers: apiHeaders);
   }
 }
