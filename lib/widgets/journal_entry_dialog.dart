@@ -592,7 +592,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       final file = _attachments[index];
       request.fields['attachments[$index][type]'] = 'file';
       final filePath = file.path;
-      if (filePath != null && filePath.trim().isNotEmpty) {
+      if (!kIsWeb && filePath != null && filePath.trim().isNotEmpty) {
         request.files.add(
           await http.MultipartFile.fromPath(
             'attachments[$index][file]',
