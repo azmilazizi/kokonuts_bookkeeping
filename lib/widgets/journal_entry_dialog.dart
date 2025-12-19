@@ -875,7 +875,10 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
     final dialogWidth = math.min(screenSize.width * 0.92, 840.0);
-    final maxDialogHeight = screenSize.height * 0.8;
+    final dialogHeight = (screenSize.height * 0.9).clamp(
+      360.0,
+      screenSize.height,
+    );
 
     return AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
@@ -943,47 +946,37 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       ),
       content: SizedBox(
         width: dialogWidth,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxDialogHeight),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.only(right: 12, bottom: 12),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_submitError != null) ...[
-                    FormErrorBanner(message: _submitError!),
-                    const SizedBox(height: 12),
-                  ],
-                  AttachmentPicker(
-                    label: 'Attachments',
-                    description:
-                        'Upload receipts, statements, or supporting files.',
-                    files: _attachments,
-                    onPick: _pickAttachments,
-                    onFilesSelected: _onFilesSelected,
-                    onFileRemoved: _removeAttachment,
-                  ),
-                  const SizedBox(height: 20),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isWide = constraints.maxWidth >= 620;
-                      final dateField = Expanded(
-                        child: TextFormField(
-                          readOnly: true,
-                          controller: _dateController,
-                          decoration: const InputDecoration(
-                            labelText: 'Journal Date',
-                            prefixIcon: Icon(Icons.event),
-                          ),
-                          onTap: _pickDate,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Journal date is required';
-                            }
-                            return null;
-                          },
+        height: dialogHeight,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(right: 12, bottom: 12),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_submitError != null) ...[
+                  FormErrorBanner(message: _submitError!),
+                  const SizedBox(height: 12),
+                ],
+                AttachmentPicker(
+                  label: 'Attachments',
+                  description: 'Upload receipts, statements, or supporting files.',
+                  files: _attachments,
+                  onPick: _pickAttachments,
+                  onFilesSelected: _onFilesSelected,
+                  onFileRemoved: _removeAttachment,
+                ),
+                const SizedBox(height: 20),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide = constraints.maxWidth >= 620;
+                    final dateField = Expanded(
+                      child: TextFormField(
+                        readOnly: true,
+                        controller: _dateController,
+                        decoration: const InputDecoration(
+                          labelText: 'Journal Date',
+                          prefixIcon: Icon(Icons.event),
                         ),
                       );
 
@@ -1021,11 +1014,26 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                         }
 
                         fields.addAll([
-                          const SizedBox(height: 16),
-                          DropdownButtonFormField<_EntryType>(
-                            value: _entryType,
-                            decoration: const InputDecoration(
-                              labelText: 'Entry Type',
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: DropdownButtonFormField<_EntryType>(
+                              value: _entryType,
+                              decoration: const InputDecoration(
+                                labelText: 'Entry Type',
+                              ),
+                              items: _EntryType.values
+                                  .map(
+                                    (type) => DropdownMenuItem(
+                                      value: type,
+                                      child: Text(type.label),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged:
+                                  _isSubmitting ? null : _onEntryTypeChanged,
+                              validator: (value) => value != null
+                                  ? null
+                                  : 'Please select a journal or transfer type',
                             ),
                             items: _EntryType.values
                                 .map(
@@ -1154,6 +1162,21 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                                     ? 'Select an owner'
                                     : null,
                               ),
+                              items: _Owner.values
+                                  .map(
+                                    (owner) => DropdownMenuItem(
+                                      value: owner,
+                                      child: Text(owner.label),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: _isSubmitting
+                                  ? null
+                                  : (value) => setState(() => _owner = value),
+                              validator: (value) =>
+                                  _showsOwner && value == null
+                                  ? 'Select an owner'
+                                  : null,
                             ),
                           );
                         }
