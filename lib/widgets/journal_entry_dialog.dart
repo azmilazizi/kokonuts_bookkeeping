@@ -873,10 +873,9 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final dialogWidth = math.min(
-      MediaQuery.of(context).size.width * 0.92,
-      840.0,
-    );
+    final screenSize = MediaQuery.of(context).size;
+    final dialogWidth = math.min(screenSize.width * 0.92, 840.0);
+    final maxDialogHeight = screenSize.height * 0.8;
 
     return AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
@@ -944,271 +943,276 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       ),
       content: SizedBox(
         width: dialogWidth,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(right: 12, bottom: 12),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_submitError != null) ...[
-                  FormErrorBanner(message: _submitError!),
-                  const SizedBox(height: 12),
-                ],
-                AttachmentPicker(
-                  label: 'Attachments',
-                  description:
-                      'Upload receipts, statements, or supporting files.',
-                  files: _attachments,
-                  onPick: _pickAttachments,
-                  onFilesSelected: _onFilesSelected,
-                  onFileRemoved: _removeAttachment,
-                ),
-                const SizedBox(height: 20),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isWide = constraints.maxWidth >= 620;
-                    final dateField = Expanded(
-                      child: TextFormField(
-                        readOnly: true,
-                        controller: _dateController,
-                        decoration: const InputDecoration(
-                          labelText: 'Journal Date',
-                          prefixIcon: Icon(Icons.event),
-                        ),
-                        onTap: _pickDate,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Journal date is required';
-                          }
-                          return null;
-                        },
-                      ),
-                    );
-
-                    final fields = <Widget>[dateField];
-
-                    if (!_isEditing) {
-                      if (isWide) {
-                        fields.addAll([
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: DropdownButtonFormField<_EntryType>(
-                              value: _entryType,
-                              decoration: const InputDecoration(
-                                labelText: 'Entry Type',
-                              ),
-                              items: _EntryType.values
-                                  .map(
-                                    (type) => DropdownMenuItem(
-                                      value: type,
-                                      child: Text(type.label),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: _isSubmitting
-                                  ? null
-                                  : _onEntryTypeChanged,
-                              validator: (value) => value != null
-                                  ? null
-                                  : 'Please select a journal or transfer type',
-                            ),
-                          ),
-                        ]);
-
-                        return Row(children: fields);
-                      }
-
-                      fields.addAll([
-                        const SizedBox(height: 16),
-                        DropdownButtonFormField<_EntryType>(
-                          value: _entryType,
-                          decoration: const InputDecoration(
-                            labelText: 'Entry Type',
-                          ),
-                          items: _EntryType.values
-                              .map(
-                                (type) => DropdownMenuItem(
-                                  value: type,
-                                  child: Text(type.label),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: _isSubmitting ? null : _onEntryTypeChanged,
-                          validator: (value) => value != null
-                              ? null
-                              : 'Please select a journal or transfer type',
-                        ),
-                      ]);
-                    }
-
-                    if (isWide) {
-                      return Row(children: fields);
-                    }
-
-                    return Column(children: fields);
-                  },
-                ),
-                const SizedBox(height: 16),
-                if (_showsEntryIdField)
-                  Column(
-                    children: [
-                      TextFormField(
-                        controller: _entryIdController,
-                        readOnly: true,
-                        decoration: InputDecoration(
-                          labelText: 'Entry ID',
-                          prefixIcon: const Icon(Icons.tag),
-                          errorText: _entryIdError,
-                          suffixIcon: _isFetchingEntryId
-                              ? const Padding(
-                                  padding: EdgeInsets.all(12),
-                                  child: SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  ),
-                                )
-                              : (_entryIdError != null
-                                    ? IconButton(
-                                        tooltip: 'Retry',
-                                        onPressed: _fetchNextEntryNumber,
-                                        icon: const Icon(Icons.refresh),
-                                      )
-                                    : null),
-                        ),
-                        validator: (_) {
-                          if (_showsEntryIdField &&
-                              (_entryId == null || _entryId!.isEmpty)) {
-                            return _entryIdError ?? 'Entry ID is required';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                    ],
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxDialogHeight),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(right: 12, bottom: 12),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_submitError != null) ...[
+                    FormErrorBanner(message: _submitError!),
+                    const SizedBox(height: 12),
+                  ],
+                  AttachmentPicker(
+                    label: 'Attachments',
+                    description:
+                        'Upload receipts, statements, or supporting files.',
+                    files: _attachments,
+                    onPick: _pickAttachments,
+                    onFilesSelected: _onFilesSelected,
+                    onFileRemoved: _removeAttachment,
                   ),
-                if (_showsPaymentMode || _showsOwner) ...[
+                  const SizedBox(height: 20),
                   LayoutBuilder(
                     builder: (context, constraints) {
                       final isWide = constraints.maxWidth >= 620;
-                      final fieldWidgets = <Widget>[];
-
-                      if (_showsPaymentMode) {
-                        fieldWidgets.add(
-                          Expanded(
-                            child: DropdownButtonFormField<_PaymentMode>(
-                              value: _paymentMode,
-                              decoration: const InputDecoration(
-                                labelText: 'Payment Mode',
-                              ),
-                              items: _PaymentMode.values
-                                  .map(
-                                    (mode) => DropdownMenuItem(
-                                      value: mode,
-                                      child: Text(mode.label),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: _isSubmitting
-                                  ? null
-                                  : (value) =>
-                                        setState(() => _paymentMode = value),
-                              validator: (value) =>
-                                  _showsPaymentMode && value == null
-                                  ? 'Select a payment mode'
-                                  : null,
-                            ),
+                      final dateField = Expanded(
+                        child: TextFormField(
+                          readOnly: true,
+                          controller: _dateController,
+                          decoration: const InputDecoration(
+                            labelText: 'Journal Date',
+                            prefixIcon: Icon(Icons.event),
                           ),
-                        );
-                      }
+                          onTap: _pickDate,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Journal date is required';
+                            }
+                            return null;
+                          },
+                        ),
+                      );
 
-                      if (_showsOwner) {
-                        if (fieldWidgets.isNotEmpty) {
-                          fieldWidgets.add(const SizedBox(width: 16));
+                      final fields = <Widget>[dateField];
+
+                      if (!_isEditing) {
+                        if (isWide) {
+                          fields.addAll([
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: DropdownButtonFormField<_EntryType>(
+                                value: _entryType,
+                                decoration: const InputDecoration(
+                                  labelText: 'Entry Type',
+                                ),
+                                items: _EntryType.values
+                                    .map(
+                                      (type) => DropdownMenuItem(
+                                        value: type,
+                                        child: Text(type.label),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: _isSubmitting
+                                    ? null
+                                    : _onEntryTypeChanged,
+                                validator: (value) => value != null
+                                    ? null
+                                    : 'Please select a journal or transfer type',
+                              ),
+                            ),
+                          ]);
+
+                          return Row(children: fields);
                         }
-                        fieldWidgets.add(
-                          Expanded(
-                            child: DropdownButtonFormField<_Owner>(
-                              value: _owner,
-                              decoration: const InputDecoration(
-                                labelText: 'Owner',
-                              ),
-                              items: _Owner.values
-                                  .map(
-                                    (owner) => DropdownMenuItem(
-                                      value: owner,
-                                      child: Text(owner.label),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: _isSubmitting
-                                  ? null
-                                  : (value) => setState(() => _owner = value),
-                              validator: (value) => _showsOwner && value == null
-                                  ? 'Select an owner'
-                                  : null,
+
+                        fields.addAll([
+                          const SizedBox(height: 16),
+                          DropdownButtonFormField<_EntryType>(
+                            value: _entryType,
+                            decoration: const InputDecoration(
+                              labelText: 'Entry Type',
                             ),
+                            items: _EntryType.values
+                                .map(
+                                  (type) => DropdownMenuItem(
+                                    value: type,
+                                    child: Text(type.label),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged:
+                                _isSubmitting ? null : _onEntryTypeChanged,
+                            validator: (value) => value != null
+                                ? null
+                                : 'Please select a journal or transfer type',
                           ),
-                        );
+                        ]);
                       }
 
                       if (isWide) {
-                        return Row(children: fieldWidgets);
+                        return Row(children: fields);
                       }
 
-                      return Column(
-                        children: [
-                          ...fieldWidgets.expand((field) sync* {
-                            yield field;
-                            if (field != fieldWidgets.last) {
-                              yield const SizedBox(height: 12);
-                            }
-                          }),
-                        ],
-                      );
+                      return Column(children: fields);
                     },
                   ),
                   const SizedBox(height: 16),
-                ],
-                TextFormField(
-                  controller: _amountController,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: const [CurrencyInputFormatter()],
-                  decoration: const InputDecoration(
-                    labelText: 'Amount',
-                    prefixIcon: Icon(Icons.payments_outlined),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Amount is required';
-                    }
-                    return null;
-                  },
-                  enabled: !_isSubmitting,
-                ),
-                if (!_isTransfer) ...[
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _descriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Description',
-                      alignLabelWithHint: true,
+                  if (_showsEntryIdField)
+                    Column(
+                      children: [
+                        TextFormField(
+                          controller: _entryIdController,
+                          readOnly: true,
+                          decoration: InputDecoration(
+                            labelText: 'Entry ID',
+                            prefixIcon: const Icon(Icons.tag),
+                            errorText: _entryIdError,
+                            suffixIcon: _isFetchingEntryId
+                                ? const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  )
+                                : (_entryIdError != null
+                                      ? IconButton(
+                                          tooltip: 'Retry',
+                                          onPressed: _fetchNextEntryNumber,
+                                          icon: const Icon(Icons.refresh),
+                                        )
+                                      : null),
+                          ),
+                          validator: (_) {
+                            if (_showsEntryIdField &&
+                                (_entryId == null || _entryId!.isEmpty)) {
+                              return _entryIdError ?? 'Entry ID is required';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                     ),
-                    maxLines: 4,
-                    minLines: 3,
-                    enabled: !_isSubmitting,
+                  if (_showsPaymentMode || _showsOwner) ...[
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isWide = constraints.maxWidth >= 620;
+                        final fieldWidgets = <Widget>[];
+
+                        if (_showsPaymentMode) {
+                          fieldWidgets.add(
+                            Expanded(
+                              child: DropdownButtonFormField<_PaymentMode>(
+                                value: _paymentMode,
+                                decoration: const InputDecoration(
+                                  labelText: 'Payment Mode',
+                                ),
+                                items: _PaymentMode.values
+                                    .map(
+                                      (mode) => DropdownMenuItem(
+                                        value: mode,
+                                        child: Text(mode.label),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: _isSubmitting
+                                    ? null
+                                    : (value) =>
+                                          setState(() => _paymentMode = value),
+                                validator: (value) =>
+                                    _showsPaymentMode && value == null
+                                    ? 'Select a payment mode'
+                                    : null,
+                              ),
+                            ),
+                          );
+                        }
+
+                        if (_showsOwner) {
+                          if (fieldWidgets.isNotEmpty) {
+                            fieldWidgets.add(const SizedBox(width: 16));
+                          }
+                          fieldWidgets.add(
+                            Expanded(
+                              child: DropdownButtonFormField<_Owner>(
+                                value: _owner,
+                                decoration: const InputDecoration(
+                                  labelText: 'Owner',
+                                ),
+                                items: _Owner.values
+                                    .map(
+                                      (owner) => DropdownMenuItem(
+                                        value: owner,
+                                        child: Text(owner.label),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: _isSubmitting
+                                    ? null
+                                    : (value) => setState(() => _owner = value),
+                                validator: (value) =>
+                                    _showsOwner && value == null
+                                    ? 'Select an owner'
+                                    : null,
+                              ),
+                            ),
+                          );
+                        }
+
+                        if (isWide) {
+                          return Row(children: fieldWidgets);
+                        }
+
+                        return Column(
+                          children: [
+                            ...fieldWidgets.expand((field) sync* {
+                              yield field;
+                              if (field != fieldWidgets.last) {
+                                yield const SizedBox(height: 12);
+                              }
+                            }),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  TextFormField(
+                    controller: _amountController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: const [CurrencyInputFormatter()],
+                    decoration: const InputDecoration(
+                      labelText: 'Amount',
+                      prefixIcon: Icon(Icons.payments_outlined),
+                    ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return 'Description is required';
+                        return 'Amount is required';
                       }
                       return null;
                     },
+                    enabled: !_isSubmitting,
                   ),
+                  if (!_isTransfer) ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        alignLabelWithHint: true,
+                      ),
+                      maxLines: 4,
+                      minLines: 3,
+                      enabled: !_isSubmitting,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Description is required';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
