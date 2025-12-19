@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -872,45 +873,74 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final dialogWidth = (MediaQuery.of(context).size.width * 0.92).clamp(
-      420.0,
+    final dialogWidth = math.min(
+      MediaQuery.of(context).size.width * 0.92,
       840.0,
     );
 
     return AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
       titlePadding: const EdgeInsets.fromLTRB(24, 20, 12, 0),
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              _isEditing
-                  ? 'Edit Journal Entry/Transfers'
-                  : 'Journal Entry/Transfer',
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-          if (!_isEditing)
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
+      title: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 520;
+          final titleText = Text(
+            _isEditing
+                ? 'Edit Journal Entry/Transfers'
+                : 'Journal Entry/Transfer',
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          );
+          final historyButton = !_isEditing
+              ? Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: _openJournalHistory,
+                    child: const Text('View Journal Entry and Transfers'),
                   ),
-                  visualDensity: VisualDensity.compact,
+                )
+              : null;
+
+          if (!isCompact) {
+            return Row(
+              children: [
+                Expanded(child: titleText),
+                if (historyButton != null) historyButton,
+                IconButton(
+                  tooltip: 'Close',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
                 ),
-                onPressed: _openJournalHistory,
-                child: const Text('View Journal Entry and Transfers'),
+              ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: titleText),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
               ),
-            ),
-          IconButton(
-            tooltip: 'Close',
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.close),
-          ),
-        ],
+              if (historyButton != null) ...[
+                const SizedBox(height: 8),
+                Align(alignment: Alignment.centerLeft, child: historyButton),
+              ],
+            ],
+          );
+        },
       ),
       content: SizedBox(
         width: dialogWidth,
