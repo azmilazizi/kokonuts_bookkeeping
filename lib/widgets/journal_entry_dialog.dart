@@ -1,7 +1,5 @@
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:typed_data';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -69,6 +67,7 @@ class JournalEntryDialog extends StatefulWidget {
 }
 
 class _JournalEntryDialogState extends State<JournalEntryDialog> {
+  static const _attachmentFieldName = 'file';
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController(
     text: CurrencyInputFormatter.normalizeExistingValue(null),
@@ -526,25 +525,6 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     };
   }
 
-  Future<List<int>> _readFileBytes(PlatformFile file) async {
-    final inMemoryBytes = file.bytes;
-    if (inMemoryBytes != null) {
-      return inMemoryBytes;
-    }
-
-    final stream = file.readStream;
-    if (stream == null) {
-      return const <int>[];
-    }
-
-    final builder = BytesBuilder(copy: false);
-    await for (final chunk in stream) {
-      builder.add(chunk);
-    }
-
-    return builder.takeBytes();
-  }
-
   void _addJournalFields(
     http.MultipartRequest request,
     Map<String, dynamic> payload,
@@ -583,42 +563,6 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     }
   }
 
-  Future<void> _addAttachmentFiles(http.MultipartRequest request) async {
-    if (_attachments.isEmpty) {
-      return;
-    }
-
-    for (var index = 0; index < _attachments.length; index++) {
-      final file = _attachments[index];
-      request.fields['attachments[$index][type]'] = 'file';
-      final filePath = file.path;
-      if (!kIsWeb && filePath != null && filePath.trim().isNotEmpty) {
-        request.files.add(
-          await http.MultipartFile.fromPath(
-            'attachments[$index][file]',
-            filePath,
-            filename: file.name,
-          ),
-        );
-        continue;
-      }
-
-      final bytes = await _readFileBytes(file);
-      if (bytes.isEmpty) {
-        continue;
-      }
-
-      request.fields['attachments[$index][type]'] = 'file';
-      request.files.add(
-        http.MultipartFile.fromBytes(
-          'attachments[$index][file]',
-          bytes,
-          filename: file.name,
-        ),
-      );
-    }
-  }
-
   Future<http.Response> _sendJournalEntryRequest({
     required http.Client client,
     required String endpoint,
@@ -638,31 +582,146 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
 
     request.headers.addAll(normalizedHeaders);
     _addJournalFields(request, payload);
-    await _addAttachmentFiles(request);
 
     final streamedResponse = await client.send(request);
     return http.Response.fromStream(streamedResponse);
   }
 
-  List<String> _extractAttachmentErrors(Map<String, dynamic>? decoded) {
+  Future<http.MultipartFile?> _buildAttachmentFile(PlatformFile file) async {
+    final sanitizedName = file.name.trim();
+    if (sanitizedName.isEmpty) {
+      return null;
+    }
+
+    if (file.readStream != null) {
+      return http.MultipartFile(
+        _attachmentFieldName,
+        file.readStream!,
+        file.size,
+        filename: sanitizedName,
+      );
+    }
+
+    if (file.bytes != null) {
+      return http.MultipartFile.fromBytes(
+        _attachmentFieldName,
+        file.bytes!,
+        filename: sanitizedName,
+      );
+    }
+
+    final path = file.path?.trim();
+    if (path != null && path.isNotEmpty) {
+      return http.MultipartFile.fromPath(
+        _attachmentFieldName,
+        path,
+        filename: sanitizedName,
+      );
+    }
+
+    return null;
+  }
+
+  String _resolveAttachmentEndpoint({
+    required String recordId,
+    required bool isTransfer,
+  }) {
+    final baseUrl = isTransfer
+        ? 'https://crm.kokonuts.my/accounting/api/v1/transfers'
+        : 'https://crm.kokonuts.my/accounting/api/v1/journal_entries';
+    return '$baseUrl/$recordId/attachments';
+  }
+
+  Future<void> _uploadAttachments({
+    required http.Client client,
+    required String recordId,
+    required Map<String, String> headers,
+    required bool isTransfer,
+  }) async {
+    if (_attachments.isEmpty) {
+      return;
+    }
+
+    final files = await Future.wait(
+      _attachments.map(_buildAttachmentFile),
+      eagerError: false,
+    );
+
+    final uploadFiles =
+        files.whereType<http.MultipartFile>().toList(growable: false);
+    if (uploadFiles.isEmpty) {
+      return;
+    }
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse(
+        _resolveAttachmentEndpoint(recordId: recordId, isTransfer: isTransfer),
+      ),
+    )
+      ..headers.addAll({'Accept': 'application/json', ...headers})
+      ..files.addAll(uploadFiles);
+
+    http.StreamedResponse response;
+    try {
+      response = await client.send(request);
+    } catch (error) {
+      throw Exception('We couldn\'t upload the attachments. Please try again.');
+    }
+
+    final resolved = await http.Response.fromStream(response);
+    if (resolved.statusCode != 200 &&
+        resolved.statusCode != 201 &&
+        resolved.statusCode != 204) {
+      throw Exception(
+        'The attachments couldn\'t be uploaded right now. Please try again later.',
+      );
+    }
+  }
+
+  String? _extractRecordIdFromResponse(Map<String, dynamic>? decoded) {
     if (decoded == null) {
-      return const [];
+      return null;
     }
 
-    final errors = decoded['attachment_errors'];
-    if (errors is List) {
-      return errors.whereType<String>().toList(growable: false);
+    String? resolveId(dynamic value) {
+      if (value is int) {
+        return value.toString();
+      }
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+      return null;
     }
 
-    if (errors is Map<String, dynamic>) {
-      return errors.values.whereType<String>().toList(growable: false);
+    final directId = resolveId(decoded['id']) ??
+        resolveId(decoded['journal_entry_id']) ??
+        resolveId(decoded['transfer_id']);
+    if (directId != null) {
+      return directId;
     }
 
-    if (errors is String && errors.trim().isNotEmpty) {
-      return [errors];
+    final data = decoded['data'];
+    if (data is Map<String, dynamic>) {
+      final dataId = resolveId(data['id']) ??
+          resolveId(data['journal_entry_id']) ??
+          resolveId(data['transfer_id']);
+      if (dataId != null) {
+        return dataId;
+      }
     }
 
-    return const [];
+    final result = decoded['result'];
+    if (result is Map<String, dynamic>) {
+      final resultId = resolveId(result['id']) ??
+          resolveId(result['journal_entry_id']) ??
+          resolveId(result['transfer_id']);
+      if (resultId != null) {
+        return resultId;
+      }
+    }
+
+    return null;
   }
 
   Future<void> _submit() async {
@@ -798,6 +857,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         }
       }
     } catch (error) {
+      client.close();
       if (!mounted) {
         return;
       }
@@ -806,11 +866,10 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         _isSubmitting = false;
       });
       return;
-    } finally {
-      client.close();
     }
 
     if (response.statusCode != 200 && response.statusCode != 201) {
+      client.close();
       if (mounted) {
         setState(() {
           _submitError =
@@ -822,27 +881,55 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     }
 
     Map<String, dynamic>? decodedBody;
-    if (!isTransfer) {
-      try {
-        final decoded = jsonDecode(response.body);
-        if (decoded is Map<String, dynamic>) {
-          decodedBody = decoded;
-        }
-      } catch (_) {}
-    }
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        decodedBody = decoded;
+      }
+    } catch (_) {}
 
-    final attachmentErrors = isTransfer
-        ? const <String>[]
-        : _extractAttachmentErrors(decodedBody);
+    final resolvedRecordId =
+        _isEditing ? recordId : _extractRecordIdFromResponse(decodedBody);
 
     if (!mounted) {
+      client.close();
       return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    if (_attachments.isNotEmpty) {
+      if (resolvedRecordId == null) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Entry saved, but we could not determine the record id to upload attachments.',
+            ),
+          ),
+        );
+      } else {
+        try {
+          await _uploadAttachments(
+            client: client,
+            recordId: resolvedRecordId,
+            headers: authHeaders,
+            isTransfer: isTransfer,
+          );
+        } catch (error) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                'Entry saved, but failed to upload attachments: $error',
+              ),
+            ),
+          );
+        }
+      }
     }
 
     setState(() => _isSubmitting = false);
     Navigator.of(context).pop();
+    client.close();
 
-    final messenger = ScaffoldMessenger.of(context);
     messenger.showSnackBar(
       SnackBar(
         content: Text(
@@ -856,14 +943,6 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         ),
       ),
     );
-
-    if (attachmentErrors.isNotEmpty) {
-      final attachmentMessage = attachmentErrors.length == 1
-          ? attachmentErrors.first
-          : 'Some attachments could not be uploaded: ${attachmentErrors.join('; ')}';
-
-      messenger.showSnackBar(SnackBar(content: Text(attachmentMessage)));
-    }
   }
 
   Future<void> _openJournalHistory() async {
