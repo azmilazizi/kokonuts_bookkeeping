@@ -590,6 +590,19 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
 
     for (var index = 0; index < _attachments.length; index++) {
       final file = _attachments[index];
+      request.fields['attachments[$index][type]'] = 'file';
+      final filePath = file.path;
+      if (filePath != null && filePath.trim().isNotEmpty) {
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'attachments[$index][file]',
+            filePath,
+            filename: file.name,
+          ),
+        );
+        continue;
+      }
+
       final bytes = await _readFileBytes(file);
       if (bytes.isEmpty) {
         continue;
