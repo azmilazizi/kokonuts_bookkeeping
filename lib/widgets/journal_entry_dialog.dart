@@ -608,6 +608,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         continue;
       }
 
+      request.fields['attachments[$index][type]'] = 'file';
       request.files.add(
         http.MultipartFile.fromBytes(
           'attachments[$index][file]',
