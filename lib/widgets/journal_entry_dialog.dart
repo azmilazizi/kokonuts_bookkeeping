@@ -564,9 +564,6 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
 
     final lines = payload['lines'];
     if (lines is List) {
-      request.fields['lines'] = jsonEncode(lines);
-      request.fields['details'] = jsonEncode(lines);
-
       for (var index = 0; index < lines.length; index++) {
         final line = lines[index];
         if (line is! Map<String, dynamic>) {
@@ -575,7 +572,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
 
         void addLineField(String key, dynamic value) {
           if (value == null) return;
-          request.fields['details[$index][$key]'] = value.toString();
+          request.fields['lines[$index][$key]'] = value.toString();
         }
 
         addLineField('account', line['account']);
@@ -583,8 +580,6 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         addLineField('credit', line['credit']);
         addLineField('description', line['description']);
       }
-    } else if (lines != null) {
-      request.fields['lines'] = jsonEncode(lines);
     }
   }
 
@@ -595,6 +590,19 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
 
     for (var index = 0; index < _attachments.length; index++) {
       final file = _attachments[index];
+      request.fields['attachments[$index][type]'] = 'file';
+      final filePath = file.path;
+      if (filePath != null && filePath.trim().isNotEmpty) {
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'attachments[$index][file]',
+            filePath,
+            filename: file.name,
+          ),
+        );
+        continue;
+      }
+
       final bytes = await _readFileBytes(file);
       if (bytes.isEmpty) {
         continue;
@@ -602,7 +610,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
 
       request.files.add(
         http.MultipartFile.fromBytes(
-          'attachments[$index]',
+          'attachments[$index][file]',
           bytes,
           filename: file.name,
         ),
