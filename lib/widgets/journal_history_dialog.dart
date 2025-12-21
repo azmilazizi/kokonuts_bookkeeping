@@ -680,17 +680,6 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
                                                     mainAxisSize:
                                                         MainAxisSize.min,
                                                     children: [
-                                                      IconButton(
-                                                        key: ValueKey(
-                                                          'edit_${item.id}',
-                                                        ),
-                                                        tooltip: 'Edit',
-                                                        icon: const Icon(
-                                                          Icons.edit_outlined,
-                                                        ),
-                                                        onPressed: () =>
-                                                            _editRecord(item),
-                                                      ),
                                                       if (item
                                                               .attachmentPreviewType !=
                                                           null)
