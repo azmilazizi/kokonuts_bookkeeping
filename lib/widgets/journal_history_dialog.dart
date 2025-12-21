@@ -442,7 +442,13 @@ class _JournalHistoryDialogState extends State<JournalHistoryDialog> {
       return;
     }
 
-    final downloadUrl = _buildAttachmentUrl(fileName);
+    final downloadUrl = _buildAttachmentUrl(
+      fileName: fileName,
+      journalEntryId: item.id,
+    );
+    if (downloadUrl.isEmpty) {
+      return;
+    }
     final previewType = _resolvePreviewType(fileName, downloadUrl);
     if (previewType == null) {
       return;
@@ -882,7 +888,10 @@ class JournalListItem {
     if (fileName == null || fileName.trim().isEmpty) {
       return null;
     }
-    return _resolvePreviewType(fileName, _buildAttachmentUrl(fileName));
+    return _resolvePreviewType(
+      fileName,
+      _buildAttachmentUrl(fileName: fileName, journalEntryId: id),
+    );
   }
 
   factory JournalListItem.fromMap(Map<String, dynamic> map) {
@@ -959,9 +968,19 @@ class JournalListItem {
   }
 }
 
-String _buildAttachmentUrl(String fileName) {
-  final encodedName = Uri.encodeFull(fileName.trim());
-  return 'https://crm.kokonuts.my/modules/accounting/uploads/$encodedName';
+String _buildAttachmentUrl({
+  required String fileName,
+  required dynamic journalEntryId,
+}) {
+  final trimmedFileName = fileName.trim();
+  final entryId = journalEntryId?.toString().trim();
+  if (trimmedFileName.isEmpty || entryId == null || entryId.isEmpty) {
+    return '';
+  }
+
+  final encodedEntryId = Uri.encodeComponent(entryId);
+  final encodedFileName = Uri.encodeComponent(trimmedFileName);
+  return 'https://crm.kokonuts.my/modules/accounting/uploads/journal_entries/$encodedEntryId/$encodedFileName';
 }
 
 enum _AttachmentPreviewType { image, pdf }
