@@ -225,6 +225,10 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         _entryType != _EntryType.cashWithdrawal;
   }
 
+  bool get _showsAttachmentPicker =>
+      _entryType != _EntryType.cashDeposit &&
+      _entryType != _EntryType.cashWithdrawal;
+
   bool get _isEditing => widget.initialItem != null;
 
   bool get _isTransfer {
@@ -252,6 +256,9 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       }
       if (!_showsOwner) {
         _owner = null;
+      }
+      if (!_showsAttachmentPicker) {
+        _attachments = const [];
       }
       if (!_showsEntryIdField) {
         _entryId = null;
@@ -1047,16 +1054,18 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                     FormErrorBanner(message: _submitError!),
                     const SizedBox(height: 12),
                   ],
-                  AttachmentPicker(
-                    label: 'Attachments',
-                    description:
-                        'Upload receipts, statements, or supporting files.',
-                    files: _attachments,
-                    onPick: _pickAttachments,
-                    onFilesSelected: _onFilesSelected,
-                    onFileRemoved: _removeAttachment,
-                  ),
-                  const SizedBox(height: 20),
+                  if (_showsAttachmentPicker) ...[
+                    AttachmentPicker(
+                      label: 'Attachments',
+                      description:
+                          'Upload receipts, statements, or supporting files.',
+                      files: _attachments,
+                      onPick: _pickAttachments,
+                      onFilesSelected: _onFilesSelected,
+                      onFileRemoved: _removeAttachment,
+                    ),
+                    const SizedBox(height: 20),
+                  ],
                   LayoutBuilder(
                     builder: (context, constraints) {
                       final isWide = constraints.maxWidth >= 620;

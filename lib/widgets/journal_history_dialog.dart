@@ -872,7 +872,14 @@ class JournalListItem {
       (type ?? '').toLowerCase() == 'cash_deposit' ||
       (type ?? '').toLowerCase() == 'cash_withdrawal';
 
+  bool get isCashEntry =>
+      (type ?? '').toLowerCase() == 'cash_deposit' ||
+      (type ?? '').toLowerCase() == 'cash_withdrawal';
+
   _AttachmentPreviewType? get attachmentPreviewType {
+    if (isCashEntry) {
+      return null;
+    }
     final fileName = attachmentFileName;
     if (fileName == null || fileName.trim().isEmpty) {
       return null;
