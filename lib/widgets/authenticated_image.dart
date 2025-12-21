@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import 'authenticated_image_io.dart'
+    if (dart.library.html) 'authenticated_image_web.dart';
+
 class AuthenticatedImage extends StatefulWidget {
   final String imageUrl;
   final Map<String, String>? headers;
@@ -42,7 +45,7 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
   }
 
   void _loadImage() {
-    if (_canUseNetworkImage) {
+    if (_canUsePlatformImage) {
       _imageFuture = null;
       return;
     }
@@ -64,8 +67,8 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_canUseNetworkImage) {
-      return Image.network(
+    if (_canUsePlatformImage) {
+      return buildPlatformImage(
         _resolvedImageUrlForWeb ?? widget.imageUrl,
         fit: widget.fit,
         loadingBuilder: widget.loadingBuilder,
@@ -101,13 +104,12 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
     );
   }
 
-  bool get _canUseNetworkImage =>
-      kIsWeb &&
-      ((widget.headers == null || widget.headers!.isEmpty) ||
-          _resolvedImageUrlForWeb != null);
+  bool get _canUsePlatformImage =>
+      isWebPlatform ||
+      (widget.headers == null || widget.headers!.isEmpty);
 
   String? get _resolvedImageUrlForWeb {
-    if (!kIsWeb) {
+    if (!isWebPlatform) {
       return null;
     }
 
