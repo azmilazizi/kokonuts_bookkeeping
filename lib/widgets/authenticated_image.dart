@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -41,6 +42,10 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
   }
 
   void _loadImage() {
+    if (_shouldUseNetworkImage) {
+      _imageFuture = null;
+      return;
+    }
     _imageFuture = _fetchImage();
   }
 
@@ -59,6 +64,14 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_shouldUseNetworkImage) {
+      return Image.network(
+        widget.imageUrl,
+        fit: widget.fit,
+        loadingBuilder: widget.loadingBuilder,
+        errorBuilder: widget.errorBuilder,
+      );
+    }
     return FutureBuilder<Uint8List>(
       future: _imageFuture,
       builder: (context, snapshot) {
@@ -87,4 +100,7 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
       },
     );
   }
+
+  bool get _shouldUseNetworkImage =>
+      kIsWeb && (widget.headers == null || widget.headers!.isEmpty);
 }
