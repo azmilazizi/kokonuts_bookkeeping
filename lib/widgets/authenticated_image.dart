@@ -2,6 +2,9 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import 'authenticated_image_io.dart'
+    if (dart.library.html) 'authenticated_image_web.dart';
+
 class AuthenticatedImage extends StatefulWidget {
   final String imageUrl;
   final Map<String, String>? headers;
@@ -41,6 +44,10 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
   }
 
   void _loadImage() {
+    if (_canUsePlatformImage) {
+      _imageFuture = null;
+      return;
+    }
     _imageFuture = _fetchImage();
   }
 
@@ -59,6 +66,14 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_canUsePlatformImage) {
+      return buildPlatformImage(
+        _resolvedImageUrlForWeb ?? widget.imageUrl,
+        fit: widget.fit,
+        loadingBuilder: widget.loadingBuilder,
+        errorBuilder: widget.errorBuilder,
+      );
+    }
     return FutureBuilder<Uint8List>(
       future: _imageFuture,
       builder: (context, snapshot) {
@@ -86,5 +101,56 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
         return const SizedBox();
       },
     );
+  }
+
+  bool get _canUsePlatformImage =>
+      isWebPlatform ||
+      (widget.headers == null || widget.headers!.isEmpty);
+
+  String? get _resolvedImageUrlForWeb {
+    if (!isWebPlatform) {
+      return null;
+    }
+
+    final authKey = _extractAuthKey(widget.headers);
+    if (authKey == null || authKey.isEmpty) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(widget.imageUrl);
+    if (uri == null) {
+      return null;
+    }
+
+    if (uri.queryParameters.containsKey('authkey')) {
+      return widget.imageUrl;
+    }
+
+    final updatedQuery = Map<String, String>.from(uri.queryParameters);
+    updatedQuery['authkey'] = authKey;
+    return uri.replace(queryParameters: updatedQuery).toString();
+  }
+
+  String? _extractAuthKey(Map<String, String>? headers) {
+    if (headers == null || headers.isEmpty) {
+      return null;
+    }
+
+    final authtoken =
+        headers['authtoken'] ?? headers['Authtoken'] ?? headers['authToken'];
+    if (authtoken != null && authtoken.trim().isNotEmpty) {
+      return authtoken.trim();
+    }
+
+    final authorization =
+        headers['Authorization'] ?? headers['authorization'] ?? '';
+    if (authorization.trim().isEmpty) {
+      return null;
+    }
+
+    final normalized = authorization
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    return normalized.isEmpty ? null : normalized;
   }
 }
