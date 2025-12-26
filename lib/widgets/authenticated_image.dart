@@ -69,7 +69,7 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
   Widget build(BuildContext context) {
     if (_canUsePlatformImage) {
       return buildPlatformImage(
-        _resolvedImageUrlForWeb ?? widget.imageUrl,
+        widget.imageUrl,
         fit: widget.fit,
         loadingBuilder: widget.loadingBuilder,
         errorBuilder: widget.errorBuilder,
@@ -105,53 +105,5 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
   }
 
   bool get _canUsePlatformImage =>
-      isWebPlatform ||
-      (widget.headers == null || widget.headers!.isEmpty);
-
-  String? get _resolvedImageUrlForWeb {
-    if (!isWebPlatform) {
-      return null;
-    }
-
-    final authKey = _extractAuthKey(widget.headers);
-    if (authKey == null || authKey.isEmpty) {
-      return null;
-    }
-
-    final uri = Uri.tryParse(widget.imageUrl);
-    if (uri == null) {
-      return null;
-    }
-
-    if (uri.queryParameters.containsKey('authkey')) {
-      return widget.imageUrl;
-    }
-
-    final updatedQuery = Map<String, String>.from(uri.queryParameters);
-    updatedQuery['authkey'] = authKey;
-    return uri.replace(queryParameters: updatedQuery).toString();
-  }
-
-  String? _extractAuthKey(Map<String, String>? headers) {
-    if (headers == null || headers.isEmpty) {
-      return null;
-    }
-
-    final authtoken =
-        headers['authtoken'] ?? headers['Authtoken'] ?? headers['authToken'];
-    if (authtoken != null && authtoken.trim().isNotEmpty) {
-      return authtoken.trim();
-    }
-
-    final authorization =
-        headers['Authorization'] ?? headers['authorization'] ?? '';
-    if (authorization.trim().isEmpty) {
-      return null;
-    }
-
-    final normalized = authorization
-        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
-        .trim();
-    return normalized.isEmpty ? null : normalized;
-  }
+      widget.headers == null || widget.headers!.isEmpty;
 }
