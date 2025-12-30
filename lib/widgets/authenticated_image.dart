@@ -28,6 +28,7 @@ class AuthenticatedImage extends StatefulWidget {
 
 class _AuthenticatedImageState extends State<AuthenticatedImage> {
   Future<Uint8List>? _imageFuture;
+  static const _authQueryKey = 'authkey';
 
   @override
   void initState() {
@@ -69,7 +70,7 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
   Widget build(BuildContext context) {
     if (_canUsePlatformImage) {
       return buildPlatformImage(
-        widget.imageUrl,
+        _resolvedImageUrl,
         fit: widget.fit,
         loadingBuilder: widget.loadingBuilder,
         errorBuilder: widget.errorBuilder,
@@ -105,5 +106,40 @@ class _AuthenticatedImageState extends State<AuthenticatedImage> {
   }
 
   bool get _canUsePlatformImage =>
-      widget.headers == null || widget.headers!.isEmpty;
+      widget.headers == null ||
+      widget.headers!.isEmpty ||
+      (kIsWeb && _resolvedAuthToken.isNotEmpty);
+
+  String get _resolvedImageUrl {
+    if (!kIsWeb) {
+      return widget.imageUrl;
+    }
+
+    final authToken = _resolvedAuthToken;
+    if (authToken.isEmpty) {
+      return widget.imageUrl;
+    }
+
+    final uri = Uri.tryParse(widget.imageUrl);
+    if (uri == null) {
+      return widget.imageUrl;
+    }
+
+    final queryParams = Map<String, String>.from(uri.queryParameters);
+    if (queryParams.containsKey(_authQueryKey)) {
+      return uri.toString();
+    }
+
+    queryParams[_authQueryKey] = authToken;
+    return uri.replace(queryParameters: queryParams).toString();
+  }
+
+  String get _resolvedAuthToken {
+    final headers = widget.headers;
+    if (headers == null) {
+      return '';
+    }
+
+    return (headers['authtoken'] ?? '').trim();
+  }
 }
