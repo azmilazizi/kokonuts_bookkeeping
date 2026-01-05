@@ -118939,15 +118939,15 @@ A.aqf.prototype={
 f3(){var s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a=this,a0=a.y
 if(a.z)a0=a.f*(a0/100)
 s=a.as
-r=s?1:0
-q=s?A.bmN(a.d):null
-p=a.a
-if(p==null)p=""
-o=a.at
-n=o==null
-m=n?"":o
-if(n)o=""
-n=s?1:0
+r=s?A.bmN(a.d):null
+q=a.a
+if(q==null)q=""
+p=a.at
+o=p==null
+n=o?"":p
+if(o)p=""
+o=s?1:0
+m=s?1:0
 l=s?"delivered":"new"
 k=a.ax
 if(k==null)k=0
@@ -118958,20 +118958,20 @@ g=a.e
 f=A.X(g).j("Y<1,al<i,@>>")
 g=A.G(new A.Y(g,new A.aqg(a),f),f.j("ak.E"))
 g.$flags=1
-e=A.a0(["pur_order_name",a.b,"vendor",p,"estimate",0,"pur_order_number",a.c,"status",1,"approve_status",2,"date_owed",0,"delivery_date",q,"subtotal",a.f,"total_tax",0,"total",a.r,"added_from",m,"discount_percent",0,"discount_total",a0,"discount_%",0,"discount_type","after_tax","buyer",o,"status_goods",n,"delivery_status",r,"delivery_status_id",r,"project",0,"pur_request",0,"department",0,"sale_invoice",0,"currency",1,"order_status",l,"currency_rate",1,"from_currency",1,"to_currency",1,"number",k,"expense_convert",0,"order_date",j,"shipping_fee",a.x,"shipping_country",0,h,g],t.N,t.z)
+e=A.a0(["pur_order_name",a.b,"vendor",q,"estimate",0,"pur_order_number",a.c,"status",1,"approve_status",2,"date_owed",0,"delivery_date",r,"subtotal",a.f,"total_tax",0,"total",a.r,"added_from",n,"discount_percent",0,"discount_total",a0,"discount_%",0,"discount_type","after_tax","buyer",p,"status_goods",o,"delivery_status",m,"project",0,"pur_request",0,"department",0,"sale_invoice",0,"currency",1,"order_status",l,"currency_rate",1,"from_currency",1,"to_currency",1,"number",k,"expense_convert",0,"order_date",j,"shipping_fee",a.x,"shipping_country",0,h,g],t.N,t.z)
 d=a.ch
-if(i&&d!=null&&d.length!==0){p=A.X(d).j("Y<1,Z>")
-p=A.G(new A.Y(d,new A.aqh(),p),p.j("ak.E"))
-p.$flags=1
-e.h(0,"removed_items",p)}c=a.CW
-if(i&&c!=null&&c.length!==0){p=A.X(c).j("Y<1,Z>")
-p=A.G(new A.Y(c,new A.aqi(),p),p.j("ak.E"))
-p.$flags=1
-e.h(0,"removed_payments",p)}b=a.Q
-if(b!=null&&b.length!==0){p=A.X(b).j("Y<1,al<i,@>>")
-p=A.G(new A.Y(b,new A.aqj(),p),p.j("ak.E"))
-p.$flags=1
-e.h(0,"payments",p)}return e}}
+if(i&&d!=null&&d.length!==0){q=A.X(d).j("Y<1,Z>")
+q=A.G(new A.Y(d,new A.aqh(),q),q.j("ak.E"))
+q.$flags=1
+e.h(0,"removed_items",q)}c=a.CW
+if(i&&c!=null&&c.length!==0){q=A.X(c).j("Y<1,Z>")
+q=A.G(new A.Y(c,new A.aqi(),q),q.j("ak.E"))
+q.$flags=1
+e.h(0,"removed_payments",q)}b=a.Q
+if(b!=null&&b.length!==0){q=A.X(b).j("Y<1,al<i,@>>")
+q=A.G(new A.Y(b,new A.aqj(),q),q.j("ak.E"))
+q.$flags=1
+e.h(0,"payments",q)}return e}}
 A.aqg.prototype={
 $1(a){var s,r,q,p,o,n,m=this.a.ax
 if(m==null)m=0
