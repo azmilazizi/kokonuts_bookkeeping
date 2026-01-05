@@ -618,7 +618,7 @@ class CreatePurchaseOrderRequest {
       'discount_type': 'after_tax',
       'buyer': userId ?? '',
       'status_goods': isDelivered ? 1 : 0,
-      'delivery_status': deliveryStatusValue,
+      'delivery_status': isDelivered ? 1 : 0,
       'delivery_status_id': deliveryStatusValue,
       'delivery_status_code': deliveryStatusValue,
       'delivery_status_value': deliveryStatusValue,
