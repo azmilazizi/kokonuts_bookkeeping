@@ -178,6 +178,9 @@ class _AccountsTabState extends State<AccountsTab>
 
     return RefreshIndicator(
       onRefresh: () => _fetchPage(reset: true),
+      notificationPredicate: (notification) =>
+          notification.depth == 1 &&
+          notification.metrics.axis == Axis.vertical,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : _minTableWidth;
