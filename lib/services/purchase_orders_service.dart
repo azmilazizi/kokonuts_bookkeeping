@@ -620,6 +620,8 @@ class CreatePurchaseOrderRequest {
       'status_goods': isDelivered ? 1 : 0,
       'delivery_status': deliveryStatusValue,
       'delivery_status_id': deliveryStatusValue,
+      'delivery_status_code': deliveryStatusValue,
+      'delivery_status_value': deliveryStatusValue,
       'project': 0,
       'pur_request': 0,
       'department': 0,
