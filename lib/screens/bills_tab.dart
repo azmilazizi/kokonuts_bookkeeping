@@ -248,91 +248,97 @@ class BillsTabState extends State<BillsTab>
     super.build(context);
     final theme = Theme.of(context);
 
-    return RefreshIndicator(
-      onRefresh: () => _fetchPage(reset: true),
-      notificationPredicate: (notification) =>
-          notification.depth == 1 &&
-          notification.metrics.axis == Axis.vertical,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final maxWidth = constraints.maxWidth.isFinite
-              ? constraints.maxWidth
-              : _minTableWidth;
-          final tableWidth = maxWidth < _minTableWidth
-              ? _minTableWidth
-              : maxWidth;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : _minTableWidth;
+        final tableWidth =
+            maxWidth < _minTableWidth ? _minTableWidth : maxWidth;
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Scrollbar(
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Scrollbar(
+                controller: _horizontalController,
+                thumbVisibility: true,
+                notificationPredicate: (notification) =>
+                    notification.metrics.axis == Axis.horizontal,
+                child: SingleChildScrollView(
                   controller: _horizontalController,
-                  thumbVisibility: true,
-                  notificationPredicate: (notification) =>
-                      notification.metrics.axis == Axis.horizontal,
-                  child: SingleChildScrollView(
-                    controller: _horizontalController,
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: tableWidth,
-                      child: CustomScrollView(
-                        shrinkWrap: true,
-                        controller: _scrollController,
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        slivers: [
-                          SliverToBoxAdapter(
-                            child: TableFilterBar(
-                              controller: _filterController,
-                              onChanged: _handleFilterChanged,
-                              hintText: 'Search by vendor, status, or amount',
-                              isFiltering: _filterController.text.isNotEmpty,
-                              horizontalController: _horizontalController,
-                              trailing: DateRangeFilterButton(
-                                label: 'Bill or due date',
-                                startDate: _filterStartDate,
-                                endDate: _filterEndDate,
-                                onRangeSelected: _handleDateRangeSelected,
-                                onClear: _clearDateRange,
-                              ),
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: tableWidth,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TableFilterBar(
+                          controller: _filterController,
+                          onChanged: _handleFilterChanged,
+                          hintText: 'Search by vendor, status, or amount',
+                          isFiltering: _filterController.text.isNotEmpty,
+                          horizontalController: _horizontalController,
+                          trailing: DateRangeFilterButton(
+                            label: 'Bill or due date',
+                            startDate: _filterStartDate,
+                            endDate: _filterEndDate,
+                            onRangeSelected: _handleDateRangeSelected,
+                            onClear: _clearDateRange,
+                          ),
+                        ),
+                        Expanded(
+                          child: RefreshIndicator(
+                            onRefresh: () => _fetchPage(reset: true),
+                            notificationPredicate: (notification) =>
+                                notification.depth == 1 &&
+                                notification.metrics.axis == Axis.vertical,
+                            child: CustomScrollView(
+                              shrinkWrap: true,
+                              controller: _scrollController,
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              slivers: [
+                                SliverPersistentHeader(
+                                  pinned: true,
+                                  delegate: _BillsHeaderDelegate(
+                                    theme: theme,
+                                    sortColumn: _sortColumn,
+                                    sortAscending: _sortAscending,
+                                    onSort: _handleSort,
+                                  ),
+                                ),
+                                SliverList(
+                                  delegate: SliverChildBuilderDelegate((
+                                    context,
+                                    index,
+                                  ) {
+                                    final bill = _bills[index];
+                                    return _BillRow(
+                                      bill: bill,
+                                      vendorName: _vendorLabel(bill),
+                                      theme: theme,
+                                      showTopBorder: index == 0,
+                                      onDelete: () => _deleteBill(bill),
+                                      onBillUpdated: _handleBillUpdated,
+                                    );
+                                  }, childCount: _bills.length),
+                                ),
+                                SliverToBoxAdapter(
+                                  child: _buildFooter(theme),
+                                ),
+                              ],
                             ),
                           ),
-                          SliverPersistentHeader(
-                            pinned: true,
-                            delegate: _BillsHeaderDelegate(
-                              theme: theme,
-                              sortColumn: _sortColumn,
-                              sortAscending: _sortAscending,
-                              onSort: _handleSort,
-                            ),
-                          ),
-                          SliverList(
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              final bill = _bills[index];
-                              return _BillRow(
-                                bill: bill,
-                                vendorName: _vendorLabel(bill),
-                                theme: theme,
-                                showTopBorder: index == 0,
-                                onDelete: () => _deleteBill(bill),
-                                onBillUpdated: _handleBillUpdated,
-                              );
-                            }, childCount: _bills.length),
-                          ),
-                          SliverToBoxAdapter(child: _buildFooter(theme)),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
-            ],
-          );
-        },
-      ),
+            ),
+          ],
+        );
+      },
     );
   }
 
