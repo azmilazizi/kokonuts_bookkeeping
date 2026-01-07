@@ -205,107 +205,117 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab>
     final theme = Theme.of(context);
     final mediaQuery = MediaQuery.of(context);
 
-    return RefreshIndicator(
-      onRefresh: () => _fetchPage(reset: true),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final maxWidth = constraints.maxWidth.isFinite
-              ? constraints.maxWidth
-              : _minTableWidth;
-          final isCompactLayout = maxWidth < _minTableWidth;
-          final tableWidth = isCompactLayout ? _minTableWidth : maxWidth;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : _minTableWidth;
+        final isCompactLayout = maxWidth < _minTableWidth;
+        final tableWidth = isCompactLayout ? _minTableWidth : maxWidth;
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Scrollbar(
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Scrollbar(
+                controller: _horizontalController,
+                thumbVisibility: true,
+                notificationPredicate: (notification) =>
+                    notification.metrics.axis == Axis.horizontal,
+                child: SingleChildScrollView(
                   controller: _horizontalController,
-                  thumbVisibility: true,
-                  notificationPredicate: (notification) =>
-                      notification.metrics.axis == Axis.horizontal,
-                  child: SingleChildScrollView(
-                    controller: _horizontalController,
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: tableWidth,
-                      child: CustomScrollView(
-                        shrinkWrap: true,
-                        controller: _scrollController,
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        slivers: [
-                          SliverToBoxAdapter(
-                            child: TableFilterBar(
-                              controller: _filterController,
-                              onChanged: _handleFilterChanged,
-                              hintText: 'Search by number, vendor, or total',
-                              isFiltering: _filterController.text.isNotEmpty,
-                              horizontalController: _horizontalController,
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    onPressed: _showDraftsDialog,
-                                    tooltip: 'View drafts',
-                                    style: IconButton.styleFrom(
-                                      backgroundColor: _isViewingDrafts
-                                          ? theme.colorScheme.primaryContainer
-                                          : null,
-                                      foregroundColor: _isViewingDrafts
-                                          ? theme.colorScheme.onPrimaryContainer
-                                          : null,
-                                    ),
-                                    icon: const Icon(Icons.assignment_outlined),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  DateRangeFilterButton(
-                                    label: 'Order date',
-                                    startDate: _filterStartDate,
-                                    endDate: _filterEndDate,
-                                    onRangeSelected: _handleDateRangeSelected,
-                                    onClear: _clearDateRange,
-                                  ),
-                                ],
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: tableWidth,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TableFilterBar(
+                          controller: _filterController,
+                          onChanged: _handleFilterChanged,
+                          hintText: 'Search by number, vendor, or total',
+                          isFiltering: _filterController.text.isNotEmpty,
+                          horizontalController: _horizontalController,
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                onPressed: _showDraftsDialog,
+                                tooltip: 'View drafts',
+                                style: IconButton.styleFrom(
+                                  backgroundColor: _isViewingDrafts
+                                      ? theme.colorScheme.primaryContainer
+                                      : null,
+                                  foregroundColor: _isViewingDrafts
+                                      ? theme.colorScheme.onPrimaryContainer
+                                      : null,
+                                ),
+                                icon: const Icon(Icons.assignment_outlined),
                               ),
+                              const SizedBox(width: 8),
+                              DateRangeFilterButton(
+                                label: 'Order date',
+                                startDate: _filterStartDate,
+                                endDate: _filterEndDate,
+                                onRangeSelected: _handleDateRangeSelected,
+                                onClear: _clearDateRange,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: RefreshIndicator(
+                            onRefresh: () => _fetchPage(reset: true),
+                            notificationPredicate: (notification) =>
+                                notification.depth == 1 &&
+                                notification.metrics.axis == Axis.vertical,
+                            child: CustomScrollView(
+                              shrinkWrap: true,
+                              controller: _scrollController,
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              slivers: [
+                                SliverPersistentHeader(
+                                  pinned: true,
+                                  delegate: _PurchaseOrdersHeaderDelegate(
+                                    theme: theme,
+                                    isCompactLayout: isCompactLayout,
+                                    sortColumn: _sortColumn,
+                                    sortAscending: _sortAscending,
+                                    onSort: _handleSort,
+                                  ),
+                                ),
+                                SliverList(
+                                  delegate: SliverChildBuilderDelegate((
+                                    context,
+                                    index,
+                                  ) {
+                                    final order = _orders[index];
+                                    return _PurchaseOrderRow(
+                                      order: order,
+                                      theme: theme,
+                                      showTopBorder: index == 0,
+                                      isCompactLayout: isCompactLayout,
+                                      onEdit: () => _handleEdit(order),
+                                      onDelete: () => _handleDelete(order),
+                                    );
+                                  }, childCount: _orders.length),
+                                ),
+                                SliverToBoxAdapter(
+                                  child: _buildFooter(theme),
+                                ),
+                              ],
                             ),
                           ),
-                          SliverPersistentHeader(
-                            pinned: true,
-                            delegate: _PurchaseOrdersHeaderDelegate(
-                              theme: theme,
-                              isCompactLayout: isCompactLayout,
-                              sortColumn: _sortColumn,
-                              sortAscending: _sortAscending,
-                              onSort: _handleSort,
-                            ),
-                          ),
-                          SliverList(
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              final order = _orders[index];
-                              return _PurchaseOrderRow(
-                                order: order,
-                                theme: theme,
-                                showTopBorder: index == 0,
-                                isCompactLayout: isCompactLayout,
-                                onEdit: () => _handleEdit(order),
-                                onDelete: () => _handleDelete(order),
-                              );
-                            }, childCount: _orders.length),
-                          ),
-                          SliverToBoxAdapter(child: _buildFooter(theme)),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
-            ],
-          );
-        },
-      ),
+            ),
+          ],
+        );
+      },
     );
   }
 
