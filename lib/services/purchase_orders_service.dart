@@ -781,8 +781,7 @@ class PurchaseOrder {
   factory PurchaseOrder.fromJson(Map<String, dynamic> json) {
     final totalValue = json['total'];
     final totalAmount = _parseDouble(totalValue);
-    final totalPaidAmount =
-        _parseDouble(json['total_paid'] ?? json['paid'] ?? json['amount_paid']);
+    final totalPaidAmount = _resolveTotalPaid(json);
     final currency = json['currency_symbol'] ?? json['currency'];
     final vendorData = json['vendor'];
     String? resolvedVendor;
@@ -886,6 +885,48 @@ int _parseDeliveryStatus(Map<String, dynamic> json) {
   }
 
   return 0;
+}
+
+double? _resolveTotalPaid(Map<String, dynamic> json) {
+  const paymentKeys = [
+    'payments',
+    'payment',
+    'payment_history',
+    'payment_histories',
+    'payment_details',
+  ];
+
+  for (final key in paymentKeys) {
+    final data = json[key];
+    if (data is List) {
+      if (data.isEmpty) {
+        return 0;
+      }
+      var total = 0.0;
+      var hasAmount = false;
+      for (final entry in data) {
+        if (entry is Map<String, dynamic>) {
+          final amountValue = entry['amount'] ??
+              entry['payment_amount'] ??
+              entry['paid_amount'] ??
+              entry['total'];
+          final parsed = _parseDouble(amountValue);
+          if (parsed != null) {
+            total += parsed;
+            hasAmount = true;
+          }
+        } else if (entry is num) {
+          total += entry.toDouble();
+          hasAmount = true;
+        }
+      }
+      return hasAmount ? total : 0;
+    }
+  }
+
+  return _parseDouble(
+    json['total_paid'] ?? json['paid'] ?? json['amount_paid'],
+  );
 }
 
 int? _parseNestedDeliveryStatus(dynamic value) {
