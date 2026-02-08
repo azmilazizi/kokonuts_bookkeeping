@@ -124269,7 +124269,7 @@ break}n.A(new A.b_j(n))
 d=B.b.E(n.e.a.a)
 c=B.b.E(n.f.a.a)
 b=t.N
-m=B.D.hS(A.a0(["commodity_code",d,"description",c,"sku_code",d,"sku_name",c,"can_be_sold","","can_be_manufacturing","","group_id",n.ay,"unit_id",n.ch,"rate",0,"tax",0],b,t.X),null)
+m=B.D.hS(A.a0(["commodity_code",d,"description",c,"sku_code",d,"sku_name",c,"can_be_purchased","can_be_purchased","can_be_sold","","can_be_manufacturing","","can_be_inventory","can_be_inventory","group_id",n.ay,"unit_id",n.ch,"rate",0,"tax",0],b,t.X),null)
 l=null
 k=A.dn(null,$.fi().gfZ())
 p=4
