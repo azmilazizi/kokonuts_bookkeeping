@@ -110,6 +110,7 @@ class BillsTabState extends State<BillsTab>
       final result = await _service.fetchBills(
         page: pageToLoad,
         perPage: _perPage,
+        search: _filterQuery.isEmpty ? null : _filterQuery,
         headers: headers,
       );
 
@@ -278,6 +279,8 @@ class BillsTabState extends State<BillsTab>
                           onChanged: _handleFilterChanged,
                           hintText: 'Search by vendor, status, or amount',
                           isFiltering: _filterController.text.isNotEmpty,
+                          onSearchPressed: _handleSearchPressed,
+                          isSearchEnabled: !_isLoading,
                           horizontalController: _horizontalController,
                           trailing: DateRangeFilterButton(
                             label: 'Bill or due date',
@@ -356,10 +359,21 @@ class BillsTabState extends State<BillsTab>
   }
 
   void _handleFilterChanged(String value) {
+    final normalizedValue = value.trim().toLowerCase();
+    final wasFiltering = _filterQuery.isNotEmpty;
+
     setState(() {
-      _filterQuery = value.trim().toLowerCase();
+      _filterQuery = normalizedValue;
       _applyFilters();
     });
+
+    if (normalizedValue.isEmpty && wasFiltering) {
+      _fetchPage(reset: true);
+    }
+  }
+
+  void _handleSearchPressed() {
+    _fetchPage(reset: true);
   }
 
   void _handleDateRangeSelected(DateTimeRange range) {

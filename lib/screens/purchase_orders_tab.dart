@@ -116,6 +116,7 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab>
       final result = await _service.fetchPurchaseOrders(
         page: pageToLoad,
         perPage: _perPage,
+        search: _filterQuery.isEmpty ? null : _filterQuery,
         headers: headers,
       );
 
@@ -235,6 +236,8 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab>
                           onChanged: _handleFilterChanged,
                           hintText: 'Search by number, vendor, or total',
                           isFiltering: _filterController.text.isNotEmpty,
+                          onSearchPressed: _handleSearchPressed,
+                          isSearchEnabled: !_isLoading,
                           horizontalController: _horizontalController,
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -333,10 +336,21 @@ class PurchaseOrdersTabState extends State<PurchaseOrdersTab>
   }
 
   void _handleFilterChanged(String value) {
+    final normalizedValue = value.trim().toLowerCase();
+    final wasFiltering = _filterQuery.isNotEmpty;
+
     setState(() {
-      _filterQuery = value.trim().toLowerCase();
+      _filterQuery = normalizedValue;
       _applyFilters();
     });
+
+    if (normalizedValue.isEmpty && wasFiltering) {
+      _fetchPage(reset: true);
+    }
+  }
+
+  void _handleSearchPressed() {
+    _fetchPage(reset: true);
   }
 
   void _handleDateRangeSelected(DateTimeRange range) {
