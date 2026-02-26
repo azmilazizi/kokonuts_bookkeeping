@@ -121,6 +121,7 @@ class ExpensesTabState extends State<ExpensesTab>
       final result = await _service.fetchExpenses(
         page: pageToLoad,
         perPage: _perPage,
+        search: _filterQuery.isEmpty ? null : _filterQuery,
         headers: {
           'Accept': 'application/json',
           'authtoken': authtokenHeader,
@@ -198,6 +199,8 @@ class ExpensesTabState extends State<ExpensesTab>
                           onChanged: _handleFilterChanged,
                           hintText: 'Search by vendor, name, or category',
                           isFiltering: _filterController.text.isNotEmpty,
+                          onSearchPressed: _handleSearchPressed,
+                          isSearchEnabled: !_isLoading,
                           horizontalController: _horizontalController,
                           trailing: DateRangeFilterButton(
                             label: 'Expense date',
@@ -382,10 +385,21 @@ class ExpensesTabState extends State<ExpensesTab>
   }
 
   void _handleFilterChanged(String value) {
+    final normalizedValue = value.trim().toLowerCase();
+    final wasFiltering = _filterQuery.isNotEmpty;
+
     setState(() {
-      _filterQuery = value.trim().toLowerCase();
+      _filterQuery = normalizedValue;
       _applyFilters();
     });
+
+    if (normalizedValue.isEmpty && wasFiltering) {
+      _fetchPage(reset: true);
+    }
+  }
+
+  void _handleSearchPressed() {
+    _fetchPage(reset: true);
   }
 
   void _handleDateRangeSelected(DateTimeRange range) {

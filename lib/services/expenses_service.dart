@@ -22,10 +22,14 @@ class ExpensesService {
     required Map<String, String> headers,
     String? fromDate,
     String? toDate,
+    String? search,
   }) async {
     final params = {'page': '$page', 'per_page': '$perPage'};
     if (fromDate != null) params['from'] = fromDate;
     if (toDate != null) params['to'] = toDate;
+    if (search != null && search.trim().isNotEmpty) {
+      params['search'] = search.trim();
+    }
 
     final uri = Uri.parse(
       _baseUrl,

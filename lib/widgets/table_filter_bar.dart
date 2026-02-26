@@ -10,6 +10,8 @@ class TableFilterBar extends StatelessWidget {
     this.isFiltering = false,
     this.trailing,
     this.horizontalController,
+    this.onSearchPressed,
+    this.isSearchEnabled = true,
   });
 
   final TextEditingController controller;
@@ -19,6 +21,8 @@ class TableFilterBar extends StatelessWidget {
   final bool isFiltering;
   final Widget? trailing;
   final ScrollController? horizontalController;
+  final VoidCallback? onSearchPressed;
+  final bool isSearchEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -31,30 +35,43 @@ class TableFilterBar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
-            controller: controller,
-            onChanged: onChanged,
-            decoration: InputDecoration(
-              labelText: labelText,
-              hintText: hintText,
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: isFiltering
-                  ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        if (controller.text.isEmpty) {
-                          return;
-                        }
-                        controller.clear();
-                        onChanged('');
-                      },
-                    )
-                  : null,
-              border: const OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(8)),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  onChanged: onChanged,
+                  onSubmitted: (_) => onSearchPressed?.call(),
+                  decoration: InputDecoration(
+                    labelText: labelText,
+                    hintText: hintText,
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: isFiltering
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              if (controller.text.isEmpty) {
+                                return;
+                              }
+                              controller.clear();
+                              onChanged('');
+                            },
+                          )
+                        : null,
+                    border: const OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(8)),
+                    ),
+                    isDense: true,
+                  ),
+                ),
               ),
-              isDense: true,
-            ),
+              const SizedBox(width: 12),
+              FilledButton.icon(
+                onPressed: isSearchEnabled ? onSearchPressed : null,
+                icon: const Icon(Icons.search),
+                label: const Text('Search'),
+              ),
+            ],
           ),
           if (trailing != null) ...[const SizedBox(height: 12), trailing!],
         ],
