@@ -457,32 +457,47 @@ _PillStyle _buildDeliveryStatusPillStyle(
   ThemeData theme,
   PurchaseOrderDetail detail,
 ) {
-  final label = _resolvePillLabel(
-    explicit: detail.deliveryStatusLabel,
-    id: detail.deliveryStatusId,
-    lookup: purchaseOrderDeliveryStatusLabels,
-  );
-
-  final id =
-      detail.deliveryStatusId ??
-      _findIdForLabel(label, purchaseOrderDeliveryStatusLabels);
+  final normalizedStatus = detail.orderStatus.trim().toLowerCase();
   final colorScheme = theme.colorScheme;
 
   Color background;
   Color foreground;
+  String label;
 
-  switch (id) {
-    case 1:
+  switch (normalizedStatus) {
+    case 'delivered':
       background = Colors.green.shade100;
       foreground = Colors.green.shade900;
+      label = 'Delivered';
       break;
-    case 0:
+    case 'return':
+      background = Colors.yellow.shade100;
+      foreground = Colors.yellow.shade900;
+      label = 'Returned';
+      break;
+    case 'new':
       background = colorScheme.errorContainer;
       foreground = colorScheme.onErrorContainer;
+      label = 'Not Yet Delivered';
       break;
     default:
-      background = colorScheme.surfaceVariant;
-      foreground = colorScheme.onSurfaceVariant;
+      final fallbackLabel = _resolvePillLabel(
+        explicit: detail.deliveryStatusLabel,
+        id: detail.deliveryStatusId,
+        lookup: purchaseOrderDeliveryStatusLabels,
+      );
+      final fallbackId =
+          detail.deliveryStatusId ??
+          _findIdForLabel(fallbackLabel, purchaseOrderDeliveryStatusLabels);
+      if (fallbackId == 1) {
+        background = Colors.green.shade100;
+        foreground = Colors.green.shade900;
+        label = 'Delivered';
+      } else {
+        background = colorScheme.errorContainer;
+        foreground = colorScheme.onErrorContainer;
+        label = 'Not Yet Delivered';
+      }
       break;
   }
 

@@ -146,6 +146,7 @@ class PurchaseOrderDetail {
     this.terms,
     this.deliveryStatusId,
     this.approvalStatusId,
+    required this.orderStatus,
   });
 
   factory PurchaseOrderDetail.fromJson(Map<String, dynamic> json) {
@@ -193,6 +194,7 @@ class PurchaseOrderDetail {
         '—';
 
     final deliveryStatusId = _resolveDeliveryStatusId(json);
+    final orderStatus = _resolveOrderStatus(json);
     final statusFallbackId = _parseInt(json['status_id']) ??
         _parseNestedId(json['status']) ??
         _parseInt(json['status']);
@@ -315,6 +317,7 @@ class PurchaseOrderDetail {
       terms: _string(json['terms']) ?? _string(json['term']),
       deliveryStatusId: resolvedDeliveryStatusId,
       approvalStatusId: approvalStatusId,
+      orderStatus: orderStatus,
     );
   }
 
@@ -341,6 +344,7 @@ class PurchaseOrderDetail {
   final String approvalStatus;
   final int? deliveryStatusId;
   final int? approvalStatusId;
+  final String orderStatus;
   final List<PurchaseOrderItem> items;
   final List<PurchaseOrderPayment> payments;
   final List<PurchaseOrderAttachment> attachments;
@@ -365,6 +369,62 @@ class PurchaseOrderDetail {
   bool get hasPayments => payments.isNotEmpty;
 
   bool get hasAttachments => attachments.isNotEmpty;
+}
+
+String _resolveOrderStatus(Map<String, dynamic> json) {
+  final directOrderStatus = _extractStatusText(json['order_status']);
+  if (directOrderStatus.isNotEmpty) {
+    return directOrderStatus;
+  }
+
+  final nestedOrderStatus = _extractStatusText(json['order']);
+  if (nestedOrderStatus.isNotEmpty) {
+    return nestedOrderStatus;
+  }
+
+  final deliveryStatusText = _extractStatusText(json['delivery_status']);
+  if (deliveryStatusText.isNotEmpty) {
+    return deliveryStatusText;
+  }
+
+  return '';
+}
+
+String _extractStatusText(dynamic value) {
+  if (value is Map<String, dynamic>) {
+    final nested = _string(
+          value['name'] ??
+              value['label'] ??
+              value['status'] ??
+              value['value'] ??
+              value['title'] ??
+              value['text'],
+        ) ??
+        '';
+    return _normalizeOrderStatus(nested);
+  }
+
+  final direct = _string(value) ?? '';
+  return _normalizeOrderStatus(direct);
+}
+
+String _normalizeOrderStatus(String rawValue) {
+  final normalized = rawValue.trim().toLowerCase();
+  if (normalized.isEmpty) {
+    return '';
+  }
+
+  if (normalized.contains('deliver')) {
+    return 'delivered';
+  }
+  if (normalized.contains('return')) {
+    return 'return';
+  }
+  if (normalized.contains('new')) {
+    return 'new';
+  }
+
+  return normalized;
 }
 
 const Map<int, String> purchaseOrderDeliveryStatusLabels = {
