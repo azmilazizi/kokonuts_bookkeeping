@@ -710,11 +710,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
   String _buildOrderNumber() {
     if (_nextPurchaseOrderNumber == null || _orderDate == null) return '';
+    final paddedOrderNumber = _nextPurchaseOrderNumber.toString().padLeft(5, '0');
     final datePart = _formatDate(_orderDate!);
     final vendorCode = (_selectedVendorCode ?? '').trim();
     // Format: #PO-{next_po_number}-{DDMMYYYY}-{VENDOR_CODE}
     final vendorSuffix = vendorCode.isNotEmpty ? '-$vendorCode' : '';
-    return '#PO-$_nextPurchaseOrderNumber-$datePart$vendorSuffix';
+    return '#PO-$paddedOrderNumber-$datePart$vendorSuffix';
   }
 
   String _buildBaseOrderNumber() {
@@ -736,9 +737,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     if (nextNumber == null || sanitizedPrefix.isEmpty) {
       return null;
     }
+    final paddedOrderNumber = nextNumber.toString().padLeft(5, '0');
     // Note: This seed might not be used anymore for the final string construction
     // but we keep it for now or we can update it to match new format
-    return '$sanitizedPrefix$nextNumber';
+    return '$sanitizedPrefix$paddedOrderNumber';
   }
 
   String _formatDate(DateTime date) {
