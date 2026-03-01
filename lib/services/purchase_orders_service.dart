@@ -779,6 +779,7 @@ class PurchaseOrder {
     required this.totalLabel,
     required this.currencySymbol,
     required this.deliveryStatus,
+    required this.orderStatus,
     this.totalPaid,
   });
 
@@ -815,6 +816,7 @@ class PurchaseOrder {
           totalAmount != null ? totalAmount.toStringAsFixed(2) : _formatAmount(totalValue),
       currencySymbol: _stringValue(currency) ?? '',
       deliveryStatus: _parseDeliveryStatus(json),
+      orderStatus: _parseOrderStatus(json),
       totalPaid: totalPaidAmount,
     );
   }
@@ -829,6 +831,7 @@ class PurchaseOrder {
   final String totalLabel;
   final String currencySymbol;
   final int deliveryStatus;
+  final String orderStatus;
   final double? totalPaid;
 
   String get formattedDate {
@@ -866,6 +869,10 @@ class PurchaseOrder {
     }
     return value.toString();
   }
+}
+
+String _parseOrderStatus(Map<String, dynamic> json) {
+  return (PurchaseOrder._stringValue(json['order_status']) ?? '').trim().toLowerCase();
 }
 
 int _parseDeliveryStatus(Map<String, dynamic> json) {
