@@ -985,6 +985,7 @@ class _PurchaseOrderRowState extends State<_PurchaseOrderRow> {
               ),
               _DeliveryStatusCell(
                 status: widget.order.deliveryStatus,
+                orderStatus: widget.order.orderStatus,
                 flex: _columnFlex[6],
               ),
               _DataCell(
@@ -1085,16 +1086,31 @@ class _PaymentProgressCell extends StatelessWidget {
 }
 
 class _DeliveryStatusCell extends StatelessWidget {
-  const _DeliveryStatusCell({required this.status, required this.flex});
+  const _DeliveryStatusCell({
+    required this.status,
+    required this.orderStatus,
+    required this.flex,
+  });
 
   final int status;
+  final String orderStatus;
   final int flex;
 
   @override
   Widget build(BuildContext context) {
-    final isDelivered = status == 1;
-    final color = isDelivered ? Colors.green : Colors.red;
-    final label = isDelivered ? 'Delivered' : 'Undelivered';
+    final normalizedStatus = orderStatus.trim().toLowerCase();
+    final color = switch (normalizedStatus) {
+      'new' => Colors.yellow,
+      'delivered' => Colors.green,
+      'return' => Colors.red,
+      _ => status == 1 ? Colors.green : Colors.red,
+    };
+    final label = switch (normalizedStatus) {
+      'new' => 'New',
+      'delivered' => 'Delivered',
+      'return' => 'Return',
+      _ => status == 1 ? 'Delivered' : 'Undelivered',
+    };
 
     return Expanded(
       flex: flex,
