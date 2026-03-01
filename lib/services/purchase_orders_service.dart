@@ -872,7 +872,59 @@ class PurchaseOrder {
 }
 
 String _parseOrderStatus(Map<String, dynamic> json) {
-  return (PurchaseOrder._stringValue(json['order_status']) ?? '').trim().toLowerCase();
+  final directOrderStatus = _extractStatusText(json['order_status']);
+  if (directOrderStatus.isNotEmpty) {
+    return directOrderStatus;
+  }
+
+  final nestedOrderStatus = _extractStatusText(json['order']);
+  if (nestedOrderStatus.isNotEmpty) {
+    return nestedOrderStatus;
+  }
+
+  final deliveryStatusText = _extractStatusText(json['delivery_status']);
+  if (deliveryStatusText.isNotEmpty) {
+    return deliveryStatusText;
+  }
+
+  return '';
+}
+
+String _extractStatusText(dynamic value) {
+  if (value is Map<String, dynamic>) {
+    final nested = PurchaseOrder._stringValue(
+          value['name'] ??
+              value['label'] ??
+              value['status'] ??
+              value['value'] ??
+              value['title'] ??
+              value['text'],
+        ) ??
+        '';
+    return _normalizeOrderStatus(nested);
+  }
+
+  final direct = PurchaseOrder._stringValue(value) ?? '';
+  return _normalizeOrderStatus(direct);
+}
+
+String _normalizeOrderStatus(String rawValue) {
+  final normalized = rawValue.trim().toLowerCase();
+  if (normalized.isEmpty) {
+    return '';
+  }
+
+  if (normalized.contains('deliver')) {
+    return 'delivered';
+  }
+  if (normalized.contains('return')) {
+    return 'return';
+  }
+  if (normalized.contains('new')) {
+    return 'new';
+  }
+
+  return normalized;
 }
 
 int _parseDeliveryStatus(Map<String, dynamic> json) {
