@@ -1100,9 +1100,9 @@ class _DeliveryStatusCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final normalizedStatus = orderStatus.trim().toLowerCase();
     final color = switch (normalizedStatus) {
-      'new' => Colors.yellow,
+      'new' => Colors.red,
       'delivered' => Colors.green,
-      'return' => Colors.red,
+      'return' => Colors.yellow,
       _ => status == 1 ? Colors.green : Colors.red,
     };
     final label = switch (normalizedStatus) {
