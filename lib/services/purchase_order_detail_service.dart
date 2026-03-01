@@ -146,6 +146,7 @@ class PurchaseOrderDetail {
     this.terms,
     this.deliveryStatusId,
     this.approvalStatusId,
+    required this.orderStatus,
   });
 
   factory PurchaseOrderDetail.fromJson(Map<String, dynamic> json) {
@@ -193,6 +194,7 @@ class PurchaseOrderDetail {
         '—';
 
     final deliveryStatusId = _resolveDeliveryStatusId(json);
+    final orderStatus = _resolveOrderStatus(json);
     final statusFallbackId = _parseInt(json['status_id']) ??
         _parseNestedId(json['status']) ??
         _parseInt(json['status']);
@@ -315,6 +317,7 @@ class PurchaseOrderDetail {
       terms: _string(json['terms']) ?? _string(json['term']),
       deliveryStatusId: resolvedDeliveryStatusId,
       approvalStatusId: approvalStatusId,
+      orderStatus: orderStatus,
     );
   }
 
@@ -341,6 +344,7 @@ class PurchaseOrderDetail {
   final String approvalStatus;
   final int? deliveryStatusId;
   final int? approvalStatusId;
+  final String orderStatus;
   final List<PurchaseOrderItem> items;
   final List<PurchaseOrderPayment> payments;
   final List<PurchaseOrderAttachment> attachments;
@@ -365,6 +369,25 @@ class PurchaseOrderDetail {
   bool get hasPayments => payments.isNotEmpty;
 
   bool get hasAttachments => attachments.isNotEmpty;
+}
+
+String _resolveOrderStatus(Map<String, dynamic> json) {
+  final rawStatus = json['order_status'];
+  if (rawStatus is Map<String, dynamic>) {
+    return (_string(
+              rawStatus['name'] ??
+                  rawStatus['label'] ??
+                  rawStatus['status'] ??
+                  rawStatus['value'] ??
+                  rawStatus['title'] ??
+                  rawStatus['text'],
+            ) ??
+            '')
+        .trim()
+        .toLowerCase();
+  }
+
+  return (_string(rawStatus) ?? '').trim().toLowerCase();
 }
 
 const Map<int, String> purchaseOrderDeliveryStatusLabels = {
