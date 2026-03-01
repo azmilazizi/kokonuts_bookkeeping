@@ -1112,6 +1112,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       totalLabel: order.totalLabel,
       currencySymbol: order.currencySymbol,
       deliveryStatus: 1,
+      orderStatus: order.orderStatus,
       totalPaid: order.totalPaid,
     );
   }
