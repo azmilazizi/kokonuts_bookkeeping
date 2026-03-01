@@ -872,7 +872,7 @@ class PurchaseOrder {
 }
 
 String _parseOrderStatus(Map<String, dynamic> json) {
-  return (_stringValue(json['order_status']) ?? '').trim().toLowerCase();
+  return (PurchaseOrder._stringValue(json['order_status']) ?? '').trim().toLowerCase();
 }
 
 int _parseDeliveryStatus(Map<String, dynamic> json) {
