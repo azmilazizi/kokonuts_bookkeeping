@@ -372,59 +372,22 @@ class PurchaseOrderDetail {
 }
 
 String _resolveOrderStatus(Map<String, dynamic> json) {
-  final directOrderStatus = _extractStatusText(json['order_status']);
-  if (directOrderStatus.isNotEmpty) {
-    return directOrderStatus;
+  final rawStatus = json['order_status'];
+  if (rawStatus is Map<String, dynamic>) {
+    return (_string(
+              rawStatus['name'] ??
+                  rawStatus['label'] ??
+                  rawStatus['status'] ??
+                  rawStatus['value'] ??
+                  rawStatus['title'] ??
+                  rawStatus['text'],
+            ) ??
+            '')
+        .trim()
+        .toLowerCase();
   }
 
-  final nestedOrderStatus = _extractStatusText(json['order']);
-  if (nestedOrderStatus.isNotEmpty) {
-    return nestedOrderStatus;
-  }
-
-  final deliveryStatusText = _extractStatusText(json['delivery_status']);
-  if (deliveryStatusText.isNotEmpty) {
-    return deliveryStatusText;
-  }
-
-  return '';
-}
-
-String _extractStatusText(dynamic value) {
-  if (value is Map<String, dynamic>) {
-    final nested = _string(
-          value['name'] ??
-              value['label'] ??
-              value['status'] ??
-              value['value'] ??
-              value['title'] ??
-              value['text'],
-        ) ??
-        '';
-    return _normalizeOrderStatus(nested);
-  }
-
-  final direct = _string(value) ?? '';
-  return _normalizeOrderStatus(direct);
-}
-
-String _normalizeOrderStatus(String rawValue) {
-  final normalized = rawValue.trim().toLowerCase();
-  if (normalized.isEmpty) {
-    return '';
-  }
-
-  if (normalized.contains('deliver')) {
-    return 'delivered';
-  }
-  if (normalized.contains('return')) {
-    return 'return';
-  }
-  if (normalized.contains('new')) {
-    return 'new';
-  }
-
-  return normalized;
+  return (_string(rawStatus) ?? '').trim().toLowerCase();
 }
 
 const Map<int, String> purchaseOrderDeliveryStatusLabels = {
