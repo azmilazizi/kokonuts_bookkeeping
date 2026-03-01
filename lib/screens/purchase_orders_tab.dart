@@ -1099,18 +1099,30 @@ class _DeliveryStatusCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final normalizedStatus = orderStatus.trim().toLowerCase();
-    final color = switch (normalizedStatus) {
-      'new' => Colors.red,
-      'delivered' => Colors.green,
-      'return' => Colors.yellow,
-      _ => status == 1 ? Colors.green : Colors.red,
-    };
-    final label = switch (normalizedStatus) {
-      'new' => 'New',
-      'delivered' => 'Delivered',
-      'return' => 'Return',
-      _ => status == 1 ? 'Delivered' : 'Undelivered',
-    };
+    final isDelivered = normalizedStatus == 'delivered' ||
+        normalizedStatus.contains('deliver');
+    final isReturn = normalizedStatus == 'return' ||
+        normalizedStatus.contains('return');
+    final isNew = normalizedStatus == 'new' || normalizedStatus.contains('new');
+
+    final color = isDelivered
+        ? Colors.green
+        : isReturn
+        ? Colors.yellow
+        : isNew
+        ? Colors.red
+        : status == 1
+        ? Colors.green
+        : Colors.red;
+    final label = isDelivered
+        ? 'Delivered'
+        : isReturn
+        ? 'Return'
+        : isNew
+        ? 'New'
+        : status == 1
+        ? 'Delivered'
+        : 'Undelivered';
 
     return Expanded(
       flex: flex,
