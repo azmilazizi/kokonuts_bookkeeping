@@ -7,6 +7,43 @@ import '../widgets/table_filter_bar.dart';
 
 enum AccountsSortColumn { name, parent, type, detailType, balance }
 
+enum _AccountNormalBalance { debit, credit, unknown }
+
+_AccountNormalBalance _normalBalanceForType(String? typeName) {
+  final normalized = typeName?.trim().toLowerCase() ?? '';
+  if (normalized.isEmpty) {
+    return _AccountNormalBalance.unknown;
+  }
+  if (normalized.contains('asset') || normalized.contains('expense')) {
+    return _AccountNormalBalance.debit;
+  }
+  if (normalized.contains('liabilit') ||
+      normalized.contains('equity') ||
+      normalized.contains('revenue') ||
+      normalized.contains('income')) {
+    return _AccountNormalBalance.credit;
+  }
+  return _AccountNormalBalance.unknown;
+}
+
+double accountPrimaryBalanceForDisplay(Account account) {
+  final rawValue = account.primaryBalance.replaceAll(',', '').trim();
+  final parsed = double.tryParse(rawValue);
+  if (parsed == null) {
+    return 0;
+  }
+
+  final normalBalance = _normalBalanceForType(account.typeName);
+  if (normalBalance == _AccountNormalBalance.credit) {
+    return -parsed;
+  }
+  return parsed;
+}
+
+String accountPrimaryBalanceTextForDisplay(Account account) {
+  return accountPrimaryBalanceForDisplay(account).toStringAsFixed(2);
+}
+
 class AccountsTab extends StatefulWidget {
   const AccountsTab({super.key});
 
@@ -338,7 +375,7 @@ class _AccountsTabState extends State<AccountsTab>
     if (detailType.contains(query)) {
       return true;
     }
-    final balance = account.primaryBalance.toLowerCase();
+    final balance = accountPrimaryBalanceTextForDisplay(account).toLowerCase();
     return balance.contains(query);
   }
 
@@ -463,8 +500,7 @@ class _AccountsTabState extends State<AccountsTab>
   }
 
   double _balanceValue(Account account) {
-    final normalized = account.primaryBalance.replaceAll(',', '').trim();
-    return double.tryParse(normalized) ?? 0;
+    return accountPrimaryBalanceForDisplay(account);
   }
 
   void _mergeAccountNames(Map<String, String> names) {
@@ -662,7 +698,11 @@ class _AccountsRow extends StatelessWidget {
           _DataCell(parentName, flex: _columnFlex[1]),
           _DataCell(account.typeName ?? '—', flex: _columnFlex[2]),
           _DataCell(account.detailTypeName ?? '—', flex: _columnFlex[3]),
-          _DataCell(account.primaryBalance, flex: _columnFlex[4], textAlign: TextAlign.end),
+          _DataCell(
+            accountPrimaryBalanceTextForDisplay(account),
+            flex: _columnFlex[4],
+            textAlign: TextAlign.end,
+          ),
         ],
       ),
     );
