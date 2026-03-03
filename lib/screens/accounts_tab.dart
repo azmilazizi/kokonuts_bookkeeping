@@ -34,7 +34,7 @@ double accountPrimaryBalanceForDisplay(Account account) {
   }
 
   final normalBalance = _normalBalanceForType(account.typeName);
-  if (normalBalance == _AccountNormalBalance.credit) {
+  if (normalBalance == _AccountNormalBalance.credit && parsed < 0) {
     return -parsed;
   }
   return parsed;
