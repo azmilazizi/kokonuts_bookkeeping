@@ -30014,7 +30014,7 @@ if(B.b.p(s,"liabilit")||B.b.p(s,"equity")||B.b.p(s,"revenue")||B.b.p(s,"income")
 return B.JD},
 bhv(a){var s=A.by(B.b.E(A.aF(a.r,",","")))
 if(s==null)return 0
-if(A.bNG(a.d)===B.JC)return-s
+if(A.bNG(a.d)===B.JC&&s<0)return-s
 return s},
 qg:function qg(a,b){this.a=a
 this.b=b},
