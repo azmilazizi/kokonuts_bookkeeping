@@ -108,6 +108,16 @@ class PaymentModesService {
   }
 
   int? _extractBankCashAccountId(Map<String, dynamic> source) {
+    final paymentModeMapping = source['payment_mode_mapping'];
+    if (paymentModeMapping is Map<String, dynamic>) {
+      final mappedPaymentAccountId = _parseAccountId(
+        paymentModeMapping['payment_account'],
+      );
+      if (mappedPaymentAccountId != null) {
+        return mappedPaymentAccountId;
+      }
+    }
+
     const candidateKeys = [
       'bank_cash_account_id',
       'bankcashaccountid',
@@ -131,16 +141,18 @@ class PaymentModesService {
     ];
 
     for (final key in candidateKeys) {
-      final value = source[key];
-      if (value is int) {
-        return value;
-      }
-      if (value is String) {
-        final parsed = int.tryParse(value.trim());
-        if (parsed != null) {
-          return parsed;
-        }
-      }
+      final parsed = _parseAccountId(source[key]);
+      if (parsed != null) return parsed;
+    }
+    return null;
+  }
+
+  int? _parseAccountId(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is String) {
+      return int.tryParse(value.trim());
     }
     return null;
   }
