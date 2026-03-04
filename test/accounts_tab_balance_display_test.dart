@@ -23,6 +23,12 @@ void main() {
       expect(accountPrimaryBalanceTextForDisplay(account), '30000.00');
     });
 
+    test('flips debit-normal assets sign when api returns negative debit balance', () {
+      final account = _account(typeName: 'Current assets', primaryBalance: '-38.49');
+
+      expect(accountPrimaryBalanceTextForDisplay(account), '38.49');
+    });
+
     test('flips credit-normal liabilities sign for display', () {
       final account = _account(typeName: 'Non-current liabilities', primaryBalance: '-30000');
 
