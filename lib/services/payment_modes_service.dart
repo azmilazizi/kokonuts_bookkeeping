@@ -52,7 +52,11 @@ class PaymentModesService {
       final id = _extractPaymentModeId(source);
       final name = _extractPaymentModeName(source);
       if (id != null && name != null) {
-        results[id] = PaymentMode(id: id, name: name);
+        results[id] = PaymentMode(
+          id: id,
+          name: name,
+          bankCashAccountId: _extractBankCashAccountId(source),
+        );
       }
       for (final value in source.values) {
         _collectPaymentModes(value, results);
@@ -102,13 +106,56 @@ class PaymentModesService {
     }
     return null;
   }
+
+  int? _extractBankCashAccountId(Map<String, dynamic> source) {
+    const candidateKeys = [
+      'bank_cash_account_id',
+      'bankcashaccountid',
+      'bankCashAccountId',
+      'account_id',
+      'accountid',
+      'accountId',
+      'chart_of_account_id',
+      'chartofaccountid',
+      'chartOfAccountId',
+      'payment_mode_account_id',
+      'paymentmodeaccountid',
+      'paymentModeAccountId',
+      'mapped_account_id',
+      'mappedaccountid',
+      'mappedAccountId',
+      'account',
+      'linked_account_id',
+      'linkedaccountid',
+      'linkedAccountId',
+    ];
+
+    for (final key in candidateKeys) {
+      final value = source[key];
+      if (value is int) {
+        return value;
+      }
+      if (value is String) {
+        final parsed = int.tryParse(value.trim());
+        if (parsed != null) {
+          return parsed;
+        }
+      }
+    }
+    return null;
+  }
 }
 
 class PaymentMode {
-  const PaymentMode({required this.id, required this.name});
+  const PaymentMode({
+    required this.id,
+    required this.name,
+    this.bankCashAccountId,
+  });
 
   final String id;
   final String name;
+  final int? bankCashAccountId;
 }
 
 class PaymentModesException implements Exception {

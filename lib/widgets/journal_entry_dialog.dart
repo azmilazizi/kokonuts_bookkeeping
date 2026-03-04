@@ -9,6 +9,7 @@ import 'package:kokonuts_bookkeeping/widgets/journal_history_dialog.dart';
 import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
 import '../services/auth_http_client.dart';
+import '../services/payment_modes_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
 import 'form_error_banner.dart';
@@ -24,15 +25,6 @@ enum _EntryType {
 
   const _EntryType(this.label);
   final String label;
-}
-
-enum _PaymentMode {
-  cash('Cash', 2),
-  bankTransfer('Bank Transfer', 139);
-
-  const _PaymentMode(this.label, this.bankCashAccountId);
-  final String label;
-  final int bankCashAccountId;
 }
 
 enum _Owner {
@@ -75,19 +67,23 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   final _descriptionController = TextEditingController();
   final _dateController = TextEditingController();
   final _entryIdController = TextEditingController();
+  final _paymentModesService = PaymentModesService();
 
   DateTime _journalDate = DateTime.now();
   int? _nextEntryNumber;
   _EntryType? _entryType;
   _AccountMapping? _editingAccountMapping;
-  _PaymentMode? _paymentMode;
+  PaymentMode? _paymentMode;
   _Owner? _owner;
   bool _isSubmitting = false;
   bool _isFetchingEntryId = false;
+  bool _isLoadingPaymentModes = false;
   String? _submitError;
   String? _entryId;
   String? _entryIdError;
+  String? _paymentModesError;
   List<PlatformFile> _attachments = const [];
+  List<PaymentMode> _paymentModes = const [];
 
   @override
   void dispose() {
@@ -103,6 +99,63 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     super.initState();
     _initializeFromExisting();
     _updateDateText();
+    _loadPaymentModes();
+  }
+
+  Future<void> _loadPaymentModes() async {
+    setState(() {
+      _isLoadingPaymentModes = true;
+      _paymentModesError = null;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _paymentModesError = 'You are not logged in.';
+        _isLoadingPaymentModes = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      final modes = await _paymentModesService.fetchPaymentModes(headers: headers);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _paymentModes = modes;
+        _isLoadingPaymentModes = false;
+        if (_paymentMode != null &&
+            !_paymentModes.any((mode) => mode.id == _paymentMode!.id)) {
+          _paymentMode = null;
+        }
+      });
+    } on PaymentModesException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _paymentModesError = error.message;
+        _isLoadingPaymentModes = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _paymentModesError = 'Failed to load payment modes: $error';
+        _isLoadingPaymentModes = false;
+      });
+    }
   }
 
   void _initializeFromExisting() {
@@ -445,34 +498,44 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       case _EntryType.cashWithdrawal:
         return const _AccountMapping(debitAccountId: 2, creditAccountId: 139);
       case _EntryType.ownersDraw:
-        if (_owner == null || _paymentMode == null) return null;
+        if (_owner == null || _paymentMode?.bankCashAccountId == null) {
+          return null;
+        }
         return _AccountMapping(
           debitAccountId: _owner!.equityAccountId,
-          creditAccountId: _paymentMode!.bankCashAccountId,
+          creditAccountId: _paymentMode!.bankCashAccountId!,
         );
       case _EntryType.ownersCapitalInjection:
-        if (_owner == null || _paymentMode == null) return null;
+        if (_owner == null || _paymentMode?.bankCashAccountId == null) {
+          return null;
+        }
         return _AccountMapping(
-          debitAccountId: _paymentMode!.bankCashAccountId,
+          debitAccountId: _paymentMode!.bankCashAccountId!,
           creditAccountId: _owner!.equityAccountId,
         );
       case _EntryType.loanToOwner:
-        if (_owner == null || _paymentMode == null) return null;
+        if (_owner == null || _paymentMode?.bankCashAccountId == null) {
+          return null;
+        }
         return _AccountMapping(
           debitAccountId: _owner!.loanToOwnerAccountId,
-          creditAccountId: _paymentMode!.bankCashAccountId,
+          creditAccountId: _paymentMode!.bankCashAccountId!,
         );
       case _EntryType.ownerLoanRepayment:
-        if (_owner == null || _paymentMode == null) return null;
+        if (_owner == null || _paymentMode?.bankCashAccountId == null) {
+          return null;
+        }
         return _AccountMapping(
-          debitAccountId: _paymentMode!.bankCashAccountId,
+          debitAccountId: _paymentMode!.bankCashAccountId!,
           creditAccountId: _owner!.loanToOwnerAccountId,
         );
       case _EntryType.reimburseOwner:
-        if (_owner == null || _paymentMode == null) return null;
+        if (_owner == null || _paymentMode?.bankCashAccountId == null) {
+          return null;
+        }
         return _AccountMapping(
           debitAccountId: _owner!.dueToOwnerAccountId,
-          creditAccountId: _paymentMode!.bankCashAccountId,
+          creditAccountId: _paymentMode!.bankCashAccountId!,
         );
     }
   }
@@ -494,7 +557,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       'transfer_funds_from': transferFundsFrom,
       'transfer_funds_to': transferFundsTo,
       'addedfrom': addedFromValue,
-      if (_paymentMode != null) 'payment_mode': _paymentMode!.label,
+      if (_paymentMode != null) 'payment_mode': _paymentMode!.name,
     };
   }
 
@@ -1211,27 +1274,35 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                         Widget? paymentModeField;
                         if (_showsPaymentMode) {
                           paymentModeField =
-                              DropdownButtonFormField<_PaymentMode>(
+                              DropdownButtonFormField<PaymentMode>(
                             value: _paymentMode,
                             decoration: const InputDecoration(
                               labelText: 'Payment Mode',
                             ),
-                            items: _PaymentMode.values
+                            items: _paymentModes
                                 .map(
                                   (mode) => DropdownMenuItem(
                                     value: mode,
-                                    child: Text(mode.label),
+                                    child: Text(mode.name),
                                   ),
                                 )
                                 .toList(),
-                            onChanged: _isSubmitting
+                            onChanged: _isSubmitting || _isLoadingPaymentModes
                                 ? null
                                 : (value) =>
                                       setState(() => _paymentMode = value),
-                            validator: (value) =>
-                                _showsPaymentMode && value == null
-                                ? 'Select a payment mode'
-                                : null,
+                            validator: (value) {
+                              if (!_showsPaymentMode) {
+                                return null;
+                              }
+                              if (value == null) {
+                                return 'Select a payment mode';
+                              }
+                              if (value.bankCashAccountId == null) {
+                                return 'Selected payment mode has no mapped account';
+                              }
+                              return null;
+                            },
                           );
                         }
 
@@ -1277,6 +1348,22 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                         return Column(
                           children: [
                             if (paymentModeField != null) paymentModeField,
+                            if (_showsPaymentMode && _isLoadingPaymentModes)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 8),
+                                child: LinearProgressIndicator(minHeight: 2),
+                              ),
+                            if (_showsPaymentMode && _paymentModesError != null)
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton.icon(
+                                  onPressed: _isLoadingPaymentModes
+                                      ? null
+                                      : _loadPaymentModes,
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Retry payment modes'),
+                                ),
+                              ),
                             if (paymentModeField != null && ownerField != null)
                               const SizedBox(height: 12),
                             if (ownerField != null) ownerField,
