@@ -362,15 +362,6 @@ class PurchaseOrdersService {
       return null;
     }
 
-    if (file.readStream != null) {
-      return http.MultipartFile(
-        _attachmentFieldName,
-        file.readStream!,
-        file.size,
-        filename: sanitizedName,
-      );
-    }
-
     if (file.bytes != null) {
       return http.MultipartFile.fromBytes(
         _attachmentFieldName,
@@ -384,6 +375,15 @@ class PurchaseOrdersService {
       return http.MultipartFile.fromPath(
         _attachmentFieldName,
         path,
+        filename: sanitizedName,
+      );
+    }
+
+    if (file.readStream != null) {
+      return http.MultipartFile(
+        _attachmentFieldName,
+        file.readStream!,
+        file.size,
         filename: sanitizedName,
       );
     }
