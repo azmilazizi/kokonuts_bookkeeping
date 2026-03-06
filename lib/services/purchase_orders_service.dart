@@ -370,15 +370,6 @@ class PurchaseOrdersService {
       );
     }
 
-    final path = file.path?.trim();
-    if (path != null && path.isNotEmpty) {
-      return http.MultipartFile.fromPath(
-        _attachmentFieldName,
-        path,
-        filename: sanitizedName,
-      );
-    }
-
     if (file.readStream != null) {
       return http.MultipartFile(
         _attachmentFieldName,
@@ -386,6 +377,17 @@ class PurchaseOrdersService {
         file.size,
         filename: sanitizedName,
       );
+    }
+
+    if (!kIsWeb) {
+      final path = file.path?.trim();
+      if (path != null && path.isNotEmpty) {
+        return http.MultipartFile.fromPath(
+          _attachmentFieldName,
+          path,
+          filename: sanitizedName,
+        );
+      }
     }
 
     return null;
