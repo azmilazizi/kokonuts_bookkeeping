@@ -8,6 +8,7 @@ import 'package:kokonuts_bookkeeping/widgets/journal_history_dialog.dart';
 
 import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
+import '../services/accounts_service.dart';
 import '../services/auth_http_client.dart';
 import '../services/payment_modes_service.dart';
 import 'attachment_picker.dart';
@@ -21,7 +22,8 @@ enum _EntryType {
   ownersCapitalInjection("Owner's Capital Injection"),
   loanToOwner('Loan to Owner'),
   ownerLoanRepayment('Owner Loan Repayment'),
-  reimburseOwner('Reimburse Owner');
+  reimburseOwner('Reimburse Owner'),
+  transfer('Transfer');
 
   const _EntryType(this.label);
   final String label;
@@ -68,6 +70,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   final _dateController = TextEditingController();
   final _entryIdController = TextEditingController();
   final _paymentModesService = PaymentModesService();
+  final _accountsService = AccountsService();
 
   DateTime _journalDate = DateTime.now();
   int? _nextEntryNumber;
@@ -84,6 +87,11 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   String? _paymentModesError;
   List<PlatformFile> _attachments = const [];
   List<PaymentMode> _paymentModes = const [];
+  List<Account> _transferAccounts = const [];
+  Account? _transferFundsFrom;
+  Account? _transferFundsTo;
+  bool _isLoadingTransferAccounts = false;
+  String? _transferAccountsError;
 
   @override
   void dispose() {
@@ -100,6 +108,95 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     _initializeFromExisting();
     _updateDateText();
     _loadPaymentModes();
+    if (_showsTransferAccounts) {
+      _loadTransferAccounts();
+    }
+  }
+
+  Future<void> _loadTransferAccounts() async {
+    setState(() {
+      _isLoadingTransferAccounts = true;
+      _transferAccountsError = null;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _transferAccountsError = 'You are not logged in.';
+        _isLoadingTransferAccounts = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      final result = await _accountsService.fetchAccounts(
+        page: 1,
+        perPage: 300,
+        headers: headers,
+        includeBalances: false,
+      );
+      final fetchedAccounts = result.accounts;
+
+      if (!mounted) {
+        return;
+      }
+
+      Account? resolveSelectedAccount(int? id) {
+        if (id == null) {
+          return null;
+        }
+        final idText = id.toString();
+        for (final account in fetchedAccounts) {
+          if (account.id == idText) {
+            return account;
+          }
+        }
+        return null;
+      }
+
+      setState(() {
+        _transferAccounts = fetchedAccounts;
+        _isLoadingTransferAccounts = false;
+
+        final existingFrom = resolveSelectedAccount(
+          widget.initialItem?.creditAccountId,
+        );
+        if (_transferFundsFrom == null ||
+            !_transferAccounts.any((item) => item.id == _transferFundsFrom!.id)) {
+          _transferFundsFrom = existingFrom;
+        }
+
+        final existingTo = resolveSelectedAccount(widget.initialItem?.debitAccountId);
+        if (_transferFundsTo == null ||
+            !_transferAccounts.any((item) => item.id == _transferFundsTo!.id)) {
+          _transferFundsTo = existingTo;
+        }
+      });
+    } on AccountsException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _transferAccountsError = error.message;
+        _isLoadingTransferAccounts = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _transferAccountsError = 'Failed to load accounts: $error';
+        _isLoadingTransferAccounts = false;
+      });
+    }
   }
 
   Future<void> _loadPaymentModes() async {
@@ -273,14 +370,21 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   }
 
   bool get _showsOwner {
-    return _entryType != null &&
-        _entryType != _EntryType.cashDeposit &&
-        _entryType != _EntryType.cashWithdrawal;
+    return _entryType == _EntryType.ownersDraw ||
+        _entryType == _EntryType.ownersCapitalInjection ||
+        _entryType == _EntryType.loanToOwner ||
+        _entryType == _EntryType.ownerLoanRepayment ||
+        _entryType == _EntryType.reimburseOwner;
   }
 
   bool get _showsAttachmentPicker =>
       _entryType != _EntryType.cashDeposit &&
       _entryType != _EntryType.cashWithdrawal;
+
+  bool get _showsTransferAccounts => _entryType == _EntryType.transfer;
+
+  bool get _showsDescriptionField =>
+      !_isTransfer || _entryType == _EntryType.transfer;
 
   bool get _isEditing => widget.initialItem != null;
 
@@ -290,7 +394,8 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     }
 
     return _entryType == _EntryType.cashDeposit ||
-        _entryType == _EntryType.cashWithdrawal;
+        _entryType == _EntryType.cashWithdrawal ||
+        _entryType == _EntryType.transfer;
   }
 
   bool get _showsEntryIdField =>
@@ -299,8 +404,8 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   void _onEntryTypeChanged(_EntryType? type) {
     setState(() {
       _entryType = type;
-      if (_isTransfer && type != null) {
-        _descriptionController.text = type.label;
+      if (type == _EntryType.cashDeposit || type == _EntryType.cashWithdrawal) {
+        _descriptionController.text = type!.label;
       } else {
         _descriptionController.clear();
       }
@@ -313,6 +418,11 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       if (!_showsAttachmentPicker) {
         _attachments = const [];
       }
+      if (!_showsTransferAccounts) {
+        _transferFundsFrom = null;
+        _transferFundsTo = null;
+        _transferAccountsError = null;
+      }
       if (!_showsEntryIdField) {
         _entryId = null;
         _entryIdController.clear();
@@ -324,6 +434,10 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
 
     if (_showsEntryIdField) {
       _fetchNextEntryNumber();
+    }
+
+    if (_showsTransferAccounts) {
+      _loadTransferAccounts();
     }
   }
 
@@ -537,6 +651,18 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
           debitAccountId: _owner!.dueToOwnerAccountId,
           creditAccountId: _paymentMode!.bankCashAccountId!,
         );
+      case _EntryType.transfer:
+        final from = _transferFundsFrom;
+        final to = _transferFundsTo;
+        final fromAccountId = int.tryParse(from?.id ?? '');
+        final toAccountId = int.tryParse(to?.id ?? '');
+        if (fromAccountId == null || toAccountId == null) {
+          return null;
+        }
+        return _AccountMapping(
+          debitAccountId: toAccountId,
+          creditAccountId: fromAccountId,
+        );
     }
   }
 
@@ -562,7 +688,9 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   }
 
   String get _payloadDescription {
-    if (_isTransfer && _entryType != null) {
+    if ((_entryType == _EntryType.cashDeposit ||
+            _entryType == _EntryType.cashWithdrawal) &&
+        _entryType != null) {
       return _entryType!.label;
     }
     return _descriptionController.text.trim();
@@ -801,6 +929,17 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
 
     final isValid = _formKey.currentState?.validate() ?? false;
     if (!isValid) {
+      return;
+    }
+
+    if (_showsTransferAccounts &&
+        _transferFundsFrom != null &&
+        _transferFundsTo != null &&
+        _transferFundsFrom!.id == _transferFundsTo!.id) {
+      setState(() {
+        _submitError =
+            'Transfer Funds From and Transfer Funds To must be different accounts.';
+      });
       return;
     }
 
@@ -1373,6 +1512,107 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                     ),
                     const SizedBox(height: 16),
                   ],
+                  if (_showsTransferAccounts) ...[
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isWide = constraints.maxWidth >= 620;
+                        final fromField = DropdownButtonFormField<Account>(
+                          value: _transferFundsFrom,
+                          decoration: const InputDecoration(
+                            labelText: 'Transfer Funds From',
+                          ),
+                          items: _transferAccounts
+                              .map(
+                                (account) => DropdownMenuItem(
+                                  value: account,
+                                  child: Text(account.name),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: _isSubmitting || _isLoadingTransferAccounts
+                              ? null
+                              : (value) =>
+                                    setState(() => _transferFundsFrom = value),
+                          validator: (value) {
+                            if (!_showsTransferAccounts) {
+                              return null;
+                            }
+                            if (value == null) {
+                              return 'Select an account';
+                            }
+                            return null;
+                          },
+                        );
+
+                        final toField = DropdownButtonFormField<Account>(
+                          value: _transferFundsTo,
+                          decoration: const InputDecoration(
+                            labelText: 'Transfer Funds To',
+                          ),
+                          items: _transferAccounts
+                              .map(
+                                (account) => DropdownMenuItem(
+                                  value: account,
+                                  child: Text(account.name),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: _isSubmitting || _isLoadingTransferAccounts
+                              ? null
+                              : (value) =>
+                                    setState(() => _transferFundsTo = value),
+                          validator: (value) {
+                            if (!_showsTransferAccounts) {
+                              return null;
+                            }
+                            if (value == null) {
+                              return 'Select an account';
+                            }
+                            if (_transferFundsFrom != null &&
+                                value.id == _transferFundsFrom!.id) {
+                              return 'Please choose a different account';
+                            }
+                            return null;
+                          },
+                        );
+
+                        if (isWide) {
+                          return Row(
+                            children: [
+                              Expanded(child: fromField),
+                              const SizedBox(width: 16),
+                              Expanded(child: toField),
+                            ],
+                          );
+                        }
+
+                        return Column(
+                          children: [
+                            fromField,
+                            const SizedBox(height: 12),
+                            toField,
+                          ],
+                        );
+                      },
+                    ),
+                    if (_isLoadingTransferAccounts)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: LinearProgressIndicator(minHeight: 2),
+                      ),
+                    if (_transferAccountsError != null)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: _isLoadingTransferAccounts
+                              ? null
+                              : _loadTransferAccounts,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Retry accounts'),
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                  ],
                   TextFormField(
                     controller: _amountController,
                     keyboardType: TextInputType.number,
@@ -1389,7 +1629,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                     },
                     enabled: !_isSubmitting,
                   ),
-                  if (!_isTransfer) ...[
+                  if (_showsDescriptionField) ...[
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _descriptionController,
