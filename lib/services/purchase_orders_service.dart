@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
@@ -370,15 +371,6 @@ class PurchaseOrdersService {
       );
     }
 
-    final path = file.path?.trim();
-    if (path != null && path.isNotEmpty) {
-      return http.MultipartFile.fromPath(
-        _attachmentFieldName,
-        path,
-        filename: sanitizedName,
-      );
-    }
-
     if (file.readStream != null) {
       return http.MultipartFile(
         _attachmentFieldName,
@@ -386,6 +378,17 @@ class PurchaseOrdersService {
         file.size,
         filename: sanitizedName,
       );
+    }
+
+    if (!kIsWeb) {
+      final path = file.path?.trim();
+      if (path != null && path.isNotEmpty) {
+        return http.MultipartFile.fromPath(
+          _attachmentFieldName,
+          path,
+          filename: sanitizedName,
+        );
+      }
     }
 
     return null;
