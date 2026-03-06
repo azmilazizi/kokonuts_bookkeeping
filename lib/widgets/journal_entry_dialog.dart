@@ -137,19 +137,13 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
     final headers = _buildAuthHeaders(appState, token);
 
     try {
-      final fetchedAccounts = <Account>[];
-      var page = 1;
-      var hasMore = true;
-      while (hasMore) {
-        final result = await _accountsService.fetchAccounts(
-          page: page,
-          perPage: 100,
-          headers: headers,
-        );
-        fetchedAccounts.addAll(result.accounts);
-        hasMore = result.hasMore;
-        page += 1;
-      }
+      final result = await _accountsService.fetchAccounts(
+        page: 1,
+        perPage: 300,
+        headers: headers,
+        includeBalances: false,
+      );
+      final fetchedAccounts = result.accounts;
 
       if (!mounted) {
         return;
