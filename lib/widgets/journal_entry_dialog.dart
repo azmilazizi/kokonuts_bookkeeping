@@ -370,9 +370,11 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   }
 
   bool get _showsOwner {
-    return _entryType != null &&
-        _entryType != _EntryType.cashDeposit &&
-        _entryType != _EntryType.cashWithdrawal;
+    return _entryType == _EntryType.ownersDraw ||
+        _entryType == _EntryType.ownersCapitalInjection ||
+        _entryType == _EntryType.loanToOwner ||
+        _entryType == _EntryType.ownerLoanRepayment ||
+        _entryType == _EntryType.reimburseOwner;
   }
 
   bool get _showsAttachmentPicker =>
@@ -380,6 +382,9 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
       _entryType != _EntryType.cashWithdrawal;
 
   bool get _showsTransferAccounts => _entryType == _EntryType.transfer;
+
+  bool get _showsDescriptionField =>
+      !_isTransfer || _entryType == _EntryType.transfer;
 
   bool get _isEditing => widget.initialItem != null;
 
@@ -399,8 +404,8 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   void _onEntryTypeChanged(_EntryType? type) {
     setState(() {
       _entryType = type;
-      if (_isTransfer && type != null) {
-        _descriptionController.text = type.label;
+      if (type == _EntryType.cashDeposit || type == _EntryType.cashWithdrawal) {
+        _descriptionController.text = type!.label;
       } else {
         _descriptionController.clear();
       }
@@ -683,7 +688,9 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
   }
 
   String get _payloadDescription {
-    if (_isTransfer && _entryType != null) {
+    if ((_entryType == _EntryType.cashDeposit ||
+            _entryType == _EntryType.cashWithdrawal) &&
+        _entryType != null) {
       return _entryType!.label;
     }
     return _descriptionController.text.trim();
@@ -1622,7 +1629,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
                     },
                     enabled: !_isSubmitting,
                   ),
-                  if (!_isTransfer) ...[
+                  if (_showsDescriptionField) ...[
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _descriptionController,
