@@ -24,8 +24,9 @@ class _HtmlPdfPreview extends StatefulWidget {
 
 class _HtmlPdfPreviewState extends State<_HtmlPdfPreview> {
   late final String _viewType;
-  html.IFrameElement? _iframe;
+  late final html.IFrameElement _iframe;
   String? _blobUrl;
+  int _loadRequestId = 0;
 
   @override
   void initState() {
@@ -33,39 +34,38 @@ class _HtmlPdfPreviewState extends State<_HtmlPdfPreview> {
     _viewType =
         'attachment-pdf-preview-${DateTime.now().microsecondsSinceEpoch}-${hashCode}';
 
-    // Register the view factory immediately, but the src might be updated later if we need to fetch with headers
+    _iframe = html.IFrameElement()
+      ..style.border = 'none'
+      ..style.width = '100%'
+      ..style.height = '100%'
+      ..allow = 'fullscreen'
+      ..setAttribute('loading', 'lazy');
+
+    // Register the view factory immediately with a pre-created iframe so that
+    // async PDF loading can always update a concrete element.
     ui.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
-      _iframe = html.IFrameElement()
-        ..style.border = 'none'
-        ..style.width = '100%'
-        ..style.height = '100%'
-        ..allow = 'fullscreen'
-        ..setAttribute('loading', 'lazy');
-
-      // If no headers, use direct URL. If headers exist, we wait for _loadPdf to set src.
-      if (widget.headers == null || widget.headers!.isEmpty) {
-         _iframe!.src = widget.downloadUrl;
-      }
-
-      return _iframe!;
+      return _iframe;
     });
 
     if (widget.headers != null && widget.headers!.isNotEmpty) {
       _loadPdf();
+    } else {
+      _iframe.src = widget.downloadUrl;
     }
   }
 
   @override
   void didUpdateWidget(covariant _HtmlPdfPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.downloadUrl != oldWidget.downloadUrl || widget.headers != oldWidget.headers) {
-       if (widget.headers != null && widget.headers!.isNotEmpty) {
-          _revokeBlob();
-          _loadPdf();
-       } else {
-          _revokeBlob();
-          _iframe?.src = widget.downloadUrl;
-       }
+    if (widget.downloadUrl != oldWidget.downloadUrl ||
+        widget.headers != oldWidget.headers) {
+      if (widget.headers != null && widget.headers!.isNotEmpty) {
+        _revokeBlob();
+        _loadPdf();
+      } else {
+        _revokeBlob();
+        _iframe.src = widget.downloadUrl;
+      }
     }
   }
 
@@ -83,24 +83,37 @@ class _HtmlPdfPreviewState extends State<_HtmlPdfPreview> {
   }
 
   Future<void> _loadPdf() async {
+    final requestId = ++_loadRequestId;
     try {
       final response = await http.get(
         Uri.parse(widget.downloadUrl),
         headers: widget.headers,
       );
 
+      if (!mounted || requestId != _loadRequestId) {
+        return;
+      }
+
       if (response.statusCode == 200) {
         final blob = html.Blob([response.bodyBytes], 'application/pdf');
-        _blobUrl = html.Url.createObjectUrlFromBlob(blob);
-        _iframe?.src = _blobUrl!;
+        final oldBlobUrl = _blobUrl;
+        final nextBlobUrl = html.Url.createObjectUrlFromBlob(blob);
+        _blobUrl = nextBlobUrl;
+        _iframe.src = nextBlobUrl;
+        if (oldBlobUrl != null) {
+          html.Url.revokeObjectUrl(oldBlobUrl);
+        }
       } else {
         // Fallback or error handling
         // For now, if fetch fails, maybe try direct load?
-        _iframe?.src = widget.downloadUrl;
+        _iframe.src = widget.downloadUrl;
       }
     } catch (e) {
       // If error (e.g. CORS), fallback to direct URL
-      _iframe?.src = widget.downloadUrl;
+      if (!mounted || requestId != _loadRequestId) {
+        return;
+      }
+      _iframe.src = widget.downloadUrl;
     }
   }
 
