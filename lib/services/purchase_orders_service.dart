@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -387,6 +388,26 @@ class PurchaseOrdersService {
     }
 
     return null;
+  }
+
+  Uint8List? _tryReadBytes(PlatformFile file) {
+    try {
+      return file.bytes;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Stream<List<int>>? _tryReadStream(PlatformFile file) {
+    if (kIsWeb) {
+      return null;
+    }
+
+    try {
+      return file.readStream;
+    } catch (_) {
+      return null;
+    }
   }
 
   List<dynamic> _extractOrdersList(dynamic decoded) {
