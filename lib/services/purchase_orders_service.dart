@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
+import '../utils/platform_file_loader.dart';
 
 class PurchaseOrdersService {
   PurchaseOrdersService({http.Client? client})
@@ -289,7 +290,9 @@ class PurchaseOrdersService {
     final uploadFiles =
         files.whereType<http.MultipartFile>().toList(growable: false);
     if (uploadFiles.isEmpty) {
-      return;
+      throw PurchaseOrdersException(
+        'No valid attachments were found to upload. Please reselect the file and try again.',
+      );
     }
 
     final request = http.MultipartRequest(
@@ -364,21 +367,11 @@ class PurchaseOrdersService {
       return null;
     }
 
-    final bytes = _tryReadBytes(file);
-    if (bytes != null) {
+    final bytes = await loadPlatformFileBytes(file);
+    if (bytes != null && bytes.isNotEmpty) {
       return http.MultipartFile.fromBytes(
         _attachmentFieldName,
         bytes,
-        filename: sanitizedName,
-      );
-    }
-
-    final readStream = _tryReadStream(file);
-    if (readStream != null) {
-      return http.MultipartFile(
-        _attachmentFieldName,
-        readStream,
-        file.size,
         filename: sanitizedName,
       );
     }
