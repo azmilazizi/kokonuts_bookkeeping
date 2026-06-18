@@ -1,4 +1,5 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -76,15 +77,29 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen>
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
-      withData: false,
+      withData: kIsWeb,
       withReadStream: false,
     );
-    final path = picked?.files.firstOrNull?.path;
-    if (path == null || !mounted) return;
-    await _runScan(path);
+    final file = picked?.files.firstOrNull;
+    if (file == null || !mounted) return;
+
+    final path = file.path;
+    final bytes = file.bytes;
+
+    if (path == null && bytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not read the selected file. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    await _runScan(path ?? file.name, bytes: bytes);
   }
 
-  Future<void> _runScan(String filePath) async {
+  Future<void> _runScan(String filePath, {Uint8List? bytes}) async {
     setState(() => _isScanning = true);
     _startProgress();
 
@@ -97,7 +112,7 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen>
         baseUrl: 'https://crm.kokonuts.my',
         headers: _buildHeaders(appState, token),
       );
-      final result = await service.scan(filePath);
+      final result = await service.scan(filePath, bytes: bytes);
 
       if (!mounted) return;
 

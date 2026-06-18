@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -15,16 +16,15 @@ class ReceiptScanService {
   final Map<String, String> _headers;
   final http.Client _client;
 
-  Future<Map<String, dynamic>> scan(String imagePath) async {
+  Future<Map<String, dynamic>> scan(String imagePath, {Uint8List? bytes}) async {
     final uri = Uri.parse('$baseUrl/api/v1/ai/receipt/scan');
+    final filename = File(imagePath).uri.pathSegments.last;
     final request = http.MultipartRequest('POST', uri)
       ..headers.addAll(_headers)
       ..files.add(
-        await http.MultipartFile.fromPath(
-          'receipt',
-          imagePath,
-          filename: File(imagePath).uri.pathSegments.last,
-        ),
+        bytes != null
+            ? http.MultipartFile.fromBytes('receipt', bytes, filename: filename)
+            : await http.MultipartFile.fromPath('receipt', imagePath, filename: filename),
       );
 
     http.StreamedResponse streamed;
