@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 
 import '../app/app_state.dart';
 import '../app/app_state_scope.dart';
@@ -9,6 +10,7 @@ import 'bills_tab.dart';
 import 'expenses_tab.dart';
 import 'overview_tab.dart';
 import 'purchase_orders_tab.dart';
+import 'scan_receipt_screen.dart';
 
 import '../services/bills_service.dart';
 import '../services/expenses_service.dart';
@@ -166,6 +168,95 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
+  Future<void> _openScanScreen(BuildContext context, String recordType) async {
+    final scanResponse = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute<Map<String, dynamic>>(
+        builder: (_) => ScanReceiptScreen(recordType: recordType),
+      ),
+    );
+
+    if (!mounted || scanResponse == null) return;
+
+    final result = scanResponse['result'] as Map<String, dynamic>?;
+    final filePath = scanResponse['filePath'] as String?;
+    if (result == null) return;
+
+    if (recordType == 'purchase_order') {
+      final createdOrder = await showDialog<PurchaseOrder>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AddPurchaseOrderDialog(
+          extracted: result,
+          scannedFilePath: filePath,
+        ),
+      );
+      if (!mounted) return;
+      if (createdOrder != null) {
+        final normalizedNumber = createdOrder.number.trim();
+        final orderLabel =
+            normalizedNumber.isEmpty || normalizedNumber == '—'
+                ? createdOrder.name
+                : normalizedNumber;
+        _purchaseOrdersTabKey.currentState?.insertCreatedPurchaseOrder(
+          createdOrder,
+          successMessage: orderLabel.trim().isEmpty
+              ? 'Purchase order created.'
+              : 'Purchase order $orderLabel created.',
+        );
+      }
+    } else {
+      final createdExpense = await showDialog<Expense>(
+        context: context,
+        builder: (context) => AddExpenseDialog(
+          extracted: result,
+          scannedFilePath: filePath,
+        ),
+      );
+      if (!mounted) return;
+      if (createdExpense != null) {
+        _expensesTabKey.currentState?.insertCreatedExpense(createdExpense);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Expense created successfully.')),
+        );
+      }
+    }
+  }
+
+  Widget _buildFab(BuildContext context, _HomeTab currentTab) {
+    final index = _controller.index;
+
+    if (index == 0 || index == 1) {
+      final recordType = index == 0 ? 'purchase_order' : 'expense';
+      final addLabel =
+          index == 0 ? 'Add Purchase Order' : 'Add Expense';
+
+      return SpeedDial(
+        icon: Icons.add,
+        activeIcon: Icons.close,
+        spacing: 8,
+        spaceBetweenChildren: 8,
+        children: [
+          SpeedDialChild(
+            child: const Icon(Icons.add),
+            label: addLabel,
+            onTap: () => _openAddModal(context, currentTab.title),
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.document_scanner_outlined),
+            label: 'AI Scan',
+            onTap: () => _openScanScreen(context, recordType),
+          ),
+        ],
+      );
+    }
+
+    return FloatingActionButton(
+      tooltip: 'Add ${currentTab.title}',
+      onPressed: () => _openAddModal(context, currentTab.title),
+      child: const Icon(Icons.add),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -221,7 +312,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 icon: const Icon(Icons.note_add_outlined),
                 onPressed: () => _openJournalEntryDialog(context),
               ),
-              _ThemeModeButton(appState: appState),
               IconButton(
                 tooltip: 'Log out',
                 icon: const Icon(Icons.logout),
@@ -270,90 +360,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         ),
         floatingActionButton: isOverviewTabSelected
             ? null
-            : FloatingActionButton(
-                tooltip: 'Add ${currentTab.title}',
-                onPressed: () => _openAddModal(context, currentTab.title),
-                child: const Icon(Icons.add),
-              ),
+            : _buildFab(context, currentTab),
       ),
     );
   }
 }
 
-class _ThemeModeButton extends StatelessWidget {
-  const _ThemeModeButton({required this.appState});
-
-  final AppState appState;
-
-  @override
-  Widget build(BuildContext context) {
-    final currentMode = appState.themeMode;
-    IconData icon;
-    String tooltip;
-
-    switch (currentMode) {
-      case ThemeMode.dark:
-        icon = Icons.dark_mode_outlined;
-        tooltip = 'Dark mode';
-        break;
-      case ThemeMode.light:
-        icon = Icons.light_mode_outlined;
-        tooltip = 'Light mode';
-        break;
-      case ThemeMode.system:
-        icon = Icons.brightness_auto_outlined;
-        tooltip = 'System theme';
-        break;
-    }
-
-    return IconButton(
-      tooltip: tooltip,
-      icon: Icon(icon),
-      onPressed: () => _selectTheme(context, appState),
-    );
-  }
-}
-
-Future<void> _selectTheme(BuildContext context, AppState appState) async {
-  final theme = Theme.of(context);
-  final selectedMode = await showDialog<ThemeMode>(
-    context: context,
-    builder: (context) {
-      const options = [
-        MapEntry(ThemeMode.light, 'Light'),
-        MapEntry(ThemeMode.dark, 'Dark'),
-        MapEntry(ThemeMode.system, 'System'),
-      ];
-
-      return AlertDialog(
-        title: const Text('Select theme'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: options
-              .map(
-                (option) => RadioListTile<ThemeMode>(
-                  value: option.key,
-                  groupValue: appState.themeMode,
-                  onChanged: (value) => Navigator.of(context).pop(value),
-                  title: Text(option.value, style: theme.textTheme.bodyLarge),
-                ),
-              )
-              .toList(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-        ],
-      );
-    },
-  );
-
-  if (selectedMode != null) {
-    appState.updateThemeMode(selectedMode);
-  }
-}
 
 class _HeaderMenuButton extends StatelessWidget {
   const _HeaderMenuButton({
@@ -366,7 +378,6 @@ class _HeaderMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final modeLabel = _themeModeLabel(appState.themeMode);
     return IconButton(
       tooltip: 'Menu',
       icon: const Icon(Icons.menu),
@@ -387,14 +398,6 @@ class _HeaderMenuButton extends StatelessWidget {
                     },
                   ),
                   ListTile(
-                    leading: Icon(modeLabel.icon),
-                    title: Text('Theme: ${modeLabel.tooltip}'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      _selectTheme(context, appState);
-                    },
-                  ),
-                  ListTile(
                     leading: const Icon(Icons.logout),
                     title: const Text('Log out'),
                     onTap: () {
@@ -409,33 +412,6 @@ class _HeaderMenuButton extends StatelessWidget {
         );
       },
     );
-  }
-}
-
-class _ThemeModeLabel {
-  const _ThemeModeLabel({required this.icon, required this.tooltip});
-
-  final IconData icon;
-  final String tooltip;
-}
-
-_ThemeModeLabel _themeModeLabel(ThemeMode mode) {
-  switch (mode) {
-    case ThemeMode.dark:
-      return const _ThemeModeLabel(
-        icon: Icons.dark_mode_outlined,
-        tooltip: 'Dark mode',
-      );
-    case ThemeMode.light:
-      return const _ThemeModeLabel(
-        icon: Icons.light_mode_outlined,
-        tooltip: 'Light mode',
-      );
-    case ThemeMode.system:
-      return const _ThemeModeLabel(
-        icon: Icons.brightness_auto_outlined,
-        tooltip: 'System theme',
-      );
   }
 }
 

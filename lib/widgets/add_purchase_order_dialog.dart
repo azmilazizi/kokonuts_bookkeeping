@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -32,11 +34,15 @@ class AddPurchaseOrderDialog extends StatefulWidget {
     this.initialDetail,
     this.orderId,
     this.draftId,
+    this.extracted,
+    this.scannedFilePath,
   });
 
   final PurchaseOrderDetail? initialDetail;
   final String? orderId;
   final String? draftId;
+  final Map<String, dynamic>? extracted;
+  final String? scannedFilePath;
 
   @override
   State<AddPurchaseOrderDialog> createState() => _AddPurchaseOrderDialogState();
@@ -79,6 +85,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   String? _activeDraftId;
   bool _hasEditedForm = false;
   bool _isRestoringDraft = false;
+  String? _extractedVendorName;
 
   bool _isSubmitting = false;
   String? _submitError;
@@ -133,6 +140,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     if (widget.initialDetail != null) {
       _prefillFromDetail(widget.initialDetail!);
     }
+    _prefillFromExtracted();
+    _attachScannedFile();
     _orderDiscountController.addListener(_handleItemsChanged);
     _shippingFeeController.addListener(_handleItemsChanged);
     _orderNameController.addListener(_markDirty);
@@ -343,6 +352,79 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _isRestoringDraft = false;
   }
 
+  void _prefillFromExtracted() {
+    final e = widget.extracted;
+    if (e == null) return;
+
+    final dateStr = e['date'] as String?;
+    if (dateStr != null) {
+      final parsed = DateTime.tryParse(dateStr);
+      if (parsed != null) _orderDate = parsed;
+    }
+
+    final vendor = e['vendor'] as String?;
+    _extractedVendorName = vendor;
+
+    final tax = e['tax'];
+    if (tax != null) {
+      _shippingFeeController.text = CurrencyInputFormatter.normalizeExistingValue(
+        (tax as num).toStringAsFixed(2),
+      );
+    }
+
+    final rawItems = e['items'];
+    final descriptions = <String>[];
+    if (rawItems is List) {
+      for (final i in rawItems) {
+        if (i is! Map<String, dynamic>) continue;
+        final desc = (i['description'] as String? ?? '').trim();
+        final qty = (i['qty'] as num?)?.toDouble() ?? 1.0;
+        final unitPrice = (i['unit_price'] as num?)?.toDouble() ?? 0.0;
+        final lineSubtotal = qty * unitPrice;
+        final qtyStr = qty % 1 == 0 ? qty.toInt().toString() : qty.toStringAsFixed(2);
+
+        if (desc.isNotEmpty) descriptions.add(desc);
+
+        _items.add(_PurchaseOrderItemDraft(
+          onChanged: _handleItemsChanged,
+          initialDescription: desc,
+          initialQuantity: qtyStr,
+          initialSubtotal: lineSubtotal.toStringAsFixed(2),
+        ));
+      }
+    }
+
+    if (descriptions.isNotEmpty) {
+      _orderNameController.text = _toPascalCase(descriptions.join(', '));
+    } else if (vendor != null && vendor.isNotEmpty) {
+      _orderNameController.text = _toPascalCase(vendor);
+    } else {
+      final receiptNum = e['receipt_number'] as String?;
+      if (receiptNum != null && receiptNum.isNotEmpty) {
+        _orderNameController.text = _toPascalCase('Receipt $receiptNum');
+      }
+    }
+  }
+
+  String _toPascalCase(String text) {
+    return text.split(' ').map((word) {
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1).toLowerCase();
+    }).join(' ');
+  }
+
+  void _attachScannedFile() {
+    final path = widget.scannedFilePath;
+    if (path == null || kIsWeb) return;
+    try {
+      final file = File(path);
+      final name = path.split(Platform.pathSeparator).last;
+      _supportingAttachments = [
+        PlatformFile(name: name, size: file.lengthSync(), path: path),
+      ];
+    } catch (_) {}
+  }
+
   void _prefillPayments(PurchaseOrderDetail detail) {
     for (final payment in _payments) {
       payment.dispose();
@@ -468,7 +550,13 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
           _purchaseOrderPrefix,
           _nextPurchaseOrderNumber,
         );
-        final selectedVendor = _findVendorByName(_selectedVendorName);
+        VendorSummary? selectedVendor = _findVendorByName(_selectedVendorName);
+        if (selectedVendor == null && _extractedVendorName != null) {
+          selectedVendor = _findClosestVendor(_extractedVendorName!);
+          if (selectedVendor != null) {
+            _selectedVendorName = selectedVendor.name;
+          }
+        }
         _selectedVendorCode = selectedVendor?.code;
         _selectedVendorId = selectedVendor?.id;
         if (_paymentModes.isNotEmpty) {
@@ -788,11 +876,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     final headers = _buildAuthHeaders(appState, token);
 
     final items = _items
-        .where((item) => (item.itemName ?? '').isNotEmpty)
+        .where((item) => (item.displayName ?? '').isNotEmpty)
         .map(
           (item) => CreatePurchaseOrderItem(
             itemId: item.itemId ?? '',
-            itemName: item.itemName ?? 'Item',
+            itemName: item.displayName ?? 'Item',
             lineItemId: item.lineItemId,
             description: item.descriptionController.text.trim().isEmpty
                 ? null
@@ -1423,7 +1511,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
             total: item.total,
             lineItemId: item.lineItemId,
             inventoryItemId: item.itemId,
-            inventoryItemName: item.itemName,
+            inventoryItemName: item.displayName,
             description: item.descriptionController.text.trim().isEmpty
                 ? null
                 : item.descriptionController.text.trim(),
@@ -1565,6 +1653,32 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   if (_submitError != null) ...[
                     FormErrorBanner(message: _submitError!),
                     const SizedBox(height: 16),
+                  ],
+                  if (widget.extracted != null &&
+                      widget.extracted!['confidence'] == 'low') ...[
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.amber.shade400),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.warning_amber_rounded,
+                              color: Colors.amber.shade800, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Low confidence scan — please review all fields carefully.',
+                              style: TextStyle(
+                                  color: Colors.amber.shade900, fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                   Text('Attachments', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 12),
@@ -2109,6 +2223,51 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     return null;
   }
 
+  VendorSummary? _findClosestVendor(String extractedName) {
+    final normalized = extractedName.toLowerCase().trim();
+    if (normalized.isEmpty) return null;
+
+    for (final v in _vendors) {
+      if (v.name.toLowerCase().trim() == normalized) return v;
+    }
+
+    for (final v in _vendors) {
+      final vn = v.name.toLowerCase().trim();
+      if (vn.contains(normalized) || normalized.contains(vn)) return v;
+    }
+
+    final queryWords = normalized
+        .split(RegExp(r'\s+'))
+        .where((w) => w.length > 1)
+        .toSet();
+    if (queryWords.isEmpty) return null;
+
+    int bestScore = 0;
+    VendorSummary? bestVendor;
+    for (final v in _vendors) {
+      final vendorWords = v.name
+          .toLowerCase()
+          .trim()
+          .split(RegExp(r'\s+'))
+          .where((w) => w.length > 1)
+          .toSet();
+      final overlap = queryWords.intersection(vendorWords).length;
+      if (overlap > bestScore) {
+        bestScore = overlap;
+        bestVendor = v;
+      }
+    }
+    return bestVendor;
+  }
+
+  InventoryItem? _findInventoryItemById(String? id) {
+    if (id == null || id.trim().isEmpty) return null;
+    for (final item in _inventoryItems) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
   String _formatInventoryItemName(InventoryItem item) {
     final code = item.skuCode?.trim();
     final skuName = item.skuName?.trim();
@@ -2225,23 +2384,62 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
             const SizedBox(height: 12),
             _ResponsiveFieldsRow(
               children: [
-                InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Item name',
-                    border: OutlineInputBorder(),
+                if (isPlaceholder)
+                  InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Item name',
+                      border: OutlineInputBorder(),
+                    ),
+                    child: Text(
+                      item.itemName ?? 'Select an item from the dropdown above',
+                      style: (item.itemName == null)
+                          ? theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.hintColor,
+                            )
+                          : theme.textTheme.bodyMedium,
+                    ),
+                  )
+                else if (_isLoadingReferenceData && _inventoryItems.isEmpty)
+                  InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Item name',
+                      border: OutlineInputBorder(),
+                    ),
+                    child: Text(
+                      item.displayName ??
+                          (item.nameController.text.isNotEmpty
+                              ? item.nameController.text
+                              : 'Loading items…'),
+                    ),
+                  )
+                else
+                  SearchableDropdownFormField<InventoryItem>(
+                    initialValue: _findInventoryItemById(item.itemId),
+                    items: _inventoryItems,
+                    itemToString: _formatInventoryItemName,
+                    decoration: const InputDecoration(
+                      labelText: 'Item name',
+                      border: OutlineInputBorder(),
+                    ),
+                    hintText: 'Select an item',
+                    dialogTitle: 'Select item',
+                    createLabel: 'Add New Item',
+                    onCreateNew: (_) => _handleCreateItem(),
+                    enabled: !_isSubmitting,
+                    onChanged: _isSubmitting
+                        ? null
+                        : (selected) {
+                            setState(() {
+                              item.setItem(
+                                itemId: selected?.id,
+                                itemName: selected == null
+                                    ? null
+                                    : _formatInventoryItemName(selected),
+                              );
+                              _markDirty();
+                            });
+                          },
                   ),
-                  child: Text(
-                    item.itemName ??
-                        (isPlaceholder
-                            ? 'Select an item from the dropdown above'
-                            : 'Item unavailable'),
-                    style: (item.itemName == null)
-                        ? theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.hintColor,
-                          )
-                        : theme.textTheme.bodyMedium,
-                  ),
-                ),
                 TextFormField(
                   controller: item.descriptionController,
                   decoration: const InputDecoration(
@@ -3470,6 +3668,7 @@ class _PurchaseOrderItemDraft {
        discountController = TextEditingController(
          text: CurrencyInputFormatter.normalizeExistingValue(initialDiscount),
        ),
+       nameController = TextEditingController(text: initialItemName ?? ''),
        itemId = initialItemId,
        itemName = initialItemName,
        lineItemId = initialLineItemId,
@@ -3478,17 +3677,26 @@ class _PurchaseOrderItemDraft {
     quantityController.addListener(onChanged);
     subtotalController.addListener(onChanged);
     discountController.addListener(onChanged);
+    nameController.addListener(onChanged);
   }
 
   final TextEditingController descriptionController;
   final TextEditingController quantityController;
   final TextEditingController subtotalController;
   final TextEditingController discountController;
+  final TextEditingController nameController;
   final VoidCallback _onChanged;
 
   String? itemId;
   String? itemName;
   String? lineItemId;
+
+  // When linked to an inventory item, use itemName; otherwise use nameController text.
+  String? get displayName => itemId != null
+      ? itemName
+      : nameController.text.trim().isEmpty
+          ? null
+          : nameController.text.trim();
 
   double get quantity =>
       double.tryParse(quantityController.text.replaceAll(',', '.')) ?? 0;
@@ -3510,7 +3718,7 @@ class _PurchaseOrderItemDraft {
   double get unitPrice => quantity <= 0 ? 0 : total / quantity;
 
   bool get hasContent {
-    return (itemName?.trim().isNotEmpty ?? false) ||
+    return (displayName?.isNotEmpty ?? false) ||
         descriptionController.text.trim().isNotEmpty ||
         quantityController.text.trim().isNotEmpty ||
         subtotalController.text.trim().isNotEmpty ||
@@ -3520,6 +3728,7 @@ class _PurchaseOrderItemDraft {
   void setItem({String? itemId, String? itemName}) {
     this.itemId = itemId;
     this.itemName = itemName;
+    nameController.text = itemName ?? '';
     _onChanged();
   }
 
@@ -3527,6 +3736,7 @@ class _PurchaseOrderItemDraft {
     itemId = null;
     itemName = null;
     lineItemId = null;
+    nameController.clear();
     descriptionController.clear();
     quantityController.text = '1';
     subtotalController.text = CurrencyInputFormatter.normalizeExistingValue(
@@ -3539,6 +3749,7 @@ class _PurchaseOrderItemDraft {
   }
 
   void dispose() {
+    nameController.dispose();
     descriptionController.dispose();
     quantityController.dispose();
     subtotalController.dispose();

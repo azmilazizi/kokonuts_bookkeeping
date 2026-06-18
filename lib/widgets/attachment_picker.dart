@@ -107,20 +107,21 @@ class _AttachmentPickerState extends State<AttachmentPicker> {
                       ),
                       const SizedBox(height: 8),
                       if (widget.files.isNotEmpty)
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: widget.files
-                              .map(
-                                (file) => SelectedFileChip(
-                                  file: file,
-                                  onPreview: widget.enablePreview
-                                      ? () => _previewFile(file)
-                                      : null,
-                                  onClear: () => widget.onFileRemoved(file),
-                                ),
-                              )
-                              .toList(),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (int i = 0; i < widget.files.length; i++) ...[
+                              if (i > 0) const SizedBox(height: 8),
+                              SelectedFileChip(
+                                file: widget.files[i],
+                                onPreview: widget.enablePreview
+                                    ? () => _previewFile(widget.files[i])
+                                    : null,
+                                onClear: () =>
+                                    widget.onFileRemoved(widget.files[i]),
+                              ),
+                            ],
+                          ],
                         )
                       else
                         Text(
@@ -321,16 +322,14 @@ class SelectedFileChip extends StatelessWidget {
         color: theme.colorScheme.surfaceVariant,
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.insert_drive_file, size: 18),
           const SizedBox(width: 8),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 220),
+          Expanded(
             child: Text(
               '$truncatedName ($sizeLabel)',
               style: theme.textTheme.bodySmall,
-              overflow: TextOverflow.fade,
+              overflow: TextOverflow.ellipsis,
               softWrap: false,
             ),
           ),

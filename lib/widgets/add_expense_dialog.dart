@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -16,7 +18,10 @@ import 'form_error_banner.dart';
 import 'searchable_dropdown_form_field.dart';
 
 class AddExpenseDialog extends StatefulWidget {
-  const AddExpenseDialog({super.key});
+  const AddExpenseDialog({super.key, this.extracted, this.scannedFilePath});
+
+  final Map<String, dynamic>? extracted;
+  final String? scannedFilePath;
 
   @override
   State<AddExpenseDialog> createState() => _AddExpenseDialogState();
@@ -44,6 +49,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   bool _isLoadingData = false;
   String? _loadingError;
   bool _hasInitializedData = false;
+  String? _extractedVendorName;
 
   List<PaymentMode> _paymentModes = const [];
   List<VendorSummary> _vendors = const [];
@@ -74,6 +80,60 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
               orElse: () => PaymentMode(id: id, name: 'Unknown mode'),
             )
             .name;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _prefillFromExtracted();
+    _attachScannedFile();
+  }
+
+  void _attachScannedFile() {
+    final path = widget.scannedFilePath;
+    if (path == null || kIsWeb) return;
+    try {
+      final file = File(path);
+      final name = path.split(Platform.pathSeparator).last;
+      _attachments = [
+        PlatformFile(name: name, size: file.lengthSync(), path: path),
+      ];
+    } catch (_) {}
+  }
+
+  void _prefillFromExtracted() {
+    final e = widget.extracted;
+    if (e == null) return;
+
+    final vendor = e['vendor'] as String?;
+    _extractedVendorName = vendor;
+
+    // Expense name ← comma-separated item descriptions
+    final items = e['items'];
+    if (items is List && items.isNotEmpty) {
+      final descriptions = items
+          .whereType<Map<String, dynamic>>()
+          .map((item) => (item['description'] as String? ?? '').trim())
+          .where((s) => s.isNotEmpty)
+          .join(', ');
+      if (descriptions.isNotEmpty) _nameController.text = descriptions;
+    }
+
+    final dateStr = e['date'] as String?;
+    if (dateStr != null) {
+      final parsed = DateTime.tryParse(dateStr);
+      if (parsed != null) _expenseDate = parsed;
+    }
+
+    final amount = e['grand_total'] ?? e['subtotal'];
+    if (amount != null) {
+      _amountController.text =
+          CurrencyInputFormatter.normalizeExistingValue(
+            (amount as num).toStringAsFixed(2),
+          );
+    }
+
+    // Note: leave empty
   }
 
   @override
@@ -149,6 +209,62 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
             !_categories.any((cat) => cat.id == _selectedCategory)) {
           _selectedCategory = null;
         }
+
+        if (_selectedVendorId == null && _extractedVendorName != null) {
+          final normalized = _extractedVendorName!.toLowerCase().trim();
+          VendorSummary? match = _vendors
+              .where((v) => v.name.toLowerCase().trim() == normalized)
+              .firstOrNull;
+          match ??= _vendors.where((v) {
+            final vn = v.name.toLowerCase();
+            return vn.contains(normalized) || normalized.contains(vn);
+          }).firstOrNull;
+          if (match == null) {
+            final queryWords = normalized.split(RegExp(r'\s+')).toSet();
+            int bestScore = 0;
+            for (final v in _vendors) {
+              final score = queryWords
+                  .intersection(
+                      v.name.toLowerCase().split(RegExp(r'\s+')).toSet())
+                  .length;
+              if (score > bestScore) {
+                bestScore = score;
+                match = v;
+              }
+            }
+          }
+          if (match != null) _selectedVendorId = match.id;
+        }
+
+        final paymentMethod =
+            widget.extracted?['payment_method'] as String?;
+        if (_selectedPaymentMode == null &&
+            paymentMethod != null &&
+            paymentMethod.isNotEmpty) {
+          final normalized = paymentMethod.toLowerCase().trim();
+          PaymentMode? matched = modes
+              .where((m) => m.name.toLowerCase().trim() == normalized)
+              .firstOrNull;
+          matched ??= modes.where((m) {
+            final mn = m.name.toLowerCase();
+            return mn.contains(normalized) || normalized.contains(mn);
+          }).firstOrNull;
+          if (matched == null) {
+            final queryWords = normalized.split(RegExp(r'\s+')).toSet();
+            int bestScore = 0;
+            for (final m in modes) {
+              final score = queryWords
+                  .intersection(
+                      m.name.toLowerCase().split(RegExp(r'\s+')).toSet())
+                  .length;
+              if (score > bestScore) {
+                bestScore = score;
+                matched = m;
+              }
+            }
+          }
+          if (matched != null) _selectedPaymentMode = matched.id;
+        }
       });
     } catch (error) {
       if (!mounted) {
@@ -204,6 +320,32 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                   if (_submitError != null) ...[
                     FormErrorBanner(message: _submitError!),
                     const SizedBox(height: 16),
+                  ],
+                  if (widget.extracted != null &&
+                      widget.extracted!['confidence'] == 'low') ...[
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.amber.shade400),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.warning_amber_rounded,
+                              color: Colors.amber.shade800, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Low confidence scan — please review all fields carefully.',
+                              style: TextStyle(
+                                  color: Colors.amber.shade900, fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                   _buildVendorField(),
                   const SizedBox(height: 12),
