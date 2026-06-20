@@ -33,6 +33,7 @@ class PurchaseOrderDraft {
     required this.createdAt,
     required this.updatedAt,
     this.warehouseId,
+    this.itemsReceivedDate,
     this.vendorId,
     this.vendorName,
     this.vendorCode,
@@ -58,6 +59,7 @@ class PurchaseOrderDraft {
   final double totalDiscount;
   final double grandTotal;
   final String? warehouseId;
+  final DateTime? itemsReceivedDate;
   final List<dynamic> pendingDeletionAttachments;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -83,6 +85,7 @@ class PurchaseOrderDraft {
       totalDiscount: _parseDouble(json['total_discount']) ?? 0,
       grandTotal: _parseDouble(json['grand_total']) ?? 0,
       warehouseId: json['warehouse_id']?.toString(),
+      itemsReceivedDate: _parseDate(json['items_received_date']),
       pendingDeletionAttachments: _parseJsonList(json['pending_deletion_attachments']),
       createdAt: _parseDateTime(json['created_at']) ?? DateTime.fromMillisecondsSinceEpoch(0),
       updatedAt: _parseDateTime(json['updated_at']) ?? DateTime.fromMillisecondsSinceEpoch(0),
@@ -328,6 +331,7 @@ class CreatePurchaseOrderDraftRequest {
     required this.totalDiscount,
     required this.grandTotal,
     this.warehouseId,
+    this.itemsReceivedDate,
     this.vendorId,
     this.vendorName,
     this.vendorCode,
@@ -351,6 +355,7 @@ class CreatePurchaseOrderDraftRequest {
   final double totalDiscount;
   final double grandTotal;
   final String? warehouseId;
+  final DateTime? itemsReceivedDate;
   final List<PurchaseOrderDraftItem> items;
   final List<PurchaseOrderDraftPayment> payments;
 
@@ -371,6 +376,7 @@ class CreatePurchaseOrderDraftRequest {
       'total_discount': totalDiscount,
       'grand_total': grandTotal,
       if (warehouseId != null) 'warehouse_id': warehouseId,
+      if (itemsReceivedDate != null) 'items_received_date': _formatDate(itemsReceivedDate!),
       if (items.isNotEmpty) 'items': items.map((item) => item.toJson()).toList(),
       if (payments.isNotEmpty)
         'payments': payments.map((payment) => payment.toJson()).toList(),

@@ -36,6 +36,7 @@ class AddPurchaseOrderDialog extends StatefulWidget {
     this.draftId,
     this.extracted,
     this.scannedFilePath,
+    this.scannedFileBytes,
   });
 
   final PurchaseOrderDetail? initialDetail;
@@ -43,6 +44,7 @@ class AddPurchaseOrderDialog extends StatefulWidget {
   final String? draftId;
   final Map<String, dynamic>? extracted;
   final String? scannedFilePath;
+  final Uint8List? scannedFileBytes;
 
   @override
   State<AddPurchaseOrderDialog> createState() => _AddPurchaseOrderDialogState();
@@ -120,6 +122,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       '${warehouse.code}-${warehouse.name}';
 
   bool _itemsReceived = false;
+  DateTime? _itemsReceivedDate;
   String? _selectedWarehouseId;
   String? _inventoryReceivedPrefix;
 
@@ -228,6 +231,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _selectedVendorName = detail.vendorName;
     _selectedVendorId = detail.vendorId;
     _itemsReceived = detail.deliveryStatusId == 1;
+    _itemsReceivedDate = _itemsReceived ? detail.deliveryDate : null;
     _orderDiscountController.text =
         CurrencyInputFormatter.normalizeExistingValue(
           _formatDouble(detail.discountValue ?? 0),
@@ -285,6 +289,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _selectedVendorCode = draft.vendorCode;
     _selectedWarehouseId = draft.warehouseId;
     _itemsReceived = draft.itemsReceived;
+    _itemsReceivedDate = draft.itemsReceivedDate;
     _isPaid = draft.isPaid;
     _orderDiscountController.text =
         CurrencyInputFormatter.normalizeExistingValue(
@@ -414,8 +419,17 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   }
 
   void _attachScannedFile() {
+    if (kIsWeb) {
+      final bytes = widget.scannedFileBytes;
+      final name = widget.scannedFilePath;
+      if (bytes == null || name == null) return;
+      _supportingAttachments = [
+        PlatformFile(name: name, size: bytes.length, bytes: bytes),
+      ];
+      return;
+    }
     final path = widget.scannedFilePath;
-    if (path == null || kIsWeb) return;
+    if (path == null) return;
     try {
       final file = File(path);
       final name = path.split(Platform.pathSeparator).last;
@@ -770,6 +784,23 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       setState(() {
         _orderDate = selected;
         _updateOrderNumber();
+        _markDirty();
+      });
+    }
+  }
+
+  Future<void> _pickItemsReceivedDate() async {
+    final now = DateTime.now();
+    final selected = await showDatePicker(
+      context: context,
+      firstDate: DateTime(now.year - 10),
+      lastDate: DateTime(now.year + 10),
+      initialDate: _itemsReceivedDate ?? now,
+    );
+
+    if (selected != null) {
+      setState(() {
+        _itemsReceivedDate = selected;
         _markDirty();
       });
     }
@@ -1145,7 +1176,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       return;
     }
 
-    final receiptDate = _orderDate ?? DateTime.now();
+    final receiptDate = _itemsReceivedDate ?? _orderDate ?? DateTime.now();
 
     final supplierName = _findVendorById(_selectedVendorId)?.name ??
         _selectedVendorName ??
@@ -1543,6 +1574,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       vendorName: _selectedVendorName,
       vendorCode: _selectedVendorCode,
       warehouseId: _selectedWarehouseId,
+      itemsReceivedDate: _itemsReceived ? _itemsReceivedDate : null,
       orderName: sanitizedOrderName,
       orderNumber: _orderNumberController.text.trim(),
       orderDate: _orderDate!,
@@ -1725,6 +1757,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                             _itemsReceived = value ?? false;
                             if (!_itemsReceived) {
                               _selectedWarehouseId = null;
+                              _itemsReceivedDate = null;
+                            } else {
+                              _itemsReceivedDate ??= _orderDate ?? DateTime.now();
                             }
                             _markDirty();
                           });
@@ -1737,6 +1772,12 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   if (_itemsReceived) ...[
                     const SizedBox(height: 12),
                     _buildWarehouseDropdown(),
+                    const SizedBox(height: 12),
+                    _OrderDateField(
+                      label: 'Date items received',
+                      date: _itemsReceivedDate ?? DateTime.now(),
+                      onTap: _pickItemsReceivedDate,
+                    ),
                     const SizedBox(height: 12),
                   ],
                   Row(
@@ -2716,10 +2757,15 @@ class _PaymentDateField extends StatelessWidget {
 }
 
 class _OrderDateField extends StatelessWidget {
-  const _OrderDateField({required this.date, required this.onTap});
+  const _OrderDateField({
+    required this.date,
+    required this.onTap,
+    this.label = 'Order date',
+  });
 
   final DateTime date;
   final VoidCallback onTap;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -2731,9 +2777,9 @@ class _OrderDateField extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: InputDecorator(
-        decoration: const InputDecoration(
-          labelText: 'Order date',
-          border: OutlineInputBorder(),
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
         ),
         child: Row(
           children: [

@@ -64,26 +64,56 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen>
 
   Future<void> _pickAndScan(ImageSource source) async {
     final picker = ImagePicker();
-    final XFile? image = await picker.pickImage(
-      source: source,
-      imageQuality: 85,
-      maxWidth: 1600,
-    );
+    XFile? image;
+    try {
+      image = await picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1600,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     if (image == null || !mounted) return;
-    await _runScan(image.path);
+    if (kIsWeb) {
+      final bytes = await image.readAsBytes();
+      await _runScan(image.name, bytes: bytes);
+    } else {
+      await _runScan(image.path);
+    }
   }
 
   Future<void> _pickFileScan() async {
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
-      withData: kIsWeb,
-      withReadStream: false,
-    );
+    FilePickerResult? picked;
+    try {
+      picked = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+        withData: kIsWeb,
+        withReadStream: false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final file = picked?.files.firstOrNull;
     if (file == null || !mounted) return;
 
-    final path = file.path;
+    final path = kIsWeb ? null : file.path;
     final bytes = file.bytes;
 
     if (path == null && bytes == null) {
@@ -112,7 +142,7 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen>
         baseUrl: 'https://crm.kokonuts.my',
         headers: _buildHeaders(appState, token),
       );
-      final result = await service.scan(filePath, bytes: bytes);
+      final result = await service.scan(filePath, bytes: bytes, recordType: widget.recordType);
 
       if (!mounted) return;
 
@@ -125,7 +155,11 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen>
 
       if (!mounted) return;
 
-      Navigator.of(context).pop({'result': result, 'filePath': filePath});
+      Navigator.of(context).pop({
+        'result': result,
+        'filePath': filePath,
+        'fileBytes': bytes,
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _isScanning = false);

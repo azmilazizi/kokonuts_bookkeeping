@@ -18,10 +18,16 @@ import 'form_error_banner.dart';
 import 'searchable_dropdown_form_field.dart';
 
 class AddExpenseDialog extends StatefulWidget {
-  const AddExpenseDialog({super.key, this.extracted, this.scannedFilePath});
+  const AddExpenseDialog({
+    super.key,
+    this.extracted,
+    this.scannedFilePath,
+    this.scannedFileBytes,
+  });
 
   final Map<String, dynamic>? extracted;
   final String? scannedFilePath;
+  final Uint8List? scannedFileBytes;
 
   @override
   State<AddExpenseDialog> createState() => _AddExpenseDialogState();
@@ -90,8 +96,17 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   }
 
   void _attachScannedFile() {
+    if (kIsWeb) {
+      final bytes = widget.scannedFileBytes;
+      final name = widget.scannedFilePath;
+      if (bytes == null || name == null) return;
+      _attachments = [
+        PlatformFile(name: name, size: bytes.length, bytes: bytes),
+      ];
+      return;
+    }
     final path = widget.scannedFilePath;
-    if (path == null || kIsWeb) return;
+    if (path == null) return;
     try {
       final file = File(path);
       final name = path.split(Platform.pathSeparator).last;

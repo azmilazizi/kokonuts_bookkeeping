@@ -10,6 +10,25 @@ import '../services/overview_service.dart';
 import '../services/purchase_orders_service.dart';
 import '../services/purchase_order_detail_service.dart';
 
+const _kPOColor = Color(0xFF6366F1);
+const _kExpenseColor = Color(0xFF10B981);
+const _kBillColor = Color(0xFFF59E0B);
+
+const _kChartColors = [
+  Color(0xFF6366F1),
+  Color(0xFF10B981),
+  Color(0xFFF59E0B),
+  Color(0xFFEF4444),
+  Color(0xFF8B5CF6),
+  Color(0xFF06B6D4),
+  Color(0xFFEC4899),
+  Color(0xFFF97316),
+  Color(0xFF14B8A6),
+  Color(0xFF84CC16),
+];
+
+enum _QuickPeriod { thisMonth, lastMonth, thisQuarter, thisYear, custom }
+
 class OverviewTab extends StatefulWidget {
   const OverviewTab({super.key, required this.appState});
 
@@ -29,6 +48,7 @@ class _OverviewTabState extends State<OverviewTab>
 
   late DateTime _startDate;
   late DateTime _endDate;
+  _QuickPeriod _quickPeriod = _QuickPeriod.thisMonth;
 
   bool _isLoading = false;
   bool _isChartLoading = false;
@@ -37,7 +57,7 @@ class _OverviewTabState extends State<OverviewTab>
   String? _transactionsError;
   MoneyOutSummary? _summary;
   ExpensesPieChartData? _expensesPercentage;
-  String _accountingMethod = 'payment'; // 'payment' (Cash) or 'issued' (Accrual)
+  String _accountingMethod = 'payment';
   List<OverviewTransaction> _transactions = [];
 
   @override
@@ -46,25 +66,54 @@ class _OverviewTabState extends State<OverviewTab>
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _startDate = DateTime(now.year, now.month, 1);
-    // Last day of current month: 0th day of next month
-    _endDate = DateTime(now.year, now.month + 1, 0);
-
+    _applyQuickPeriod(_QuickPeriod.thisMonth, fetch: false);
     _service = OverviewService();
     _expensesService = ExpensesService();
     _billsService = BillsService();
     _purchaseOrdersService = PurchaseOrdersService();
     _purchaseOrderDetailService = PurchaseOrderDetailService();
-
-    _fetchSummary();
-    _fetchCharts();
-    _fetchTransactions();
+    _fetchAll();
   }
 
-  @override
-  void dispose() {
-    super.dispose();
+  void _applyQuickPeriod(_QuickPeriod period, {bool fetch = true}) {
+    final now = DateTime.now();
+    DateTime start;
+    DateTime end;
+
+    switch (period) {
+      case _QuickPeriod.thisMonth:
+        start = DateTime(now.year, now.month, 1);
+        end = DateTime(now.year, now.month + 1, 0);
+        break;
+      case _QuickPeriod.lastMonth:
+        start = DateTime(now.year, now.month - 1, 1);
+        end = DateTime(now.year, now.month, 0);
+        break;
+      case _QuickPeriod.thisQuarter:
+        final q = (now.month - 1) ~/ 3;
+        start = DateTime(now.year, q * 3 + 1, 1);
+        end = DateTime(now.year, q * 3 + 4, 0);
+        break;
+      case _QuickPeriod.thisYear:
+        start = DateTime(now.year, 1, 1);
+        end = DateTime(now.year, 12, 31);
+        break;
+      case _QuickPeriod.custom:
+        setState(() => _quickPeriod = period);
+        return;
+    }
+
+    setState(() {
+      _quickPeriod = period;
+      _startDate = start;
+      _endDate = end;
+    });
+
+    if (fetch) _fetchAll();
+  }
+
+  Future<void> _fetchAll() async {
+    await Future.wait([_fetchSummary(), _fetchCharts(), _fetchTransactions()]);
   }
 
   Future<void> _fetchTransactions() async {
@@ -83,10 +132,9 @@ class _OverviewTabState extends State<OverviewTab>
       final fromDate = DateFormat('yyyy-MM-dd').format(_startDate);
       final toDate = DateFormat('yyyy-MM-dd').format(_endDate);
 
-      // Fetch Expenses (common for both methods)
       final expensesPage = await _expensesService.fetchExpenses(
         page: 1,
-        perPage: 100, // Fetch more to be safe
+        perPage: 100,
         headers: headers,
         fromDate: fromDate,
         toDate: toDate,
@@ -96,19 +144,14 @@ class _OverviewTabState extends State<OverviewTab>
         if (expense.date != null &&
             expense.date!.isAfter(_startDate.subtract(const Duration(days: 1))) &&
             expense.date!.isBefore(_endDate.add(const Duration(days: 1)))) {
-           transactions.add(OverviewTransaction.fromExpense(expense));
+          transactions.add(OverviewTransaction.fromExpense(expense));
         }
       }
 
       if (_accountingMethod == 'payment') {
-        // Cash Accounting:
-        // 1. Fetch Bills from a wider range (6 months back) to catch recent payments on old bills
-        // 2. Fetch Purchase Orders from a wider range and get their payments
-
         final lookbackDate = _startDate.subtract(const Duration(days: 180));
         final lookbackFrom = DateFormat('yyyy-MM-dd').format(lookbackDate);
 
-        // --- BILLS ---
         final billsPage = await _billsService.fetchBills(
           page: 1,
           perPage: 100,
@@ -118,7 +161,6 @@ class _OverviewTabState extends State<OverviewTab>
         );
 
         for (final bill in billsPage.bills) {
-          // Check existing payments in the bill object
           for (final payment in bill.payments) {
             if (payment.date != null &&
                 payment.date!.isAfter(_startDate.subtract(const Duration(days: 1))) &&
@@ -131,19 +173,17 @@ class _OverviewTabState extends State<OverviewTab>
             }
           }
 
-          // If bill is paid or partially paid but payments list is empty or suspicious,
-          // we might want to fetch details. However, memory says "fetching missing payment details in batches".
-          // For now, let's rely on what's returned or strictly what's in `payments`.
-          // If we need to fetch individual bill payments, we can do it here.
-          // The previous code didn't fetch individual payments, so we'll stick to bill.payments for now unless users complain or logic demands it.
-          // Wait, memory says: "To reliably display bill payments, the application fetches individual payment details via BillsService.fetchBillPayments(billId) for bills marked as 'Paid' or 'Partially Paid'."
-          if ((bill.status == BillStatus.paid || bill.status.code == 3) && bill.payments.isEmpty) { // 3 is partial usually?
+          if ((bill.status == BillStatus.paid || bill.status.code == 3) &&
+              bill.payments.isEmpty) {
             try {
-              final payments = await _billsService.fetchBillPayments(billId: bill.id, headers: headers);
+              final payments = await _billsService.fetchBillPayments(
+                  billId: bill.id, headers: headers);
               for (final payment in payments) {
                 if (payment.date != null &&
-                    payment.date!.isAfter(_startDate.subtract(const Duration(days: 1))) &&
-                    payment.date!.isBefore(_endDate.add(const Duration(days: 1)))) {
+                    payment.date!.isAfter(
+                        _startDate.subtract(const Duration(days: 1))) &&
+                    payment.date!
+                        .isBefore(_endDate.add(const Duration(days: 1)))) {
                   transactions.add(OverviewTransaction.fromBillPayment(
                     payment,
                     bill.vendorName ?? 'Unknown',
@@ -151,13 +191,10 @@ class _OverviewTabState extends State<OverviewTab>
                   ));
                 }
               }
-            } catch (_) {
-              // Ignore errors fetching details
-            }
+            } catch (_) {}
           }
         }
 
-        // --- PURCHASE ORDERS ---
         final posPage = await _purchaseOrdersService.fetchPurchaseOrders(
           page: 1,
           perPage: 100,
@@ -166,26 +203,28 @@ class _OverviewTabState extends State<OverviewTab>
           toDate: toDate,
         );
 
-        // Filter POs that have some payment made
-        final paidPos = posPage.orders.where((po) => (po.totalPaid ?? 0) > 0).toList();
+        final paidPos =
+            posPage.orders.where((po) => (po.totalPaid ?? 0) > 0).toList();
 
-        // Fetch details for these POs to get payment records
-        // Process in batches of 5 to avoid overwhelming the server
         const int batchSize = 5;
         for (var i = 0; i < paidPos.length; i += batchSize) {
           final batch = paidPos.skip(i).take(batchSize);
           await Future.wait(batch.map((po) async {
             try {
-              final details = await _purchaseOrderDetailService.fetchPurchaseOrder(
+              final details =
+                  await _purchaseOrderDetailService.fetchPurchaseOrder(
                 id: po.id,
                 headers: headers,
               );
 
               for (final payment in details.payments) {
                 if (payment.date != null &&
-                    payment.date!.isAfter(_startDate.subtract(const Duration(days: 1))) &&
-                    payment.date!.isBefore(_endDate.add(const Duration(days: 1)))) {
-                  transactions.add(OverviewTransaction.fromPurchaseOrderPayment(
+                    payment.date!.isAfter(
+                        _startDate.subtract(const Duration(days: 1))) &&
+                    payment.date!
+                        .isBefore(_endDate.add(const Duration(days: 1)))) {
+                  transactions.add(
+                      OverviewTransaction.fromPurchaseOrderPayment(
                     payment,
                     po.number,
                     po.vendorName,
@@ -193,14 +232,10 @@ class _OverviewTabState extends State<OverviewTab>
                   ));
                 }
               }
-            } catch (_) {
-              // Ignore errors fetching details
-            }
+            } catch (_) {}
           }));
         }
-
       } else {
-        // Accrual Accounting (Issued)
         final billsPage = await _billsService.fetchBills(
           page: 1,
           perPage: 50,
@@ -208,13 +243,15 @@ class _OverviewTabState extends State<OverviewTab>
           fromDate: fromDate,
           toDate: toDate,
         );
-         for (final bill in billsPage.bills) {
-             if (bill.billDate != null &&
-                bill.billDate!.isAfter(_startDate.subtract(const Duration(days: 1))) &&
-                bill.billDate!.isBefore(_endDate.add(const Duration(days: 1)))) {
-                transactions.add(OverviewTransaction.fromBill(bill));
-             }
-         }
+        for (final bill in billsPage.bills) {
+          if (bill.billDate != null &&
+              bill.billDate!
+                  .isAfter(_startDate.subtract(const Duration(days: 1))) &&
+              bill.billDate!
+                  .isBefore(_endDate.add(const Duration(days: 1)))) {
+            transactions.add(OverviewTransaction.fromBill(bill));
+          }
+        }
 
         final posPage = await _purchaseOrdersService.fetchPurchaseOrders(
           page: 1,
@@ -224,12 +261,14 @@ class _OverviewTabState extends State<OverviewTab>
           toDate: toDate,
         );
         for (final po in posPage.orders) {
-             if (po.orderDate != null &&
-                po.orderDate!.isAfter(_startDate.subtract(const Duration(days: 1))) &&
-                po.orderDate!.isBefore(_endDate.add(const Duration(days: 1)))) {
-                transactions.add(OverviewTransaction.fromPurchaseOrder(po));
-             }
-         }
+          if (po.orderDate != null &&
+              po.orderDate!
+                  .isAfter(_startDate.subtract(const Duration(days: 1))) &&
+              po.orderDate!
+                  .isBefore(_endDate.add(const Duration(days: 1)))) {
+            transactions.add(OverviewTransaction.fromPurchaseOrder(po));
+          }
+        }
       }
 
       transactions.sort((a, b) => b.date.compareTo(a.date));
@@ -240,7 +279,6 @@ class _OverviewTabState extends State<OverviewTab>
           _isTransactionsLoading = false;
         });
       }
-
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -321,264 +359,854 @@ class _OverviewTabState extends State<OverviewTab>
 
     if (picked != null) {
       setState(() {
+        _quickPeriod = _QuickPeriod.custom;
         _startDate = picked.start;
         _endDate = picked.end;
       });
-      _fetchSummary();
-      _fetchCharts();
-      _fetchTransactions();
+      _fetchAll();
     }
+  }
+
+  double _parseTotal(String? total) {
+    if (total == null) return 0.0;
+    return double.tryParse(total) ?? 0.0;
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
     final theme = Theme.of(context);
-    final dateFormatter = DateFormat('MMM dd, yyyy');
 
     return RefreshIndicator(
-      onRefresh: () async {
-        await _fetchSummary();
-        await _fetchCharts();
-        await _fetchTransactions();
-      },
+      onRefresh: _fetchAll,
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              'Accounting Method: ',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onPrimaryContainer,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            DropdownButton<String>(
-                              value: _accountingMethod,
-                              dropdownColor: theme.colorScheme.primaryContainer,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onPrimaryContainer,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              underline: Container(
-                                height: 1,
-                                color: theme.colorScheme.onPrimaryContainer,
-                              ),
-                              icon: Icon(
-                                Icons.arrow_drop_down,
-                                color: theme.colorScheme.onPrimaryContainer,
-                              ),
-                              onChanged: (String? newValue) {
-                                if (newValue != null) {
-                                  setState(() {
-                                    _accountingMethod = newValue;
-                                  });
-                                  _fetchCharts();
-                                  _fetchSummary();
-                                  _fetchTransactions();
-                                }
-                              },
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'payment',
-                                  child: Text('Cash'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'issued',
-                                  child: Text('Accrual'),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
+          SliverToBoxAdapter(child: _buildControls(theme)),
+          SliverToBoxAdapter(child: _buildHeroCard(theme)),
+          SliverToBoxAdapter(child: _buildCategoryCards(theme)),
+          SliverToBoxAdapter(child: _buildCharts(theme)),
+          SliverToBoxAdapter(child: _buildTransactions(theme)),
+          const SliverToBoxAdapter(child: SizedBox(height: 40)),
+        ],
+      ),
+    );
+  }
 
-                        InkWell(
-                          onTap: _selectDateRange,
-                          borderRadius: BorderRadius.circular(8),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 8.0,
-                              horizontal: 4.0,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.calendar_today,
-                                  size: 16,
-                                  color: theme.colorScheme.onPrimaryContainer,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '${dateFormatter.format(_startDate)} - ${dateFormatter.format(_endDate)}',
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    color: theme.colorScheme.onPrimaryContainer,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Icon(
-                                  Icons.arrow_drop_down,
-                                  color: theme.colorScheme.onPrimaryContainer,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
+  // ── Controls: accounting method toggle + period chips ─────────────────────
 
-                        Text(
-                          'Total Spent',
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: theme.colorScheme.onPrimaryContainer.withOpacity(0.8),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        if (_isLoading)
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: theme.colorScheme.onPrimaryContainer,
-                              ),
-                            ),
-                          )
-                        else if (_summary != null)
-                          Text(
-                            _summary!.totalSpent,
-                            style: theme.textTheme.headlineLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.onPrimaryContainer,
-                            ),
-                          )
-                        else
-                          Text(
-                            '--',
-                            style: theme.textTheme.headlineLarge?.copyWith(
-                              color: theme.colorScheme.onPrimaryContainer,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
+  Widget _buildControls(ThemeData theme) {
+    final df = DateFormat('MMM d');
+    final dfYear = DateFormat('MMM d, yyyy');
+    final sameYear = _startDate.year == _endDate.year;
+    final rangeLabel = sameYear
+        ? '${df.format(_startDate)} – ${dfYear.format(_endDate)}'
+        : '${dfYear.format(_startDate)} – ${dfYear.format(_endDate)}';
 
-                  const SizedBox(height: 24),
-
-                  Text(
-                    'Transaction Summary',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  if (_errorMessage != null)
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32.0),
-                        child: Text(
-                          _errorMessage!,
-                          style: TextStyle(color: theme.colorScheme.error),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    )
-                  else if (_summary != null)
-                    _TransactionSummarySection(summary: _summary!)
-                  else if (!_isLoading)
-                    const Center(child: Text('No data available')),
-
-                  const SizedBox(height: 32),
-
-                  Text(
-                    'Transactions by Type',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (_isChartLoading)
-                    const Center(child: CircularProgressIndicator())
-                  else if (_expensesPercentage != null)
-                    _ExpensesByTypeSection(data: _expensesPercentage!, accountingMethod: _accountingMethod)
-                  else
-                    const Center(child: Text('No chart data available')),
-
-                  const SizedBox(height: 32),
-
-                  Text(
-                    'Transaction Details',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Accounting method pill toggle
+              _MethodToggle(
+                value: _accountingMethod,
+                onChanged: (v) {
+                  setState(() => _accountingMethod = v);
+                  _fetchAll();
+                },
               ),
+              const Spacer(),
+              // Custom date picker button
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  foregroundColor: theme.colorScheme.onSurfaceVariant,
+                ),
+                icon: const Icon(Icons.calendar_today, size: 14),
+                label: Text(rangeLabel, style: theme.textTheme.bodySmall),
+                onPressed: _selectDateRange,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: _QuickPeriod.values
+                  .where((p) => p != _QuickPeriod.custom || _quickPeriod == _QuickPeriod.custom)
+                  .map((p) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: _PeriodChip(
+                          label: _periodLabel(p),
+                          selected: _quickPeriod == p,
+                          onTap: () => _applyQuickPeriod(p),
+                        ),
+                      ))
+                  .toList(),
             ),
           ),
+        ],
+      ),
+    );
+  }
 
+  String _periodLabel(_QuickPeriod p) {
+    switch (p) {
+      case _QuickPeriod.thisMonth:
+        return 'This Month';
+      case _QuickPeriod.lastMonth:
+        return 'Last Month';
+      case _QuickPeriod.thisQuarter:
+        return 'This Quarter';
+      case _QuickPeriod.thisYear:
+        return 'This Year';
+      case _QuickPeriod.custom:
+        return 'Custom';
+    }
+  }
+
+  // ── Hero: total outflow ────────────────────────────────────────────────────
+
+  Widget _buildHeroCard(ThemeData theme) {
+    final isLight = theme.brightness == Brightness.light;
+    final gradientStart = theme.colorScheme.primary;
+    final gradientEnd = isLight
+        ? const Color(0xFF4338CA)
+        : theme.colorScheme.primary.withValues(alpha: 0.6);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [gradientStart, gradientEnd],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: theme.colorScheme.primary.withValues(alpha: 0.25),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: _isLoading
+            ? const SizedBox(
+                height: 64,
+                child: Center(
+                    child: CircularProgressIndicator(color: Colors.white54)),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _accountingMethod == 'payment'
+                        ? 'Total Paid Out'
+                        : 'Total Accrued',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.8),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _summary != null ? _summary!.totalSpent : '—',
+                    style: theme.textTheme.displaySmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -1,
+                    ),
+                  ),
+                  if (_errorMessage != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _errorMessage!,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: Colors.white60),
+                    ),
+                  ],
+                ],
+              ),
+      ),
+    );
+  }
+
+  // ── Category KPI cards ─────────────────────────────────────────────────────
+
+  Widget _buildCategoryCards(ThemeData theme) {
+    final poTotal = _parseTotal(_summary?.purchaseOrders.total);
+    final expTotal = _parseTotal(_summary?.expenses.total);
+    final billTotal = _parseTotal(_summary?.bills.total);
+    final grand = poTotal + expTotal + billTotal;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 480;
+          final cards = [
+            _KPICard(
+              label: 'Purchase Orders',
+              icon: Icons.shopping_bag,
+              color: _kPOColor,
+              count: _summary?.purchaseOrders.count ?? 0,
+              total: poTotal,
+              grandTotal: grand,
+              isLoading: _isLoading,
+            ),
+            _KPICard(
+              label: 'Expenses',
+              icon: Icons.payments,
+              color: _kExpenseColor,
+              count: _summary?.expenses.count ?? 0,
+              total: expTotal,
+              grandTotal: grand,
+              isLoading: _isLoading,
+            ),
+            _KPICard(
+              label: 'Bills',
+              icon: Icons.receipt_long,
+              color: _kBillColor,
+              count: _summary?.bills.count ?? 0,
+              total: billTotal,
+              grandTotal: grand,
+              isLoading: _isLoading,
+            ),
+          ];
+
+          if (isWide) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (int i = 0; i < cards.length; i++) ...[
+                  Expanded(child: cards[i]),
+                  if (i < cards.length - 1) const SizedBox(width: 10),
+                ],
+              ],
+            );
+          }
+
+          return Column(
+            children: [
+              for (int i = 0; i < cards.length; i++) ...[
+                cards[i],
+                if (i < cards.length - 1) const SizedBox(height: 10),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ── Spending breakdown charts ──────────────────────────────────────────────
+
+  Widget _buildCharts(ThemeData theme) {
+    if (_isChartLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 40),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_expensesPercentage == null) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Spending Breakdown',
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          _ChartsRow(
+            data: _expensesPercentage!,
+            accountingMethod: _accountingMethod,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Transaction ledger ────────────────────────────────────────────────────
+
+  Widget _buildTransactions(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Transactions',
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              if (_transactions.isNotEmpty && !_isTransactionsLoading)
+                Text(
+                  '${_transactions.length} records',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
           if (_isTransactionsLoading)
-            const SliverFillRemaining(
-              hasScrollBody: false,
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
               child: Center(child: CircularProgressIndicator()),
             )
           else if (_transactionsError != null)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'Failed to load transactions: $_transactionsError',
-                  style: TextStyle(color: theme.colorScheme.error),
-                ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                'Failed to load transactions: $_transactionsError',
+                style: TextStyle(color: theme.colorScheme.error),
               ),
             )
           else if (_transactions.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: _TransactionTable(
-                  transactions: _transactions,
-                  accountingMethod: _accountingMethod,
-                ),
-              ),
+            _TransactionTable(
+              transactions: _transactions,
+              accountingMethod: _accountingMethod,
             )
           else
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text('No transactions found in this period.'),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(Icons.receipt_long,
+                        size: 48,
+                        color: theme.colorScheme.onSurfaceVariant
+                            .withValues(alpha: 0.4)),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No transactions in this period',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 32)),
         ],
       ),
     );
   }
 }
 
-enum _TransactionSortColumn { date, name, vendor, type, paymentMode, amount }
+// ── Small reusable controls ────────────────────────────────────────────────────
+
+class _MethodToggle extends StatelessWidget {
+  const _MethodToggle({required this.value, required this.onChanged});
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _toggle('Cash', 'payment', theme),
+          _toggle('Accrual', 'issued', theme),
+        ],
+      ),
+    );
+  }
+
+  Widget _toggle(String label, String v, ThemeData theme) {
+    final isSelected = value == v;
+    return GestureDetector(
+      onTap: () => onChanged(v),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? theme.colorScheme.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: isSelected
+                ? theme.colorScheme.onPrimary
+                : theme.colorScheme.onSurfaceVariant,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PeriodChip extends StatelessWidget {
+  const _PeriodChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected
+              ? theme.colorScheme.primaryContainer
+              : theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(20),
+          border: selected
+              ? Border.all(color: theme.colorScheme.primary, width: 1.5)
+              : null,
+        ),
+        child: Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: selected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurfaceVariant,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── KPI card ──────────────────────────────────────────────────────────────────
+
+class _KPICard extends StatelessWidget {
+  const _KPICard({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.count,
+    required this.total,
+    required this.grandTotal,
+    required this.isLoading,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final int count;
+  final double total;
+  final double grandTotal;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final pct = grandTotal > 0 ? (total / grandTotal).clamp(0.0, 1.0) : 0.0;
+    final amountFmt = NumberFormat('#,##0.00');
+    final pctFmt = NumberFormat('#,##0.#');
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: isLoading
+            ? const SizedBox(
+                height: 80,
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(icon, size: 16, color: color),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          label,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        '$count',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    amountFmt.format(total),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: pct,
+                      minHeight: 5,
+                      backgroundColor: color.withValues(alpha: 0.12),
+                      valueColor: AlwaysStoppedAnimation<Color>(color),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${pctFmt.format(pct * 100)}% of total',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+// ── Charts row ────────────────────────────────────────────────────────────────
+
+class _ChartsRow extends StatelessWidget {
+  const _ChartsRow({required this.data, required this.accountingMethod});
+
+  final ExpensesPieChartData data;
+  final String accountingMethod;
+
+  @override
+  Widget build(BuildContext context) {
+    final charts = [
+      (
+        title: 'By PO Item',
+        items: data.purchaseOrderByItem,
+        accent: _kPOColor,
+      ),
+      (
+        title: 'By Expense Category',
+        items: data.expensesByCategory,
+        accent: _kExpenseColor,
+      ),
+      (
+        title: 'By Bill Account',
+        items: data.billByAccount,
+        accent: _kBillColor,
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 800) {
+          return IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (int i = 0; i < charts.length; i++) ...[
+                  Expanded(
+                    child: _DonutChartCard(
+                      title: charts[i].title,
+                      items: charts[i].items,
+                      accent: charts[i].accent,
+                      emptyLabel: accountingMethod == 'payment'
+                          ? 'No payments'
+                          : 'No records',
+                    ),
+                  ),
+                  if (i < charts.length - 1) const SizedBox(width: 10),
+                ],
+              ],
+            ),
+          );
+        }
+
+        if (constraints.maxWidth >= 500) {
+          return Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: charts
+                .map((c) => SizedBox(
+                      width: (constraints.maxWidth - 10) / 2,
+                      child: _DonutChartCard(
+                        title: c.title,
+                        items: c.items,
+                        accent: c.accent,
+                        emptyLabel: accountingMethod == 'payment'
+                            ? 'No payments'
+                            : 'No records',
+                      ),
+                    ))
+                .toList(),
+          );
+        }
+
+        return Column(
+          children: charts
+              .map((c) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _DonutChartCard(
+                      title: c.title,
+                      items: c.items,
+                      accent: c.accent,
+                      emptyLabel: accountingMethod == 'payment'
+                          ? 'No payments'
+                          : 'No records',
+                    ),
+                  ))
+              .toList(),
+        );
+      },
+    );
+  }
+}
+
+class _DonutChartCard extends StatelessWidget {
+  const _DonutChartCard({
+    required this.title,
+    required this.items,
+    required this.accent,
+    required this.emptyLabel,
+  });
+
+  final String title;
+  final List<ChartItem> items;
+  final Color accent;
+  final String emptyLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sorted = List<ChartItem>.from(items)
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final display = sorted.take(6).toList();
+    final pctFmt = NumberFormat('#,##0.0');
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 160,
+              child: sorted.isEmpty
+                  ? Center(
+                      child: Text(emptyLabel,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant)))
+                  : _DonutChart(items: sorted, colors: _kChartColors),
+            ),
+            if (display.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              ...display.asMap().entries.map((e) {
+                final color = _kChartColors[e.key % _kChartColors.length];
+                final item = e.value;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 5),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          item.label.isEmpty ? 'Unknown' : item.label,
+                          style: theme.textTheme.bodySmall,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        '${pctFmt.format(item.percentage)}%',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DonutChart extends StatelessWidget {
+  const _DonutChart({required this.items, required this.colors});
+
+  final List<ChartItem> items;
+  final List<Color> colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => CustomPaint(
+        size: Size(constraints.maxWidth, constraints.maxHeight),
+        painter: _DonutPainter(items: items, colors: colors),
+      ),
+    );
+  }
+}
+
+class _DonutPainter extends CustomPainter {
+  const _DonutPainter({required this.items, required this.colors});
+
+  final List<ChartItem> items;
+  final List<Color> colors;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final outerR = math.min(size.width, size.height) / 2;
+    final innerR = outerR * 0.55;
+
+    double total = items.fold(0, (s, i) => s + i.value);
+    if (total == 0) return;
+
+    double startAngle = -math.pi / 2;
+    final gapAngle = 0.03;
+
+    for (int i = 0; i < items.length; i++) {
+      final item = items[i];
+      final sweep =
+          ((item.value / total) * 2 * math.pi) - gapAngle;
+      if (sweep <= 0) {
+        startAngle += gapAngle;
+        continue;
+      }
+
+      final paint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = colors[i % colors.length];
+
+      final path = Path();
+      final rect = Rect.fromCircle(center: center, radius: outerR);
+      path.arcTo(rect, startAngle, sweep, true);
+
+      final endAngle = startAngle + sweep;
+      final innerRect = Rect.fromCircle(center: center, radius: innerR);
+      path.arcTo(innerRect, endAngle, -sweep, false);
+      path.close();
+
+      canvas.drawPath(path, paint);
+      startAngle += sweep + gapAngle;
+    }
+
+    // Center hole label: top item percentage
+    if (items.isNotEmpty) {
+      final top = items.first;
+      final pctText = '${top.percentage.toStringAsFixed(0)}%';
+      final topLabel = top.label.length > 10
+          ? '${top.label.substring(0, 10)}…'
+          : top.label;
+
+      _drawCenterText(canvas, center, pctText, topLabel, colors[0]);
+    }
+  }
+
+  void _drawCenterText(Canvas canvas, Offset center, String mainText,
+      String subText, Color color) {
+    final mainSpan = TextSpan(
+      text: mainText,
+      style: TextStyle(
+        color: color,
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+    final mainPainter = TextPainter(
+      text: mainSpan,
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout();
+    mainPainter.paint(
+      canvas,
+      center.translate(-mainPainter.width / 2, -mainPainter.height - 2),
+    );
+
+    final subSpan = TextSpan(
+      text: subText,
+      style: const TextStyle(color: Colors.grey, fontSize: 10),
+    );
+    final subPainter = TextPainter(
+      text: subSpan,
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout();
+    subPainter.paint(
+      canvas,
+      center.translate(-subPainter.width / 2, 2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _DonutPainter old) => old.items != items;
+}
+
+// ── Transaction table ─────────────────────────────────────────────────────────
+
+enum _SortCol { date, name, vendor, type, detail, amount }
 
 class _TransactionTable extends StatefulWidget {
   const _TransactionTable({
@@ -594,710 +1222,305 @@ class _TransactionTable extends StatefulWidget {
 }
 
 class _TransactionTableState extends State<_TransactionTable> {
-  late List<OverviewTransaction> _sortedTransactions;
-  _TransactionSortColumn _sortColumn = _TransactionSortColumn.date;
-  bool _sortAscending = false;
+  late List<OverviewTransaction> _sorted;
+  _SortCol _sortCol = _SortCol.date;
+  bool _asc = false;
 
   @override
   void initState() {
     super.initState();
-    _sortedTransactions = List.of(widget.transactions);
-    _applySorting(notify: false);
+    _sorted = List.of(widget.transactions);
+    _sort(notify: false);
   }
 
   @override
-  void didUpdateWidget(covariant _TransactionTable oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.transactions != widget.transactions) {
-      _sortedTransactions = List.of(widget.transactions);
-      _applySorting();
+  void didUpdateWidget(covariant _TransactionTable old) {
+    super.didUpdateWidget(old);
+    if (old.transactions != widget.transactions) {
+      _sorted = List.of(widget.transactions);
+      _sort();
     }
   }
+
+  void _sort({bool notify = true}) {
+    final s = List<OverviewTransaction>.from(_sorted)
+      ..sort((a, b) {
+        int c;
+        switch (_sortCol) {
+          case _SortCol.date:
+            c = a.date.compareTo(b.date);
+            break;
+          case _SortCol.name:
+            c = a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+            break;
+          case _SortCol.vendor:
+            c = a.vendor.toLowerCase().compareTo(b.vendor.toLowerCase());
+            break;
+          case _SortCol.type:
+            c = a.type.toLowerCase().compareTo(b.type.toLowerCase());
+            break;
+          case _SortCol.detail:
+            c = _detail(a).toLowerCase().compareTo(_detail(b).toLowerCase());
+            break;
+          case _SortCol.amount:
+            c = a.amount.compareTo(b.amount);
+            break;
+        }
+        return _asc ? c : -c;
+      });
+
+    if (notify) {
+      setState(() => _sorted = s);
+    } else {
+      _sorted = s;
+    }
+  }
+
+  void _tap(_SortCol col) {
+    setState(() {
+      if (_sortCol == col) {
+        _asc = !_asc;
+      } else {
+        _sortCol = col;
+        _asc = true;
+      }
+      _sort(notify: false);
+    });
+  }
+
+  String _detail(OverviewTransaction t) =>
+      widget.accountingMethod == 'payment'
+          ? (t.paymentMode ?? t.status)
+          : t.status;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final currencyFmt = NumberFormat('#,##0.00');
+    final totalAmount =
+        _sorted.fold<double>(0, (s, t) => s + t.amount);
+
+    final table = _buildTable(theme, currencyFmt, totalAmount);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isLargeScreen = constraints.maxWidth >= 900;
+        final content = Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: table,
+          ),
+        );
 
-        final table = _buildTable(theme);
-
-        if (isLargeScreen) {
-          return Card(
-            elevation: 1,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: table,
-            ),
-          );
-        }
+        if (constraints.maxWidth >= 860) return content;
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 900),
-            child: Card(
-              elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: table,
-              ),
-            ),
+            constraints: const BoxConstraints(minWidth: 860),
+            child: content,
           ),
         );
       },
     );
   }
 
-  void _handleSort(_TransactionSortColumn column) {
-    setState(() {
-      if (_sortColumn == column) {
-        _sortAscending = !_sortAscending;
-      } else {
-        _sortColumn = column;
-        _sortAscending = true;
-      }
-      _applySorting(notify: false);
-    });
-  }
-
-  void _applySorting({bool notify = true}) {
-    final sorted = List<OverviewTransaction>.from(_sortedTransactions)
-      ..sort((a, b) {
-        int comparison;
-
-        switch (_sortColumn) {
-          case _TransactionSortColumn.date:
-            comparison = a.date.compareTo(b.date);
-            break;
-          case _TransactionSortColumn.name:
-            comparison = a.displayName.toLowerCase().compareTo(
-                  b.displayName.toLowerCase(),
-                );
-            break;
-          case _TransactionSortColumn.vendor:
-            comparison = a.vendor.toLowerCase().compareTo(b.vendor.toLowerCase());
-            break;
-          case _TransactionSortColumn.type:
-            comparison = a.type.toLowerCase().compareTo(b.type.toLowerCase());
-            break;
-          case _TransactionSortColumn.paymentMode:
-            comparison = _detailValue(a).toLowerCase().compareTo(
-                  _detailValue(b).toLowerCase(),
-                );
-            break;
-          case _TransactionSortColumn.amount:
-            comparison = a.amount.compareTo(b.amount);
-            break;
-        }
-
-        return _sortAscending ? comparison : -comparison;
-      });
-
-    if (notify) {
-      setState(() {
-        _sortedTransactions = sorted;
-      });
-    } else {
-      _sortedTransactions = sorted;
-    }
-  }
-
-  String _detailValue(OverviewTransaction transaction) {
-    return widget.accountingMethod == 'payment'
-        ? (transaction.paymentMode ?? transaction.status)
-        : transaction.status;
-  }
-
-  Table _buildTable(ThemeData theme) {
-    final headerStyle = theme.textTheme.bodyMedium?.copyWith(
-      fontWeight: FontWeight.w700,
-    );
-
-    final subtitleStyle = theme.textTheme.bodySmall?.copyWith(
-      color: theme.textTheme.bodySmall?.color,
-    );
-
-    final currencyFormat = NumberFormat.simpleCurrency(name: '');
-    final totalAmount = _sortedTransactions.fold<double>(
-      0,
-      (sum, transaction) => sum + transaction.amount,
-    );
+  Widget _buildTable(
+      ThemeData theme, NumberFormat currencyFmt, double totalAmount) {
+    final headerStyle = theme.textTheme.bodySmall
+        ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.5);
 
     return Table(
       columnWidths: const {
-        0: FlexColumnWidth(1.3),
-        1: FlexColumnWidth(2.1),
-        2: FlexColumnWidth(1.5),
-        3: FlexColumnWidth(1.4),
+        0: FlexColumnWidth(1.2),
+        1: FlexColumnWidth(2.2),
+        2: FlexColumnWidth(1.6),
+        3: FlexColumnWidth(1.2),
         4: FlexColumnWidth(1.4),
-        5: FlexColumnWidth(1.3),
+        5: FlexColumnWidth(1.2),
       },
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       border: TableBorder(
-        horizontalInside: BorderSide(color: theme.colorScheme.outlineVariant),
+        horizontalInside:
+            BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
       ),
       children: [
-        TableRow(
-          decoration: BoxDecoration(color: theme.colorScheme.surfaceVariant),
-          children: [
-            _sortableHeaderCell('Date', headerStyle, _TransactionSortColumn.date),
-            _sortableHeaderCell('Name', headerStyle, _TransactionSortColumn.name),
-            _sortableHeaderCell('Vendor', headerStyle, _TransactionSortColumn.vendor),
-            _sortableHeaderCell('Type', headerStyle, _TransactionSortColumn.type),
-            _sortableHeaderCell(
-              'Payment Mode',
-              headerStyle,
-              _TransactionSortColumn.paymentMode,
-              align: TextAlign.center,
-            ),
-            _sortableHeaderCell(
-              'Amount',
-              headerStyle,
-              _TransactionSortColumn.amount,
-              align: TextAlign.right,
-            ),
-          ],
-        ),
-        ..._sortedTransactions.map((transaction) {
-          final detailValue = _detailValue(transaction);
-
-          return TableRow(
-            children: [
-              _tableDataCell(transaction.formattedDate, theme),
-              _tableDataCell(transaction.displayName, theme),
-              _tableDataCell(transaction.vendor, theme),
-              _tableDataCell(transaction.type, theme),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-                child: Align(
-                  alignment: Alignment.center,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceVariant,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      detailValue,
-                      style: subtitleStyle,
-                    ),
-                  ),
-                ),
-              ),
-              _tableDataCell(
-                transaction.formattedAmount,
-                theme,
-                align: TextAlign.right,
-              ),
-            ],
-          );
-        }),
+        // Header
         TableRow(
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceVariant,
+            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(14)),
           ),
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-              child: Text(
-                'Total',
-                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-              child: SizedBox.shrink(),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-              child: SizedBox.shrink(),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-              child: SizedBox.shrink(),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-              child: SizedBox.shrink(),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-              child: Text(
-                currencyFormat.format(totalAmount),
-                textAlign: TextAlign.right,
-                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ),
+            _headerCell('Date', _SortCol.date, headerStyle),
+            _headerCell('Name', _SortCol.name, headerStyle),
+            _headerCell('Vendor', _SortCol.vendor, headerStyle),
+            _headerCell('Type', _SortCol.type, headerStyle),
+            _headerCell('Status / Mode', _SortCol.detail, headerStyle,
+                align: TextAlign.center),
+            _headerCell('Amount', _SortCol.amount, headerStyle,
+                align: TextAlign.right),
+          ],
+        ),
+        // Rows
+        ..._sorted.map((t) => TableRow(
+              children: [
+                _cell(t.formattedDate, theme),
+                _cell(t.displayName, theme),
+                _cell(t.vendor, theme),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 10, horizontal: 8),
+                  child: _TypeBadge(type: t.type),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 10, horizontal: 8),
+                  child: Center(
+                    child: _StatusPill(label: _detail(t), theme: theme),
+                  ),
+                ),
+                _cell(t.formattedAmount, theme, align: TextAlign.right),
+              ],
+            )),
+        // Total footer
+        TableRow(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+            borderRadius:
+                const BorderRadius.vertical(bottom: Radius.circular(14)),
+          ),
+          children: [
+            _footerCell('Total', theme),
+            const _EmptyCell(),
+            const _EmptyCell(),
+            const _EmptyCell(),
+            const _EmptyCell(),
+            _footerCell(currencyFmt.format(totalAmount), theme,
+                align: TextAlign.right),
           ],
         ),
       ],
     );
   }
 
-  Widget _sortableHeaderCell(
-    String text,
-    TextStyle? style,
-    _TransactionSortColumn column, {
-    TextAlign align = TextAlign.left,
-  }) {
-    final isActive = _sortColumn == column;
-    final icon = _sortAscending ? Icons.arrow_upward : Icons.arrow_downward;
-
+  Widget _headerCell(String text, _SortCol col, TextStyle? style,
+      {TextAlign align = TextAlign.left}) {
+    final isActive = _sortCol == col;
     return InkWell(
-      onTap: () => _handleSort(column),
+      onTap: () => _tap(col),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
-        child: Align(
-          alignment:
-              align == TextAlign.right ? Alignment.centerRight : Alignment.centerLeft,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                text,
-                textAlign: align,
-                style: style,
+        padding:
+            const EdgeInsets.symmetric(vertical: 11, horizontal: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: align == TextAlign.right
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
+          children: [
+            Text(text, style: style),
+            const SizedBox(width: 4),
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 150),
+              opacity: isActive ? 1 : 0.25,
+              child: Icon(
+                _asc ? Icons.arrow_upward : Icons.arrow_downward,
+                size: 13,
               ),
-              const SizedBox(width: 6),
-              AnimatedOpacity(
-                duration: const Duration(milliseconds: 150),
-                opacity: isActive ? 1 : 0.3,
-                child: Icon(
-                  icon,
-                  size: 16,
-                  color: style?.color,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _tableDataCell(String text, ThemeData theme, {TextAlign align = TextAlign.left}) {
+  Widget _cell(String text, ThemeData theme,
+      {TextAlign align = TextAlign.left}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 8),
+      child: Text(text,
+          textAlign: align, style: theme.textTheme.bodySmall),
+    );
+  }
+
+  Widget _footerCell(String text, ThemeData theme,
+      {TextAlign align = TextAlign.left}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 8),
       child: Text(
         text,
         textAlign: align,
-        style: theme.textTheme.bodyMedium,
+        style:
+            theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
       ),
     );
   }
 }
 
-class _TransactionSummarySection extends StatelessWidget {
-  const _TransactionSummarySection({required this.summary});
-
-  final MoneyOutSummary summary;
+class _EmptyCell extends StatelessWidget {
+  const _EmptyCell();
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isLargeScreen = constraints.maxWidth > 600;
-
-        final cards = [
-          _SummaryCard(
-            title: 'Purchase Orders',
-            count: summary.purchaseOrders.count,
-            total: summary.purchaseOrders.total,
-            icon: Icons.shopping_cart,
-          ),
-          _SummaryCard(
-            title: 'Expenses',
-            count: summary.expenses.count,
-            total: summary.expenses.total,
-            icon: Icons.receipt,
-          ),
-          _SummaryCard(
-            title: 'Bills',
-            count: summary.bills.count,
-            total: summary.bills.total,
-            icon: Icons.description,
-          ),
-        ];
-
-        if (isLargeScreen) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: cards.map((c) => Expanded(child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-              child: c,
-            ))).toList(),
-          );
-        } else {
-          return Column(
-            children: cards.map((c) => Padding(
-              padding: const EdgeInsets.only(bottom: 12.0),
-              child: c,
-            )).toList(),
-          );
-        }
-      },
-    );
-  }
+  Widget build(BuildContext context) => const Padding(
+      padding: EdgeInsets.symmetric(vertical: 11, horizontal: 8),
+      child: SizedBox.shrink());
 }
 
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.title,
-    required this.count,
-    required this.total,
-    required this.icon,
-  });
+class _TypeBadge extends StatelessWidget {
+  const _TypeBadge({required this.type});
 
-  final String title;
-  final int count;
-  final String total;
-  final IconData icon;
+  final String type;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final (color, label) = switch (type.toLowerCase()) {
+      'expense' => (_kExpenseColor, 'Expense'),
+      'bill' => (_kBillColor, 'Bill'),
+      _ => (_kPOColor, 'PO'),
+    };
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 20, color: theme.colorScheme.primary),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const Divider(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Number of Transaction',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.textTheme.bodySmall?.color,
-                  ),
-                ),
-                Text(
-                  '$count',
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Total Spent',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.textTheme.bodySmall?.color,
-                  ),
-                ),
-                Text(
-                  total,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-              ],
-            ),
-          ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
 }
 
-class _ExpensesByTypeSection extends StatelessWidget {
-  const _ExpensesByTypeSection({required this.data, required this.accountingMethod});
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.label, required this.theme});
 
-  final ExpensesPieChartData data;
-  final String accountingMethod;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isLargeScreen = constraints.maxWidth > 900;
-        final isMediumScreen = constraints.maxWidth > 600;
-
-        final charts = [
-          _PieChartCard(
-            title: 'Purchase Order by Item',
-            items: data.purchaseOrderByItem,
-            accountingMethod: accountingMethod,
-          ),
-          _PieChartCard(
-            title: 'Expenses by Category',
-            items: data.expensesByCategory,
-            accountingMethod: accountingMethod,
-          ),
-          _PieChartCard(
-            title: 'Bill by Account',
-            items: data.billByAccount,
-            accountingMethod: accountingMethod,
-          ),
-        ];
-
-        if (isLargeScreen) {
-          return IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: charts.map((c) => Expanded(child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: c,
-              ))).toList(),
-            ),
-          );
-        } else if (isMediumScreen) {
-          return Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            children: charts.map((c) => SizedBox(
-              width: (constraints.maxWidth - 32) / 2,
-              child: c,
-            )).toList(),
-          );
-        } else {
-          return Column(
-            children: charts.map((c) => Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: c,
-            )).toList(),
-          );
-        }
-      },
-    );
-  }
-}
-
-class _PieChartCard extends StatelessWidget {
-  const _PieChartCard({
-    required this.title,
-    required this.items,
-    required this.accountingMethod,
-  });
-
-  final String title;
-  final List<ChartItem> items;
-  final String accountingMethod;
+  final String label;
+  final ThemeData theme;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final percentFormat = NumberFormat('#,##0.00');
-    final sortedItems = List<ChartItem>.from(items)
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    const colorPalette = [
-      Colors.blue,
-      Colors.red,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.teal,
-      Colors.pink,
-      Colors.amber,
-      Colors.indigo,
-      Colors.cyan,
-    ];
-
-    final displayItems = sortedItems.take(5).toList();
-
-    final noDataMessage = accountingMethod == 'payment' ? 'No Payment' : 'No Outstanding';
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 200,
-              width: double.infinity,
-              child: sortedItems.isEmpty
-                  ? Center(child: Text(noDataMessage, style: theme.textTheme.bodyMedium))
-                  : _PieChart(
-                      items: sortedItems,
-                      colors: colorPalette,
-                    ),
-            ),
-            const SizedBox(height: 24),
-            if (displayItems.isNotEmpty)
-              Column(
-                children: displayItems.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final item = entry.value;
-                  final color = colorPalette[index % colorPalette.length];
-
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: color,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            item.label.isEmpty ? 'Unknown' : item.label,
-                            style: theme.textTheme.bodySmall,
-                            overflow: TextOverflow.fade,
-                            softWrap: false,
-                          ),
-                        ),
-                        Text(
-                          '${percentFormat.format(item.percentage)}%',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
       ),
     );
-  }
-}
-
-class _PieChart extends StatelessWidget {
-  final List<ChartItem> items;
-  final List<Color> colors;
-
-  const _PieChart({
-    required this.items,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final size = Size(constraints.maxWidth, constraints.maxHeight);
-        return CustomPaint(
-          size: size,
-          painter: _PieChartPainter(
-            items: items,
-            colors: colors,
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _PieChartPainter extends CustomPainter {
-  final List<ChartItem> items;
-  final List<Color> colors;
-
-  _PieChartPainter({
-    required this.items,
-    required this.colors,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-        final radius = math.min(size.width, size.height) / 2;
-        final paint = Paint()..style = PaintingStyle.fill;
-
-    double startAngle = -math.pi / 2;
-    double totalValue = items.fold(0, (sum, item) => sum + item.value);
-
-    if (totalValue == 0) return;
-
-    for (var i = 0; i < items.length; i++) {
-      final item = items[i];
-      final sweepAngle = (item.value / totalValue) * 2 * math.pi;
-
-      paint.color = colors[i % colors.length];
-
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        startAngle,
-        sweepAngle,
-        true,
-        paint,
-      );
-
-      if (item.percentage >= 5) {
-        final middleAngle = startAngle + sweepAngle / 2;
-        final textRadius = radius * 0.7;
-        final dx = center.dx + textRadius * math.cos(middleAngle);
-        final dy = center.dy + textRadius * math.sin(middleAngle);
-
-        final percentageText = '${item.percentage.toStringAsFixed(2)}%';
-
-        final textSpan = TextSpan(
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            shadows: [
-              Shadow(blurRadius: 2, color: Colors.black45, offset: Offset(1, 1))
-            ],
-          ),
-          text: percentageText,
-        );
-
-        final textPainter = TextPainter(
-          text: textSpan,
-          textAlign: TextAlign.center,
-          textDirection: TextDirection.ltr,
-        );
-
-        textPainter.layout();
-
-        final offset = Offset(
-          dx - textPainter.width / 2,
-          dy - textPainter.height / 2,
-        );
-
-        textPainter.paint(canvas, offset);
-      }
-
-      startAngle += sweepAngle;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _PieChartPainter oldDelegate) {
-    return oldDelegate.items != items;
   }
 }

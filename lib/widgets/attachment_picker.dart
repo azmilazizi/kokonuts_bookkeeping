@@ -1,13 +1,11 @@
-import 'dart:typed_data';
-
-import 'package:cross_file/cross_file.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 import '../utils/platform_file_loader.dart';
+import 'attachment_pdf_preview.dart';
 
 const Set<String> allowedAttachmentExtensions = {
   'pdf',
@@ -273,7 +271,7 @@ class _AttachmentPickerState extends State<AttachmentPicker> {
       return;
     }
 
-    final bytes = await loadPlatformFileBytes(file);
+    var bytes = await loadPlatformFileBytes(file);
     if (!mounted) return;
 
     if (bytes == null || bytes.isEmpty) {
@@ -281,14 +279,36 @@ class _AttachmentPickerState extends State<AttachmentPicker> {
       return;
     }
 
+    if (previewType == _LocalPreviewType.image && _isHeic(file.name)) {
+      bytes = await _convertHeicToJpeg(bytes) ?? bytes;
+      if (!mounted) return;
+    }
+
     showDialog<void>(
       context: context,
       builder: (context) => _LocalAttachmentPreviewDialog(
         fileName: file.name,
-        bytes: bytes,
+        bytes: bytes!,
         previewType: previewType,
       ),
     );
+  }
+
+  bool _isHeic(String fileName) =>
+      fileName.toLowerCase().endsWith('.heic');
+
+  Future<Uint8List?> _convertHeicToJpeg(Uint8List heicBytes) async {
+    if (kIsWeb) return null;
+    try {
+      final result = await FlutterImageCompress.compressWithList(
+        heicBytes,
+        format: CompressFormat.jpeg,
+        quality: 90,
+      );
+      return Uint8List.fromList(result);
+    } catch (_) {
+      return null;
+    }
   }
 
   void _showPreviewError(String message) {
@@ -428,7 +448,7 @@ class _LocalAttachmentPreviewDialog extends StatelessWidget {
         );
         break;
       case _LocalPreviewType.pdf:
-        content = SfPdfViewer.memory(bytes);
+        content = buildAttachmentPdfPreviewFromBytes(bytes);
         break;
     }
 

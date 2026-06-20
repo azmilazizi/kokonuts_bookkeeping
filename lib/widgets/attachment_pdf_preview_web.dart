@@ -1,5 +1,6 @@
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
+import 'dart:typed_data';
 import 'dart:ui_web' as ui;
 
 import 'package:flutter/widgets.dart';
@@ -10,6 +11,10 @@ Widget createAttachmentPdfPreview(
   Map<String, String>? headers,
 }) {
   return _HtmlPdfPreview(downloadUrl: downloadUrl, headers: headers);
+}
+
+Widget createAttachmentPdfPreviewFromBytes(Uint8List bytes) {
+  return _HtmlBytesPdfPreview(bytes: bytes);
 }
 
 class _HtmlPdfPreview extends StatefulWidget {
@@ -115,6 +120,56 @@ class _HtmlPdfPreviewState extends State<_HtmlPdfPreview> {
       }
       _iframe.src = widget.downloadUrl;
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return HtmlElementView(viewType: _viewType);
+  }
+}
+
+class _HtmlBytesPdfPreview extends StatefulWidget {
+  const _HtmlBytesPdfPreview({required this.bytes});
+
+  final Uint8List bytes;
+
+  @override
+  State<_HtmlBytesPdfPreview> createState() => _HtmlBytesPdfPreviewState();
+}
+
+class _HtmlBytesPdfPreviewState extends State<_HtmlBytesPdfPreview> {
+  late final String _viewType;
+  late final html.IFrameElement _iframe;
+  String? _blobUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _viewType =
+        'attachment-bytes-pdf-preview-${DateTime.now().microsecondsSinceEpoch}-$hashCode';
+
+    final blob = html.Blob([widget.bytes], 'application/pdf');
+    _blobUrl = html.Url.createObjectUrlFromBlob(blob);
+
+    _iframe = html.IFrameElement()
+      ..style.border = 'none'
+      ..style.width = '100%'
+      ..style.height = '100%'
+      ..allow = 'fullscreen'
+      ..src = _blobUrl!;
+
+    ui.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
+      return _iframe;
+    });
+  }
+
+  @override
+  void dispose() {
+    if (_blobUrl != null) {
+      html.Url.revokeObjectUrl(_blobUrl!);
+      _blobUrl = null;
+    }
+    super.dispose();
   }
 
   @override

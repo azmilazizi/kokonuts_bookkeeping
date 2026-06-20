@@ -1,3 +1,8 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -5,17 +10,28 @@ import 'package:kokonuts_bookkeeping/app/app_state.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/accounts_service.dart';
+import '../services/bill_category_service.dart';
 import '../services/bills_service.dart';
 import '../services/vendors_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
 import 'create_account_dialog.dart';
+import 'create_bill_category_dialog.dart';
 import 'form_error_banner.dart';
 import 'create_vendor_dialog.dart';
 import 'searchable_dropdown_form_field.dart';
 
 class CreateBillDialog extends StatefulWidget {
-  const CreateBillDialog({super.key});
+  const CreateBillDialog({
+    super.key,
+    this.extracted,
+    this.scannedFilePath,
+    this.scannedFileBytes,
+  });
+
+  final Map<String, dynamic>? extracted;
+  final String? scannedFilePath;
+  final Uint8List? scannedFileBytes;
 
   @override
   State<CreateBillDialog> createState() => _CreateBillDialogState();
@@ -29,22 +45,30 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
   final _accountsService = AccountsService();
   final _billsService = BillsService();
   final _vendorsService = VendorsService();
+  final _categoryService = BillCategoryService();
 
   DateTime _billDate = DateTime.now();
   DateTime _dueDate = DateTime.now();
   String? _selectedVendorId;
   String? _selectedDebitAccount;
   String? _selectedCreditAccount;
+  String? _selectedCategoryId;
   List<PlatformFile> _attachments = [];
+
+  bool _advancedEntry = false;
 
   List<Account> _accounts = const <Account>[];
   List<VendorSummary> _vendors = const <VendorSummary>[];
+  List<BillCategory> _categories = const <BillCategory>[];
   bool _hasInitializedVendors = false;
   bool _hasInitializedAccounts = false;
+  bool _hasInitializedCategories = false;
   bool _isLoadingVendors = false;
   bool _isLoadingAccounts = false;
+  bool _isLoadingCategories = false;
   String? _vendorsError;
   String? _accountsError;
+  String? _categoriesError;
   bool _isSubmitting = false;
   String? _submitError;
 
@@ -75,7 +99,102 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         .name;
   }
 
+  String _categoryLabel(String id) {
+    return _categories
+        .firstWhere(
+          (c) => c.id == id,
+          orElse: () => BillCategory(id: id, name: 'Unknown category'),
+        )
+        .name;
+  }
+
   static const _accountsPerPage = 50;
+
+  @override
+  void initState() {
+    super.initState();
+    _debitAmountController.text = CurrencyInputFormatter.normalizeExistingValue(
+      _debitAmountController.text,
+    );
+    _creditAmountController.text =
+        CurrencyInputFormatter.normalizeExistingValue(
+          _creditAmountController.text,
+        );
+    _prefillFromExtracted();
+    _attachScannedFile();
+  }
+
+  void _prefillFromExtracted() {
+    final e = widget.extracted;
+    if (e == null) return;
+
+    // Vendor: use the server-matched userid directly; leave empty when null.
+    final vendorMatch = e['vendor_match'] as Map<String, dynamic>?;
+    final vendorUid = vendorMatch?['userid'];
+    if (vendorUid != null) _selectedVendorId = vendorUid.toString();
+
+    // Category: use server-matched ID directly
+    final categoryMatch = e['bill_category_match'] as Map<String, dynamic>?;
+    final catId = categoryMatch?['id'];
+    if (catId != null) _selectedCategoryId = catId.toString();
+
+    // Expense name from line-item descriptions
+    final items = e['items'];
+    if (items is List && items.isNotEmpty) {
+      final descriptions = items
+          .whereType<Map<String, dynamic>>()
+          .map((item) => (item['description'] as String? ?? '').trim())
+          .where((s) => s.isNotEmpty)
+          .join(', ');
+      if (descriptions.isNotEmpty) _nameController.text = descriptions;
+    }
+
+    // Bill date
+    final dateStr = e['date'] as String?;
+    if (dateStr != null) {
+      final parsed = DateTime.tryParse(dateStr);
+      if (parsed != null) _billDate = parsed;
+    }
+
+    // Due date: use explicit field if present, else bill date + 30 days
+    final dueDateStr = e['due_date'] as String?;
+    if (dueDateStr != null) {
+      final parsed = DateTime.tryParse(dueDateStr);
+      _dueDate = parsed ?? _billDate.add(const Duration(days: 30));
+    } else {
+      _dueDate = _billDate.add(const Duration(days: 30));
+    }
+
+    // Amount
+    final amount = e['grand_total'] ?? e['subtotal'];
+    if (amount != null) {
+      _debitAmountController.text =
+          CurrencyInputFormatter.normalizeExistingValue(
+            (amount as num).toStringAsFixed(2),
+          );
+    }
+  }
+
+  void _attachScannedFile() {
+    if (kIsWeb) {
+      final bytes = widget.scannedFileBytes;
+      final name = widget.scannedFilePath;
+      if (bytes == null || name == null) return;
+      _attachments = [
+        PlatformFile(name: name, size: bytes.length, bytes: bytes),
+      ];
+      return;
+    }
+    final path = widget.scannedFilePath;
+    if (path == null) return;
+    try {
+      final file = File(path);
+      final name = path.split(Platform.pathSeparator).last;
+      _attachments = [
+        PlatformFile(name: name, size: file.lengthSync(), path: path),
+      ];
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -134,25 +253,19 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    _debitAmountController.text = CurrencyInputFormatter.normalizeExistingValue(
-      _debitAmountController.text,
-    );
-    _creditAmountController.text =
-        CurrencyInputFormatter.normalizeExistingValue(
-          _creditAmountController.text,
-        );
-  }
-
-  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_hasInitializedVendors || !_hasInitializedAccounts) {
+    if (!_hasInitializedVendors) {
       _hasInitializedVendors = true;
-      _hasInitializedAccounts = true;
       _loadVendors();
+    }
+    if (!_hasInitializedAccounts) {
+      _hasInitializedAccounts = true;
       _loadAccounts();
+    }
+    if (!_hasInitializedCategories) {
+      _hasInitializedCategories = true;
+      _loadCategories();
     }
   }
 
@@ -286,8 +399,29 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
                   onFileRemoved: _removeAttachment,
                 ),
                 const SizedBox(height: 20),
-                Text('Expenses', style: theme.textTheme.titleMedium),
-                _buildExpensesTab(),
+                Row(
+                  children: [
+                    Text('Expenses', style: theme.textTheme.titleMedium),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () =>
+                          setState(() => _advancedEntry = !_advancedEntry),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Checkbox(
+                            value: _advancedEntry,
+                            onChanged: (val) => setState(
+                              () => _advancedEntry = val ?? false,
+                            ),
+                          ),
+                          const Text('Advanced Entry'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                _buildExpensesSection(theme),
               ],
             ),
           ),
@@ -358,6 +492,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
     }
 
     final headers = _buildAuthHeaders(appState, token);
+    if (!mounted) return null;
     final created = await showCreateVendorDialog(
       context: context,
       headers: headers,
@@ -405,38 +540,141 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
     );
   }
 
-  Widget _buildExpensesTab() {
-    final theme = Theme.of(context);
+  Widget _buildExpensesSection(ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.only(top: 12, right: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildAccountRow(
-            label: 'Debit account',
-            selected: _selectedDebitAccount,
-            onChanged: (value) => setState(() => _selectedDebitAccount = value),
-            amountController: _debitAmountController,
-          ),
-          const SizedBox(height: 14),
-          _buildAccountRow(
-            label: 'Credit account',
-            selected: _selectedCreditAccount,
-            onChanged: (value) =>
-                setState(() => _selectedCreditAccount = value),
-            amountController: _creditAmountController,
-          ),
-          if (_accountsError != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _accountsError!,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.error,
+      child: _advancedEntry
+          ? _buildAdvancedExpenses(theme)
+          : _buildCategoryExpenses(theme),
+    );
+  }
+
+  Widget _buildCategoryExpenses(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(child: _buildCategoryDropdown(theme)),
+            const SizedBox(width: 16),
+            SizedBox(
+              width: 120,
+              child: TextFormField(
+                controller: _debitAmountController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: const [CurrencyInputFormatter()],
+                decoration: const InputDecoration(labelText: 'Amount'),
+                textAlign: TextAlign.right,
               ),
             ),
           ],
+        ),
+        if (_categoriesError != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _categoriesError!,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
         ],
+      ],
+    );
+  }
+
+  Widget _buildCategoryDropdown(ThemeData theme) {
+    return SearchableDropdownFormField<String>(
+      decoration: InputDecoration(
+        labelText: 'Bill category',
+        suffixIcon: _isLoadingCategories
+            ? Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              )
+            : null,
       ),
+      initialValue: _selectedCategoryId,
+      items: _categories.map((c) => c.id).toList(),
+      itemToString: _categoryLabel,
+      hintText:
+          _isLoadingCategories ? 'Loading categories...' : 'Select a category',
+      enabled: !_isLoadingCategories,
+      dialogTitle: 'Select bill category',
+      createLabel: 'Add new category',
+      onCreateNew: (_) => _handleCreateCategory(),
+      onChanged: (value) => setState(() => _selectedCategoryId = value),
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Please select a category';
+        }
+        return null;
+      },
+    );
+  }
+
+  Future<String?> _handleCreateCategory() async {
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+    if (token == null || token.trim().isEmpty) {
+      setState(() => _submitError = 'You are not logged in.');
+      return null;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+    if (!mounted) return null;
+    final created = await showCreateBillCategoryDialog(
+      context: context,
+      headers: headers,
+      accounts: _accounts,
+    );
+
+    if (created == null) return null;
+
+    setState(() {
+      _categories = [..._categories, created]
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      _selectedCategoryId = created.id;
+    });
+
+    return created.id;
+  }
+
+  Widget _buildAdvancedExpenses(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildAccountRow(
+          label: 'Debit account',
+          selected: _selectedDebitAccount,
+          onChanged: (value) => setState(() => _selectedDebitAccount = value),
+          amountController: _debitAmountController,
+        ),
+        const SizedBox(height: 14),
+        _buildAccountRow(
+          label: 'Credit account',
+          selected: _selectedCreditAccount,
+          onChanged: (value) =>
+              setState(() => _selectedCreditAccount = value),
+          amountController: _creditAmountController,
+        ),
+        if (_accountsError != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _accountsError!,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -523,7 +761,8 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
   Future<String?> _handleCreateAccount() async {
     final created = await showDialog<Account?>(
       context: context,
-      builder: (context) => CreateAccountDialog(accountsService: _accountsService),
+      builder: (context) =>
+          CreateAccountDialog(accountsService: _accountsService),
     );
 
     if (created == null) return null;
@@ -532,13 +771,15 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
 
     setState(() {
       final updated = [..._accounts];
-      final existingIndex = updated.indexWhere((account) => account.id == created.id);
+      final existingIndex =
+          updated.indexWhere((account) => account.id == created.id);
       if (existingIndex >= 0) {
         updated[existingIndex] = created;
       } else {
         updated.add(created);
       }
-      updated.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      updated.sort(
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       _accounts = updated;
     });
 
@@ -573,36 +814,69 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
 
     final headers = _buildAuthHeaders(appState, token);
 
-    final debitAmount = _parseAmount(_debitAmountController) ?? 0;
-    final creditAmount = _parseAmount(_creditAmountController) ?? 0;
-    const tolerance = 0.01;
+    Map<String, dynamic> requestData;
 
-    if ((debitAmount - creditAmount).abs() > tolerance) {
-      setState(() {
-        _submitError =
-            'Debit and credit amounts must be balanced before saving.';
-        _isSubmitting = false;
-      });
-      _showSubmitSnackBar(_submitError!);
-      return;
+    if (_advancedEntry) {
+      final debitAmount = _parseAmount(_debitAmountController) ?? 0;
+      final creditAmount = _parseAmount(_creditAmountController) ?? 0;
+      const tolerance = 0.01;
+
+      if ((debitAmount - creditAmount).abs() > tolerance) {
+        setState(() {
+          _submitError =
+              'Debit and credit amounts must be balanced before saving.';
+          _isSubmitting = false;
+        });
+        _showSubmitSnackBar(_submitError!);
+        return;
+      }
+
+      requestData = <String, dynamic>{
+        'date': DateFormat('yyyy-MM-dd').format(_billDate),
+        'due_date': DateFormat('yyyy-MM-dd').format(_dueDate),
+        'vendor': _selectedVendorId,
+        'expense_name': _nameController.text.trim(),
+        'amount': debitAmount,
+        'debit_lines': [
+          {'account': _selectedDebitAccount, 'amount': debitAmount},
+        ],
+        'credit_lines': [
+          {'account': _selectedCreditAccount, 'amount': debitAmount},
+        ],
+        'approved': 1,
+        if (_attachments.isNotEmpty)
+          'attachments': _attachments.map((file) => file.name).toList(),
+      };
+    } else {
+      final category = _categories.firstWhere(
+        (c) => c.id == _selectedCategoryId,
+        orElse: () => BillCategory(id: '', name: ''),
+      );
+      final amount = _parseAmount(_debitAmountController) ?? 0;
+
+      requestData = <String, dynamic>{
+        'date': DateFormat('yyyy-MM-dd').format(_billDate),
+        'due_date': DateFormat('yyyy-MM-dd').format(_dueDate),
+        'vendor': _selectedVendorId,
+        'expense_name': _nameController.text.trim(),
+        'amount': amount,
+        'debit_lines': [
+          {
+            'account': category.debitAccount?.toString(),
+            'amount': amount,
+          },
+        ],
+        'credit_lines': [
+          {
+            'account': category.creditAccount?.toString(),
+            'amount': amount,
+          },
+        ],
+        'approved': 1,
+        if (_attachments.isNotEmpty)
+          'attachments': _attachments.map((file) => file.name).toList(),
+      };
     }
-
-    final requestData = <String, dynamic>{
-      'date': DateFormat('yyyy-MM-dd').format(_billDate),
-      'due_date': DateFormat('yyyy-MM-dd').format(_dueDate),
-      'vendor': _selectedVendorId,
-      'expense_name': _nameController.text.trim(),
-      'amount': debitAmount,
-      'debit_lines': [
-        {'account': _selectedDebitAccount, 'amount': debitAmount},
-      ],
-      'credit_lines': [
-        {'account': _selectedCreditAccount, 'amount': debitAmount},
-      ],
-      'approved': 1,
-      if (_attachments.isNotEmpty)
-        'attachments': _attachments.map((file) => file.name).toList(),
-    };
 
     try {
       final created = await _billsService.createBill(
@@ -647,13 +921,13 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
   Map<String, String> _buildAuthHeaders(AppState appState, String token) {
     final rawToken = (appState.rawAuthToken ?? token).trim();
     final sanitizedToken = token
-        .replaceFirst(RegExp('^Bearer\s+', caseSensitive: false), '')
+        .replaceFirst(RegExp(r'^Bearer\s+', caseSensitive: false), '')
         .trim();
     final normalizedAuth = sanitizedToken.isNotEmpty
         ? 'Bearer $sanitizedToken'
         : token.trim();
     final authtokenHeader = rawToken
-        .replaceFirst(RegExp('^Bearer\s+', caseSensitive: false), '')
+        .replaceFirst(RegExp(r'^Bearer\s+', caseSensitive: false), '')
         .trim();
     final autoTokenValue = authtokenHeader.isNotEmpty
         ? authtokenHeader
@@ -704,7 +978,8 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         }
 
         if (_selectedCreditAccount != null &&
-            !_accounts.any((account) => account.id == _selectedCreditAccount)) {
+            !_accounts.any(
+                (account) => account.id == _selectedCreditAccount)) {
           _selectedCreditAccount = null;
         }
       });
@@ -770,6 +1045,61 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
     } finally {
       if (mounted) {
         setState(() => _isLoadingVendors = false);
+      }
+    }
+  }
+
+  Future<void> _loadCategories() async {
+    setState(() {
+      _categoriesError = null;
+      _isLoadingCategories = true;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _categoriesError = 'You are not logged in.';
+        _isLoadingCategories = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      final categories =
+          await _categoryService.fetchCategories(headers: headers);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _categories = categories
+          ..sort(
+              (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+        if (_selectedCategoryId != null &&
+            !_categories.any((c) => c.id == _selectedCategoryId)) {
+          _selectedCategoryId = null;
+        }
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _categoriesError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingCategories = false);
       }
     }
   }

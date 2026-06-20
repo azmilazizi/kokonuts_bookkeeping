@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/widgets.dart';
 
 import 'attachment_pdf_preview_io.dart'
@@ -8,4 +10,8 @@ Widget buildAttachmentPdfPreview(
   Map<String, String>? headers,
 }) {
   return createAttachmentPdfPreview(downloadUrl, headers: headers);
+}
+
+Widget buildAttachmentPdfPreviewFromBytes(Uint8List bytes) {
+  return createAttachmentPdfPreviewFromBytes(bytes);
 }

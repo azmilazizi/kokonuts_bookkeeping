@@ -44,27 +44,27 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _tabs = [
       _HomeTab(
         title: 'Purchase Orders',
-        icon: Icons.shopping_bag_outlined,
+        icon: Icons.shopping_bag,
         builder: (_, __) => PurchaseOrdersTab(key: _purchaseOrdersTabKey),
       ),
       _HomeTab(
         title: 'Expenses',
-        icon: Icons.payments_outlined,
+        icon: Icons.payments,
         builder: (_, __) => ExpensesTab(key: _expensesTabKey),
       ),
       _HomeTab(
         title: 'Bills',
-        icon: Icons.receipt_long_outlined,
+        icon: Icons.receipt_long,
         builder: (_, __) => BillsTab(key: _billsTabKey),
       ),
       _HomeTab(
         title: 'Accounts',
-        icon: Icons.account_balance_outlined,
+        icon: Icons.account_balance,
         builder: (_, __) => const AccountsTab(),
       ),
       _HomeTab(
         title: 'Overview',
-        icon: Icons.dashboard_outlined,
+        icon: Icons.dashboard,
         builder: (_, appState) => OverviewTab(appState: appState),
       ),
     ];
@@ -179,6 +179,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     final result = scanResponse['result'] as Map<String, dynamic>?;
     final filePath = scanResponse['filePath'] as String?;
+    final fileBytes = scanResponse['fileBytes'] as Uint8List?;
     if (result == null) return;
 
     if (recordType == 'purchase_order') {
@@ -188,6 +189,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         builder: (context) => AddPurchaseOrderDialog(
           extracted: result,
           scannedFilePath: filePath,
+          scannedFileBytes: fileBytes,
         ),
       );
       if (!mounted) return;
@@ -204,12 +206,29 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               : 'Purchase order $orderLabel created.',
         );
       }
+    } else if (recordType == 'bill') {
+      final createdBill = await showDialog<Bill>(
+        context: context,
+        builder: (context) => CreateBillDialog(
+          extracted: result,
+          scannedFilePath: filePath,
+          scannedFileBytes: fileBytes,
+        ),
+      );
+      if (!mounted) return;
+      if (createdBill != null) {
+        _billsTabKey.currentState?.insertCreatedBill(createdBill);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bill created successfully.')),
+        );
+      }
     } else {
       final createdExpense = await showDialog<Expense>(
         context: context,
         builder: (context) => AddExpenseDialog(
           extracted: result,
           scannedFilePath: filePath,
+          scannedFileBytes: fileBytes,
         ),
       );
       if (!mounted) return;
@@ -225,10 +244,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Widget _buildFab(BuildContext context, _HomeTab currentTab) {
     final index = _controller.index;
 
-    if (index == 0 || index == 1) {
-      final recordType = index == 0 ? 'purchase_order' : 'expense';
-      final addLabel =
-          index == 0 ? 'Add Purchase Order' : 'Add Expense';
+    if (index == 0 || index == 1 || index == 2) {
+      final recordType = index == 0
+          ? 'purchase_order'
+          : index == 1
+              ? 'expense'
+              : 'bill';
+      final addLabel = index == 0
+          ? 'Add Purchase Order'
+          : index == 1
+              ? 'Add Expense'
+              : 'Add Bill';
 
       return SpeedDial(
         icon: Icons.add,
@@ -242,7 +268,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             onTap: () => _openAddModal(context, currentTab.title),
           ),
           SpeedDialChild(
-            child: const Icon(Icons.document_scanner_outlined),
+            child: const Icon(Icons.document_scanner),
             label: 'AI Scan',
             onTap: () => _openScanScreen(context, recordType),
           ),
@@ -309,7 +335,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             else ...[
               IconButton(
                 tooltip: 'Journal entry',
-                icon: const Icon(Icons.note_add_outlined),
+                icon: const Icon(Icons.note_add),
                 onPressed: () => _openJournalEntryDialog(context),
               ),
               IconButton(
@@ -390,7 +416,7 @@ class _HeaderMenuButton extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.note_add_outlined),
+                    leading: const Icon(Icons.note_add),
                     title: const Text('Journal entry'),
                     onTap: () {
                       Navigator.of(context).pop();
