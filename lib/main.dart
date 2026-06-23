@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import 'app/app_state.dart';
@@ -39,7 +37,6 @@ class _KokonutsBookkeepingAppState extends State<KokonutsBookkeepingApp> {
   void initState() {
     super.initState();
     AuthExpirationHandler.instance.navigatorKey = _navigatorKey;
-    unawaited(_appState.initialize());
   }
 
   @override
@@ -73,7 +70,10 @@ class _KokonutsBookkeepingAppState extends State<KokonutsBookkeepingApp> {
               ),
             ),
             themeMode: ThemeMode.dark,
-            home: _buildHome(),
+            home: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 400),
+              child: _buildHome(),
+            ),
           );
         },
       ),
@@ -82,13 +82,13 @@ class _KokonutsBookkeepingAppState extends State<KokonutsBookkeepingApp> {
 
   Widget _buildHome() {
     if (!_appState.isInitialized) {
-      return const SplashScreen();
+      return const SplashScreen(key: ValueKey('splash'));
     }
 
     if (_appState.isLoggedIn) {
-      return const HomeScreen();
+      return const HomeScreen(key: ValueKey('home'));
     }
 
-    return const LoginScreen();
+    return const LoginScreen(key: ValueKey('login'));
   }
 }
