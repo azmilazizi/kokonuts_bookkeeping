@@ -9,6 +9,7 @@ import '../services/expenses_service.dart';
 import '../services/overview_service.dart';
 import '../services/purchase_orders_service.dart';
 import '../services/purchase_order_detail_service.dart';
+import '../widgets/preset_date_picker_bar.dart';
 
 const _kPOColor = Color(0xFF6366F1);
 const _kExpenseColor = Color(0xFF10B981);
@@ -26,8 +27,6 @@ const _kChartColors = [
   Color(0xFF14B8A6),
   Color(0xFF84CC16),
 ];
-
-enum _QuickPeriod { thisMonth, lastMonth, thisQuarter, thisYear, custom }
 
 class OverviewTab extends StatefulWidget {
   const OverviewTab({super.key, required this.appState});
@@ -48,7 +47,6 @@ class _OverviewTabState extends State<OverviewTab>
 
   late DateTime _startDate;
   late DateTime _endDate;
-  _QuickPeriod _quickPeriod = _QuickPeriod.thisMonth;
 
   bool _isLoading = false;
   bool _isChartLoading = false;
@@ -66,50 +64,15 @@ class _OverviewTabState extends State<OverviewTab>
   @override
   void initState() {
     super.initState();
-    _applyQuickPeriod(_QuickPeriod.thisMonth, fetch: false);
+    final initial = quickPeriodRange(QuickPeriod.thisMonth);
+    _startDate = initial.start;
+    _endDate = initial.end;
     _service = OverviewService();
     _expensesService = ExpensesService();
     _billsService = BillsService();
     _purchaseOrdersService = PurchaseOrdersService();
     _purchaseOrderDetailService = PurchaseOrderDetailService();
     _fetchAll();
-  }
-
-  void _applyQuickPeriod(_QuickPeriod period, {bool fetch = true}) {
-    final now = DateTime.now();
-    DateTime start;
-    DateTime end;
-
-    switch (period) {
-      case _QuickPeriod.thisMonth:
-        start = DateTime(now.year, now.month, 1);
-        end = DateTime(now.year, now.month + 1, 0);
-        break;
-      case _QuickPeriod.lastMonth:
-        start = DateTime(now.year, now.month - 1, 1);
-        end = DateTime(now.year, now.month, 0);
-        break;
-      case _QuickPeriod.thisQuarter:
-        final q = (now.month - 1) ~/ 3;
-        start = DateTime(now.year, q * 3 + 1, 1);
-        end = DateTime(now.year, q * 3 + 4, 0);
-        break;
-      case _QuickPeriod.thisYear:
-        start = DateTime(now.year, 1, 1);
-        end = DateTime(now.year, 12, 31);
-        break;
-      case _QuickPeriod.custom:
-        setState(() => _quickPeriod = period);
-        return;
-    }
-
-    setState(() {
-      _quickPeriod = period;
-      _startDate = start;
-      _endDate = end;
-    });
-
-    if (fetch) _fetchAll();
   }
 
   Future<void> _fetchAll() async {
@@ -349,23 +312,6 @@ class _OverviewTabState extends State<OverviewTab>
     }
   }
 
-  Future<void> _selectDateRange() async {
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-      initialDateRange: DateTimeRange(start: _startDate, end: _endDate),
-    );
-
-    if (picked != null) {
-      setState(() {
-        _quickPeriod = _QuickPeriod.custom;
-        _startDate = picked.start;
-        _endDate = picked.end;
-      });
-      _fetchAll();
-    }
-  }
 
   double _parseTotal(String? total) {
     if (total == null) return 0.0;
@@ -395,77 +341,24 @@ class _OverviewTabState extends State<OverviewTab>
 
   // ── Controls: accounting method toggle + period chips ─────────────────────
 
-  Widget _buildControls(ThemeData theme) {
-    final df = DateFormat('MMM d');
-    final dfYear = DateFormat('MMM d, yyyy');
-    final sameYear = _startDate.year == _endDate.year;
-    final rangeLabel = sameYear
-        ? '${df.format(_startDate)} – ${dfYear.format(_endDate)}'
-        : '${dfYear.format(_startDate)} – ${dfYear.format(_endDate)}';
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              // Accounting method pill toggle
-              _MethodToggle(
-                value: _accountingMethod,
-                onChanged: (v) {
-                  setState(() => _accountingMethod = v);
-                  _fetchAll();
-                },
-              ),
-              const Spacer(),
-              // Custom date picker button
-              TextButton.icon(
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  foregroundColor: theme.colorScheme.onSurfaceVariant,
-                ),
-                icon: const Icon(Icons.calendar_today, size: 14),
-                label: Text(rangeLabel, style: theme.textTheme.bodySmall),
-                onPressed: _selectDateRange,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: _QuickPeriod.values
-                  .where((p) => p != _QuickPeriod.custom || _quickPeriod == _QuickPeriod.custom)
-                  .map((p) => Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: _PeriodChip(
-                          label: _periodLabel(p),
-                          selected: _quickPeriod == p,
-                          onTap: () => _applyQuickPeriod(p),
-                        ),
-                      ))
-                  .toList(),
-            ),
-          ),
-        ],
-      ),
+  Widget _buildControls(ThemeData _) {
+    return PresetDatePickerBar(
+      showMethodToggle: true,
+      initialMethod: _accountingMethod,
+      initialStartDate: _startDate,
+      initialEndDate: _endDate,
+      onDateRangeChanged: (start, end) {
+        setState(() {
+          _startDate = start;
+          _endDate = end;
+        });
+        _fetchAll();
+      },
+      onMethodChanged: (v) {
+        setState(() => _accountingMethod = v);
+        _fetchAll();
+      },
     );
-  }
-
-  String _periodLabel(_QuickPeriod p) {
-    switch (p) {
-      case _QuickPeriod.thisMonth:
-        return 'This Month';
-      case _QuickPeriod.lastMonth:
-        return 'Last Month';
-      case _QuickPeriod.thisQuarter:
-        return 'This Quarter';
-      case _QuickPeriod.thisYear:
-        return 'This Year';
-      case _QuickPeriod.custom:
-        return 'Custom';
-    }
   }
 
   // ── Hero: total outflow ────────────────────────────────────────────────────
@@ -702,100 +595,6 @@ class _OverviewTabState extends State<OverviewTab>
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-// ── Small reusable controls ────────────────────────────────────────────────────
-
-class _MethodToggle extends StatelessWidget {
-  const _MethodToggle({required this.value, required this.onChanged});
-
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _toggle('Cash', 'payment', theme),
-          _toggle('Accrual', 'issued', theme),
-        ],
-      ),
-    );
-  }
-
-  Widget _toggle(String label, String v, ThemeData theme) {
-    final isSelected = value == v;
-    return GestureDetector(
-      onTap: () => onChanged(v),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: isSelected ? theme.colorScheme.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: isSelected
-                ? theme.colorScheme.onPrimary
-                : theme.colorScheme.onSurfaceVariant,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PeriodChip extends StatelessWidget {
-  const _PeriodChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: selected
-              ? theme.colorScheme.primaryContainer
-              : theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(20),
-          border: selected
-              ? Border.all(color: theme.colorScheme.primary, width: 1.5)
-              : null,
-        ),
-        child: Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: selected
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurfaceVariant,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-          ),
-        ),
       ),
     );
   }
@@ -1226,6 +1025,8 @@ class _TransactionTableState extends State<_TransactionTable> {
   _SortCol _sortCol = _SortCol.date;
   bool _asc = false;
 
+  static const _columnFlex = [3, 5, 4, 3, 4, 3];
+
   @override
   void initState() {
     super.initState();
@@ -1297,138 +1098,81 @@ class _TransactionTableState extends State<_TransactionTable> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final currencyFmt = NumberFormat('#,##0.00');
-    final totalAmount =
-        _sorted.fold<double>(0, (s, t) => s + t.amount);
-
-    final table = _buildTable(theme, currencyFmt, totalAmount);
+    final totalAmount = _sorted.fold<double>(0, (s, t) => s + t.amount);
+    final table = _buildTableContent(theme, currencyFmt, totalAmount);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final content = Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: BorderSide(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: table,
-          ),
-        );
-
-        if (constraints.maxWidth >= 860) return content;
-
+        if (constraints.maxWidth >= 860) return table;
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: ConstrainedBox(
             constraints: const BoxConstraints(minWidth: 860),
-            child: content,
+            child: table,
           ),
         );
       },
     );
   }
 
-  Widget _buildTable(
+  Widget _buildTableContent(
       ThemeData theme, NumberFormat currencyFmt, double totalAmount) {
-    final headerStyle = theme.textTheme.bodySmall
-        ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.5);
-
-    return Table(
-      columnWidths: const {
-        0: FlexColumnWidth(1.2),
-        1: FlexColumnWidth(2.2),
-        2: FlexColumnWidth(1.6),
-        3: FlexColumnWidth(1.2),
-        4: FlexColumnWidth(1.4),
-        5: FlexColumnWidth(1.2),
-      },
-      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-      border: TableBorder(
-        horizontalInside:
-            BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Header
-        TableRow(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(14)),
-          ),
-          children: [
-            _headerCell('Date', _SortCol.date, headerStyle),
-            _headerCell('Name', _SortCol.name, headerStyle),
-            _headerCell('Vendor', _SortCol.vendor, headerStyle),
-            _headerCell('Type', _SortCol.type, headerStyle),
-            _headerCell('Status / Mode', _SortCol.detail, headerStyle,
-                align: TextAlign.center),
-            _headerCell('Amount', _SortCol.amount, headerStyle,
-                align: TextAlign.right),
-          ],
-        ),
-        // Rows
-        ..._sorted.map((t) => TableRow(
-              children: [
-                _cell(t.formattedDate, theme),
-                _cell(t.displayName, theme),
-                _cell(t.vendor, theme),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 10, horizontal: 8),
-                  child: _TypeBadge(type: t.type),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 10, horizontal: 8),
-                  child: Center(
-                    child: _StatusPill(label: _detail(t), theme: theme),
-                  ),
-                ),
-                _cell(t.formattedAmount, theme, align: TextAlign.right),
-              ],
+        _buildHeaderRow(theme),
+        ..._sorted.asMap().entries.map((e) => _TransactionRow(
+              transaction: e.value,
+              accountingMethod: widget.accountingMethod,
+              showTopBorder: e.key == 0,
             )),
-        // Total footer
-        TableRow(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-            borderRadius:
-                const BorderRadius.vertical(bottom: Radius.circular(14)),
-          ),
-          children: [
-            _footerCell('Total', theme),
-            const _EmptyCell(),
-            const _EmptyCell(),
-            const _EmptyCell(),
-            const _EmptyCell(),
-            _footerCell(currencyFmt.format(totalAmount), theme,
-                align: TextAlign.right),
-          ],
-        ),
+        _buildFooterRow(theme, currencyFmt, totalAmount),
       ],
     );
   }
 
-  Widget _headerCell(String text, _SortCol col, TextStyle? style,
-      {TextAlign align = TextAlign.left}) {
+  Widget _buildHeaderRow(ThemeData theme) {
+    final headerStyle = theme.textTheme.bodySmall
+        ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.5);
+    return Container(
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: Row(
+        children: [
+          _headerCell('Date', _SortCol.date, _columnFlex[0], headerStyle),
+          _headerCell('Name', _SortCol.name, _columnFlex[1], headerStyle),
+          _headerCell('Vendor', _SortCol.vendor, _columnFlex[2], headerStyle),
+          _headerCell('Type', _SortCol.type, _columnFlex[3], headerStyle),
+          _headerCell('Status / Mode', _SortCol.detail, _columnFlex[4],
+              headerStyle,
+              textAlign: TextAlign.center),
+          _headerCell('Amount', _SortCol.amount, _columnFlex[5], headerStyle,
+              textAlign: TextAlign.end),
+        ],
+      ),
+    );
+  }
+
+  Widget _headerCell(String text, _SortCol col, int flex, TextStyle? style,
+      {TextAlign textAlign = TextAlign.start}) {
     final isActive = _sortCol == col;
-    return InkWell(
-      onTap: () => _tap(col),
-      child: Padding(
-        padding:
-            const EdgeInsets.symmetric(vertical: 11, horizontal: 8),
+    return Expanded(
+      flex: flex,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _tap(col),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: align == TextAlign.right
+          mainAxisAlignment: textAlign == TextAlign.end
               ? MainAxisAlignment.end
-              : MainAxisAlignment.start,
+              : textAlign == TextAlign.center
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
           children: [
             Text(text, style: style),
             const SizedBox(width: 4),
             AnimatedOpacity(
               duration: const Duration(milliseconds: 150),
-              opacity: isActive ? 1 : 0.25,
+              opacity: isActive ? 1.0 : 0.25,
               child: Icon(
                 _asc ? Icons.arrow_upward : Icons.arrow_downward,
                 size: 13,
@@ -1440,36 +1184,133 @@ class _TransactionTableState extends State<_TransactionTable> {
     );
   }
 
-  Widget _cell(String text, ThemeData theme,
-      {TextAlign align = TextAlign.left}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 8),
-      child: Text(text,
-          textAlign: align, style: theme.textTheme.bodySmall),
-    );
-  }
-
-  Widget _footerCell(String text, ThemeData theme,
-      {TextAlign align = TextAlign.left}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 8),
-      child: Text(
-        text,
-        textAlign: align,
-        style:
-            theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
+  Widget _buildFooterRow(
+      ThemeData theme, NumberFormat currencyFmt, double totalAmount) {
+    final footerStyle =
+        theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold);
+    final labelFlex = _columnFlex[0] +
+        _columnFlex[1] +
+        _columnFlex[2] +
+        _columnFlex[3] +
+        _columnFlex[4];
+    return Container(
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            flex: labelFlex,
+            child: Text('Total', style: footerStyle),
+          ),
+          Expanded(
+            flex: _columnFlex[5],
+            child: Text(
+              currencyFmt.format(totalAmount),
+              style: footerStyle,
+              textAlign: TextAlign.end,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _EmptyCell extends StatelessWidget {
-  const _EmptyCell();
+class _TransactionRow extends StatefulWidget {
+  const _TransactionRow({
+    required this.transaction,
+    required this.accountingMethod,
+    required this.showTopBorder,
+  });
+
+  final OverviewTransaction transaction;
+  final String accountingMethod;
+  final bool showTopBorder;
 
   @override
-  Widget build(BuildContext context) => const Padding(
-      padding: EdgeInsets.symmetric(vertical: 11, horizontal: 8),
-      child: SizedBox.shrink());
+  State<_TransactionRow> createState() => _TransactionRowState();
+}
+
+class _TransactionRowState extends State<_TransactionRow> {
+  bool _hovering = false;
+
+  static const _columnFlex = [3, 5, 4, 3, 4, 3];
+
+  String get _detail {
+    final t = widget.transaction;
+    return widget.accountingMethod == 'payment'
+        ? (t.paymentMode ?? t.status)
+        : t.status;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final borderColor = theme.dividerColor.withValues(alpha: 0.6);
+    final baseBackground = theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25);
+    final hoverBackground = theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45);
+    final t = widget.transaction;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: _hovering ? hoverBackground : baseBackground,
+          border: Border(
+            top: widget.showTopBorder
+                ? BorderSide(color: borderColor)
+                : BorderSide.none,
+            bottom: BorderSide(color: borderColor),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        child: Row(
+          children: [
+            _OvDataCell(t.formattedDate, flex: _columnFlex[0]),
+            _OvDataCell(t.displayName, flex: _columnFlex[1]),
+            _OvDataCell(t.vendor, flex: _columnFlex[2]),
+            Expanded(
+              flex: _columnFlex[3],
+              child: _TypeBadge(type: t.type),
+            ),
+            Expanded(
+              flex: _columnFlex[4],
+              child: Center(child: _StatusPill(label: _detail, theme: theme)),
+            ),
+            _OvDataCell(t.formattedAmount,
+                flex: _columnFlex[5], textAlign: TextAlign.end),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OvDataCell extends StatelessWidget {
+  const _OvDataCell(this.value, {required this.flex, this.textAlign});
+
+  final String value;
+  final int flex;
+  final TextAlign? textAlign;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Expanded(
+      flex: flex,
+      child: Text(
+        value,
+        textAlign: textAlign ?? TextAlign.start,
+        overflow: TextOverflow.fade,
+        softWrap: false,
+        maxLines: 1,
+        style: theme.textTheme.bodySmall,
+      ),
+    );
+  }
 }
 
 class _TypeBadge extends StatelessWidget {

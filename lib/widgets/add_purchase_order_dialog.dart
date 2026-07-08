@@ -707,7 +707,15 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
 
   void _addPaymentEntry() {
     setState(() {
-      final entry = _PaymentEntryDraft(onChanged: _handlePaymentChanged);
+      final paidSoFar = _payments.fold<double>(
+        0.0,
+        (sum, p) => sum + (double.tryParse(p.amountController.text) ?? 0),
+      );
+      final remaining = (_grandTotal - paidSoFar).clamp(0.0, double.infinity);
+      final entry = _PaymentEntryDraft(
+        onChanged: _handlePaymentChanged,
+        initialAmount: remaining > 0 ? remaining.toStringAsFixed(2) : null,
+      );
       if (_paymentModes.isNotEmpty) {
         entry.setPaymentModeId(_paymentModes.first.id);
       }
@@ -1160,22 +1168,6 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     final goodsReceiptCode =
         'IR-${cleanedPrefix.isNotEmpty ? cleanedPrefix : order.number}';
 
-    LotNumberSettings lotSettings;
-    try {
-      lotSettings = await _inventoryOptionsService.fetchLotNumberSettings(
-        headers: headers,
-      );
-    } catch (error) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            'Purchase order saved but failed to load lot numbers: $error',
-          ),
-        ),
-      );
-      return;
-    }
-
     final receiptDate = _itemsReceivedDate ?? _orderDate ?? DateTime.now();
 
     final supplierName = _findVendorById(_selectedVendorId)?.name ??
@@ -1183,9 +1175,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         '';
 
     final goodsReceiptItems = _buildGoodsReceiptItems(
-      lotNumberSettings: lotSettings,
       warehouseId: warehouseId,
-      receiptDate: receiptDate,
     );
 
     final request = CreateGoodsReceiptRequest(
@@ -1239,35 +1229,22 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   }
 
   List<CreateGoodsReceiptItem> _buildGoodsReceiptItems({
-    required LotNumberSettings lotNumberSettings,
     required String warehouseId,
-    required DateTime receiptDate,
   }) {
-    final lotDateSegment = DateFormat('MMyy').format(receiptDate);
-
-    var nextLotNumber = lotNumberSettings.nextLotNumber;
-
     return _items
         .where((item) => (item.itemId ?? '').isNotEmpty)
         .map(
-          (item) {
-            final lotNumber =
-                '${lotNumberSettings.prefix}-$lotDateSegment-${nextLotNumber.toString().padLeft(5, '0')}';
-            nextLotNumber += 1;
-
-            return CreateGoodsReceiptItem(
-              commodityCode: item.itemId ?? '',
-              warehouseId: warehouseId,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              goodsMoney: item.subtotal,
-              subTotal: item.total,
-              unitId: item.itemId ?? '',
-              taxes: null,
-              lotNumber: lotNumber,
-              serialNumber: '',
-            );
-          },
+          (item) => CreateGoodsReceiptItem(
+            commodityCode: item.itemId ?? '',
+            warehouseId: warehouseId,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            goodsMoney: item.subtotal,
+            subTotal: item.total,
+            unitId: item.itemId ?? '',
+            taxes: null,
+            serialNumber: '',
+          ),
         )
         .toList(growable: false);
   }

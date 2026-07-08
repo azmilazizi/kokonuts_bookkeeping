@@ -1,11 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
-
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
-import '../services/authenticated_http_client.dart';
 import '../services/session_manager.dart';
 
 /// Stores global application state such as authentication status.
@@ -79,8 +76,9 @@ class AppState extends ChangeNotifier {
     }
 
     _isInitialized = true;
-    notifyListeners();
   }
+
+  void notifyReady() => notifyListeners();
 
   /// Attempts to log the user in using the provided credentials.
   Future<void> login({required String username, required String password}) async {

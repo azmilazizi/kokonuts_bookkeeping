@@ -51,6 +51,7 @@ class _SplashScreenState extends State<SplashScreen>
       appState.initialize(),
     ]);
     if (!mounted) return;
+    appState.notifyReady();
   }
 
   @override

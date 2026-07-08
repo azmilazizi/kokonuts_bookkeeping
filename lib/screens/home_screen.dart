@@ -368,20 +368,23 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         ),
         bottomNavigationBar: Material(
           color: theme.colorScheme.surface,
-          child: TabBar(
-            controller: _controller,
-            indicatorColor: theme.colorScheme.primary,
-            labelColor: theme.colorScheme.primary,
-            unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.7),
-            tabs: _tabs
-                .map(
-                  (tab) => Tab(
-                    icon: Icon(tab.icon, size: 26),
-                    iconMargin: const EdgeInsets.only(bottom: 8),
-                    height: 60,
-                  ),
-                )
-                .toList(growable: false),
+          child: Theme(
+            data: theme.copyWith(splashFactory: InkRipple.splashFactory),
+            child: TabBar(
+              controller: _controller,
+              indicatorColor: theme.colorScheme.primary,
+              labelColor: theme.colorScheme.primary,
+              unselectedLabelColor: theme.colorScheme.onSurface.withOpacity(0.7),
+              tabs: _tabs
+                  .map(
+                    (tab) => Tab(
+                      icon: Icon(tab.icon, size: 26),
+                      iconMargin: const EdgeInsets.only(bottom: 8),
+                      height: 60,
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
           ),
         ),
         floatingActionButton: isOverviewTabSelected
