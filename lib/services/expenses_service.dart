@@ -7,13 +7,11 @@ import 'auth_http_client.dart';
 
 class ExpensesService {
   ExpensesService({http.Client? client})
-      : _client = client ?? createAuthAwareClient();
+    : _client = client ?? createAuthAwareClient();
 
   final http.Client _client;
 
   static const _baseUrl = 'https://crm.kokonuts.my/api/v1/expenses';
-  static const _baseUrlWithoutV1 =
-      'https://crm.kokonuts.my/api/expenses'; // Fallback or specific endpoint if needed
   static const _attachmentFieldName = 'file';
 
   Future<ExpensesPage> fetchExpenses({
@@ -23,6 +21,7 @@ class ExpensesService {
     String? fromDate,
     String? toDate,
     String? search,
+    bool? isDraft,
   }) async {
     final params = {'page': '$page', 'per_page': '$perPage'};
     if (fromDate != null) params['from'] = fromDate;
@@ -30,10 +29,11 @@ class ExpensesService {
     if (search != null && search.trim().isNotEmpty) {
       params['search'] = search.trim();
     }
+    if (isDraft != null) {
+      params['is_draft'] = isDraft ? '1' : '0';
+    }
 
-    final uri = Uri.parse(
-      _baseUrl,
-    ).replace(queryParameters: params);
+    final uri = Uri.parse(_baseUrl).replace(queryParameters: params);
 
     http.Response response;
     try {
@@ -287,10 +287,7 @@ class ExpensesService {
     try {
       response = await _client.delete(
         uri,
-        headers: {
-          'Accept': 'application/json',
-          ...headers,
-        },
+        headers: {'Accept': 'application/json', ...headers},
       );
     } catch (error) {
       throw ExpensesException('Failed to delete expense: $error');
@@ -515,6 +512,31 @@ class ExpensesService {
   }
 }
 
+bool? _parseBool(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is bool) {
+    return value;
+  }
+  if (value is num) {
+    return value != 0;
+  }
+  if (value is String) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    if (const {'1', 'true', 'yes', 'y'}.contains(normalized)) {
+      return true;
+    }
+    if (const {'0', 'false', 'no', 'n'}.contains(normalized)) {
+      return false;
+    }
+  }
+  return null;
+}
+
 class ExpensesPage {
   const ExpensesPage({required this.expenses, required this.hasMore});
 
@@ -525,7 +547,10 @@ class ExpensesPage {
 class Expense {
   const Expense({
     required this.id,
+    required this.isDraft,
+    required this.vendorId,
     required this.vendor,
+    required this.categoryId,
     required this.name,
     required this.categoryName,
     required this.amount,
@@ -533,6 +558,8 @@ class Expense {
     required this.currencySymbol,
     required this.date,
     required this.receipt,
+    required this.note,
+    required this.paymentModeId,
     required this.paymentMode,
     required this.createdBy,
     this.attachments = const [],
@@ -575,10 +602,10 @@ class Expense {
     }
 
     final receipt =
-        resolvedReceipt ??
         _resolveReceipt(json['receipt']) ??
         _resolveReceipt(json['receipt_url']) ??
         _resolveReceipt(json['receipt_link']) ??
+        resolvedReceipt ??
         _resolveReceipt(json['attachments']) ??
         _stringValue(json['receipt']) ??
         _stringValue(json['receipt_url']) ??
@@ -613,23 +640,47 @@ class Expense {
         _stringValue(json['user_name']) ??
         '—';
 
-    final attachments =
-        _extractRelatedCollection(json, const [
-              'attachments',
-              'files',
-              'documents',
-            ])
-            .whereType<Map<String, dynamic>>()
-            .map(ExpenseAttachment.fromJson)
-            .toList(growable: false);
+    final attachmentCollection = _extractRelatedCollection(json, const [
+      'attachments',
+      'files',
+      'documents',
+    ]);
+    final attachments = attachmentCollection
+        .whereType<Map<String, dynamic>>()
+        .map(ExpenseAttachment.fromJson)
+        .toList(growable: true);
+
+    if (attachments.isEmpty &&
+        expenseId != null &&
+        attachmentName != null &&
+        attachmentName.isNotEmpty) {
+      attachments.add(
+        ExpenseAttachment(
+          id:
+              _stringValue(json['attachment_id']) ??
+              _stringValue(json['file_id']),
+          fileName: attachmentName,
+          downloadUrl: receipt,
+          uploadedBy: createdBy == '—' ? null : createdBy,
+        ),
+      );
+    }
 
     return Expense(
       id: _stringValue(json['id']) ?? '',
+      isDraft:
+          _parseBool(json['is_draft']) ?? _parseBool(json['draft']) ?? false,
+      vendorId:
+          _stringValue(json['vendor_id']) ?? _stringValue(json['vendor']) ?? '',
       vendor:
           vendorName ??
           _stringValue(json['vendor_name']) ??
           _stringValue(json['vendor']) ??
           '—',
+      categoryId:
+          _stringValue(json['category_id']) ??
+          _stringValue(json['category']) ??
+          '',
       name:
           _stringValue(json['expense_name']) ??
           _stringValue(json['name']) ??
@@ -649,14 +700,22 @@ class Expense {
           '',
       date: _parseDateString(dateString),
       receipt: receipt,
+      note: _stringValue(json['note']) ?? _stringValue(json['notes']) ?? '',
+      paymentModeId:
+          _stringValue(json['paymentmode']) ??
+          _stringValue(json['payment_mode_id']) ??
+          '',
       paymentMode: paymentMode,
       createdBy: createdBy,
-      attachments: attachments,
+      attachments: List.unmodifiable(attachments),
     );
   }
 
   final String id;
+  final bool isDraft;
+  final String vendorId;
   final String vendor;
+  final String categoryId;
   final String name;
   final String categoryName;
   final double? amount;
@@ -664,6 +723,8 @@ class Expense {
   final String currencySymbol;
   final DateTime? date;
   final String? receipt;
+  final String note;
+  final String paymentModeId;
   final String paymentMode;
   final String createdBy;
   final List<ExpenseAttachment> attachments;

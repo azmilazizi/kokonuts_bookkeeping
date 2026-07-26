@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../app/app_state_scope.dart';
 import '../services/expenses_service.dart';
+import '../widgets/add_expense_dialog.dart';
 import '../widgets/date_range_filter_button.dart';
+import '../widgets/expense_drafts_dialog.dart';
 import '../widgets/expense_details_dialog.dart';
 import '../widgets/edit_expense_dialog.dart';
 import '../widgets/sortable_header_cell.dart';
@@ -41,6 +43,7 @@ class ExpensesTabState extends State<ExpensesTab>
   bool _hasMore = true;
   int _nextPage = 1;
   String? _error;
+  bool _isViewingDrafts = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -122,6 +125,7 @@ class ExpensesTabState extends State<ExpensesTab>
         page: pageToLoad,
         perPage: _perPage,
         search: _filterQuery.isEmpty ? null : _filterQuery,
+        isDraft: false,
         headers: {
           'Accept': 'application/json',
           'authtoken': authtokenHeader,
@@ -174,8 +178,9 @@ class ExpensesTabState extends State<ExpensesTab>
         final maxWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : _minTableWidth;
-        final tableWidth =
-            maxWidth < _minTableWidth ? _minTableWidth : maxWidth;
+        final tableWidth = maxWidth < _minTableWidth
+            ? _minTableWidth
+            : maxWidth;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -202,12 +207,31 @@ class ExpensesTabState extends State<ExpensesTab>
                           onSearchPressed: _handleSearchPressed,
                           isSearchEnabled: !_isLoading,
                           horizontalController: _horizontalController,
-                          trailing: DateRangeFilterButton(
-                            label: 'Expense date',
-                            startDate: _filterStartDate,
-                            endDate: _filterEndDate,
-                            onRangeSelected: _handleDateRangeSelected,
-                            onClear: _clearDateRange,
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                onPressed: _showDraftsDialog,
+                                tooltip: 'View drafts',
+                                style: IconButton.styleFrom(
+                                  backgroundColor: _isViewingDrafts
+                                      ? theme.colorScheme.primaryContainer
+                                      : null,
+                                  foregroundColor: _isViewingDrafts
+                                      ? theme.colorScheme.onPrimaryContainer
+                                      : null,
+                                ),
+                                icon: const Icon(Icons.assignment_outlined),
+                              ),
+                              const SizedBox(width: 8),
+                              DateRangeFilterButton(
+                                label: 'Expense date',
+                                startDate: _filterStartDate,
+                                endDate: _filterEndDate,
+                                onRangeSelected: _handleDateRangeSelected,
+                                onClear: _clearDateRange,
+                              ),
+                            ],
                           ),
                         ),
                         Expanded(
@@ -245,9 +269,7 @@ class ExpensesTabState extends State<ExpensesTab>
                                     );
                                   }, childCount: _expenses.length),
                                 ),
-                                SliverToBoxAdapter(
-                                  child: _buildFooter(theme),
-                                ),
+                                SliverToBoxAdapter(child: _buildFooter(theme)),
                               ],
                             ),
                           ),
@@ -400,6 +422,88 @@ class ExpensesTabState extends State<ExpensesTab>
 
   void _handleSearchPressed() {
     _fetchPage(reset: true);
+  }
+
+  Future<Map<String, String>?> _buildAuthHeaders() async {
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return null;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('You are not logged in.')));
+      return null;
+    }
+
+    final rawToken = (appState.rawAuthToken ?? token).trim();
+    final sanitizedToken = token
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
+    final autoTokenValue = rawToken
+        .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
+        .trim();
+
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
+
+    return {
+      'Accept': 'application/json',
+      'authtoken': authtokenHeader,
+      'Authorization': normalizedAuth,
+    };
+  }
+
+  Future<void> _showDraftsDialog() async {
+    final headers = await _buildAuthHeaders();
+    if (!mounted || headers == null) {
+      return;
+    }
+
+    setState(() {
+      _isViewingDrafts = true;
+    });
+
+    final draftId = await showDialog<String>(
+      context: context,
+      builder: (context) => ExpenseDraftsDialog(headers: headers),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isViewingDrafts = false;
+    });
+
+    if (draftId != null && draftId.trim().isNotEmpty) {
+      await _openExpenseDialog(draftId: draftId);
+    }
+  }
+
+  Future<void> _openExpenseDialog({String? draftId}) async {
+    final createdExpense = await showDialog<Expense?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AddExpenseDialog(draftId: draftId),
+    );
+
+    if (!mounted || createdExpense == null || createdExpense.isDraft) {
+      return;
+    }
+
+    insertCreatedExpense(createdExpense);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('${createdExpense.name} saved.')));
   }
 
   void _handleDateRangeSelected(DateTimeRange range) {

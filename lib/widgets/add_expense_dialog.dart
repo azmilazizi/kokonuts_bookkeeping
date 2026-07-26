@@ -23,11 +23,13 @@ class AddExpenseDialog extends StatefulWidget {
     this.extracted,
     this.scannedFilePath,
     this.scannedFileBytes,
+    this.draftId,
   });
 
   final Map<String, dynamic>? extracted;
   final String? scannedFilePath;
   final Uint8List? scannedFileBytes;
+  final String? draftId;
 
   @override
   State<AddExpenseDialog> createState() => _AddExpenseDialogState();
@@ -37,8 +39,9 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   final _formKey = GlobalKey<FormState>();
   final _vendorController = TextEditingController();
   final _nameController = TextEditingController();
-  final _amountController =
-      TextEditingController(text: CurrencyInputFormatter.normalizeExistingValue(null));
+  final _amountController = TextEditingController(
+    text: CurrencyInputFormatter.normalizeExistingValue(null),
+  );
   final _notesController = TextEditingController();
   final _paymentModesService = PaymentModesService();
   final _vendorsService = VendorsService();
@@ -51,6 +54,14 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   List<PlatformFile> _attachments = [];
   bool _isSubmitting = false;
   String? _submitError;
+  bool _isLoadingDraft = false;
+  bool _isSavingDraft = false;
+  String? _draftLoadError;
+  String? _draftStatusMessage;
+  bool _isDraftStatusError = false;
+  String? _activeDraftId;
+  List<ExpenseAttachment> _existingAttachments = const [];
+  final Set<String> _attachmentsMarkedForDeletion = {};
 
   bool _isLoadingData = false;
   String? _loadingError;
@@ -63,29 +74,29 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
 
   String _vendorLabel(String id) {
     return _vendors
-            .firstWhere(
-              (vendor) => vendor.id == id,
-              orElse: () => VendorSummary(id: id, name: 'Unknown vendor'),
-            )
-            .name;
+        .firstWhere(
+          (vendor) => vendor.id == id,
+          orElse: () => VendorSummary(id: id, name: 'Unknown vendor'),
+        )
+        .name;
   }
 
   String _categoryLabel(String id) {
     return _categories
-            .firstWhere(
-              (category) => category.id == id,
-              orElse: () => ExpenseCategory(id: id, name: 'Unknown category'),
-            )
-            .name;
+        .firstWhere(
+          (category) => category.id == id,
+          orElse: () => ExpenseCategory(id: id, name: 'Unknown category'),
+        )
+        .name;
   }
 
   String _paymentModeLabel(String id) {
     return _paymentModes
-            .firstWhere(
-              (mode) => mode.id == id,
-              orElse: () => PaymentMode(id: id, name: 'Unknown mode'),
-            )
-            .name;
+        .firstWhere(
+          (mode) => mode.id == id,
+          orElse: () => PaymentMode(id: id, name: 'Unknown mode'),
+        )
+        .name;
   }
 
   @override
@@ -142,10 +153,9 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
 
     final amount = e['grand_total'] ?? e['subtotal'];
     if (amount != null) {
-      _amountController.text =
-          CurrencyInputFormatter.normalizeExistingValue(
-            (amount as num).toStringAsFixed(2),
-          );
+      _amountController.text = CurrencyInputFormatter.normalizeExistingValue(
+        (amount as num).toStringAsFixed(2),
+      );
     }
 
     // Note: leave empty
@@ -166,6 +176,9 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
     if (!_hasInitializedData) {
       _hasInitializedData = true;
       _loadData();
+      if (widget.draftId != null && widget.draftId!.trim().isNotEmpty) {
+        _loadDraft();
+      }
     }
   }
 
@@ -240,7 +253,8 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
             for (final v in _vendors) {
               final score = queryWords
                   .intersection(
-                      v.name.toLowerCase().split(RegExp(r'\s+')).toSet())
+                    v.name.toLowerCase().split(RegExp(r'\s+')).toSet(),
+                  )
                   .length;
               if (score > bestScore) {
                 bestScore = score;
@@ -251,8 +265,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
           if (match != null) _selectedVendorId = match.id;
         }
 
-        final paymentMethod =
-            widget.extracted?['payment_method'] as String?;
+        final paymentMethod = widget.extracted?['payment_method'] as String?;
         if (_selectedPaymentMode == null &&
             paymentMethod != null &&
             paymentMethod.isNotEmpty) {
@@ -270,7 +283,8 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
             for (final m in modes) {
               final score = queryWords
                   .intersection(
-                      m.name.toLowerCase().split(RegExp(r'\s+')).toSet())
+                    m.name.toLowerCase().split(RegExp(r'\s+')).toSet(),
+                  )
                   .length;
               if (score > bestScore) {
                 bestScore = score;
@@ -315,6 +329,9 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isEditingDraft =
+        widget.draftId?.trim().isNotEmpty == true ||
+        _activeDraftId?.trim().isNotEmpty == true;
     final dialogWidth = (MediaQuery.of(context).size.width * 0.92).clamp(
       420.0,
       900.0,
@@ -322,49 +339,61 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
 
     return AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
-      title: const Text('Create Expense'),
+      title: Text(isEditingDraft ? 'Edit Expense Draft' : 'Create Expense'),
       content: SizedBox(
         width: dialogWidth,
         child: SingleChildScrollView(
           padding: const EdgeInsets.only(right: 8),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_submitError != null) ...[
-                    FormErrorBanner(message: _submitError!),
-                    const SizedBox(height: 16),
-                  ],
-                  if (widget.extracted != null &&
-                      widget.extracted!['confidence'] == 'low') ...[
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.amber.shade400),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.warning_amber_rounded,
-                              color: Colors.amber.shade800, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Low confidence scan — please review all fields carefully.',
-                              style: TextStyle(
-                                  color: Colors.amber.shade900, fontSize: 13),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_isLoadingDraft) ...[
+                  const LinearProgressIndicator(),
+                  const SizedBox(height: 12),
+                ] else if (_draftLoadError != null) ...[
+                  FormErrorBanner(message: _draftLoadError!),
+                  const SizedBox(height: 16),
+                ],
+                if (_submitError != null) ...[
+                  FormErrorBanner(message: _submitError!),
+                  const SizedBox(height: 16),
+                ],
+                if (widget.extracted != null &&
+                    widget.extracted!['confidence'] == 'low') ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.amber.shade400),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          color: Colors.amber.shade800,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Low confidence scan — please review all fields carefully.',
+                            style: TextStyle(
+                              color: Colors.amber.shade900,
+                              fontSize: 13,
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                  _buildVendorField(),
-                  const SizedBox(height: 12),
-                  _buildExpenseNameField(),
+                  ),
+                ],
+                _buildVendorField(),
+                const SizedBox(height: 12),
+                _buildExpenseNameField(),
                 const SizedBox(height: 12),
                 _buildCategoryDropdown(),
                 const SizedBox(height: 12),
@@ -397,6 +426,25 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
                     _attachments = List.of(_attachments)..remove(file);
                   }),
                 ),
+                if (_existingAttachments.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _ExistingAttachmentsList(
+                    attachments: _existingAttachments,
+                    onRemove: _scheduleExistingAttachmentRemoval,
+                    pendingDeletionCount: _attachmentsMarkedForDeletion.length,
+                  ),
+                ],
+                if (_draftStatusMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _draftStatusMessage!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: _isDraftStatusError
+                          ? theme.colorScheme.error
+                          : null,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -404,21 +452,112 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          onPressed: _isSubmitting || _isSavingDraft
+              ? null
+              : () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
+        TextButton(
+          onPressed: _isSubmitting || _isSavingDraft
+              ? null
+              : () =>
+                    _saveDraft(closeAfterSave: true, showSuccessSnackbar: true),
+          child: _isSavingDraft
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(isEditingDraft ? 'Update Draft' : 'Save Draft'),
+        ),
         FilledButton(
-          onPressed: _isSubmitting ? null : _submit,
+          onPressed: _isSubmitting || _isSavingDraft || _isLoadingDraft
+              ? null
+              : _submit,
           child: _isSubmitting
               ? const SizedBox(
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Create'),
+              : Text(isEditingDraft ? 'Save Expense' : 'Create'),
         ),
       ],
     );
+  }
+
+  Future<void> _loadDraft() async {
+    final draftId = widget.draftId?.trim();
+    if (draftId == null || draftId.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingDraft = true;
+      _draftLoadError = null;
+    });
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _draftLoadError = 'You are not logged in.';
+        _isLoadingDraft = false;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+
+    try {
+      final draft = await _expensesService.getExpense(
+        id: draftId,
+        headers: headers,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _prefillFromDraft(draft);
+        _isLoadingDraft = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _draftLoadError = 'Failed to load draft: $error';
+        _isLoadingDraft = false;
+      });
+    }
+  }
+
+  void _prefillFromDraft(Expense draft) {
+    _activeDraftId = draft.id;
+    _selectedVendorId = draft.vendorId.isEmpty ? null : draft.vendorId;
+    _selectedCategory = draft.categoryId.isEmpty ? null : draft.categoryId;
+    _selectedPaymentMode = draft.paymentModeId.isEmpty
+        ? null
+        : draft.paymentModeId;
+    _vendorController.text = draft.vendor == '—' ? '' : draft.vendor;
+    _nameController.text = draft.name == '—' ? '' : draft.name;
+    _amountController.text = CurrencyInputFormatter.normalizeExistingValue(
+      draft.amount?.toStringAsFixed(2) ?? draft.amountLabel,
+    );
+    _notesController.text = draft.note;
+    _expenseDate = draft.date ?? _expenseDate;
+    _existingAttachments = List.of(draft.attachments);
+    _attachmentsMarkedForDeletion.clear();
+    _draftStatusMessage = null;
+    _isDraftStatusError = false;
   }
 
   Widget _buildVendorField() {
@@ -448,6 +587,9 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   Future<String?> _handleCreateVendor() async {
     final appState = AppStateScope.of(context);
     final token = await appState.getValidAuthToken();
+    if (!mounted) {
+      return null;
+    }
     if (token == null || token.trim().isEmpty) {
       setState(() => _submitError = 'You are not logged in.');
       return null;
@@ -554,7 +696,9 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
         labelText: 'Payment mode',
         helperText: _loadingError,
       ),
-      hintText: _isLoadingData ? 'Loading payment modes...' : 'Choose payment mode',
+      hintText: _isLoadingData
+          ? 'Loading payment modes...'
+          : 'Choose payment mode',
       enabled: !_isLoadingData,
       dialogTitle: 'Select payment mode',
       onChanged: (value) => setState(() => _selectedPaymentMode = value),
@@ -666,14 +810,29 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
       'category': categoryName.isNotEmpty ? categoryName : _selectedCategory,
       'paymentmode': _selectedPaymentMode ?? '',
       'payment_method_name': paymentModeName,
+      'is_draft': false,
       if (_attachments.isNotEmpty) 'attachment': _attachments.first.name,
     };
 
     try {
-      final created = await _expensesService.createExpense(
-        headers: headers,
-        data: requestData,
-      );
+      final created = _activeDraftId == null
+          ? await _expensesService.createExpense(
+              headers: headers,
+              data: requestData,
+            )
+          : await _expensesService.updateExpense(
+              id: _activeDraftId!,
+              headers: headers,
+              data: requestData,
+            );
+
+      if (_attachmentsMarkedForDeletion.isNotEmpty) {
+        await _expensesService.deleteAttachments(
+          id: created.id,
+          headers: headers,
+          attachmentIds: _attachmentsMarkedForDeletion.toList(),
+        );
+      }
 
       if (_attachments.isNotEmpty) {
         try {
@@ -710,5 +869,255 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
         _isSubmitting = false;
       });
     }
+  }
+
+  String? _validateDraftRequirements() {
+    if (_nameController.text.trim().isEmpty) {
+      return 'Expense name is required to save a draft.';
+    }
+
+    final parsedAmount = double.tryParse(
+      _amountController.text
+          .replaceAll(RegExp(r'[^0-9.,-]'), '')
+          .replaceAll(',', ''),
+    );
+    if (parsedAmount == null || parsedAmount <= 0) {
+      return 'Enter a valid amount before saving a draft.';
+    }
+
+    if (_selectedCategory == null || _selectedCategory!.trim().isEmpty) {
+      return 'Select an expense category before saving a draft.';
+    }
+
+    final vendorId = (_selectedVendorId ?? '').trim();
+    if (vendorId.isEmpty) {
+      return 'Select a vendor before saving a draft.';
+    }
+
+    return null;
+  }
+
+  void _scheduleExistingAttachmentRemoval(int index) {
+    setState(() {
+      final removed = _existingAttachments.removeAt(index);
+      if (removed.id != null && removed.id!.isNotEmpty) {
+        _attachmentsMarkedForDeletion.add(removed.id!);
+      }
+    });
+  }
+
+  Future<void> _saveDraft({
+    bool closeAfterSave = false,
+    bool showSuccessSnackbar = false,
+  }) async {
+    FocusScope.of(context).unfocus();
+    final messenger = ScaffoldMessenger.of(context);
+
+    final validationError = _validateDraftRequirements();
+    if (validationError != null) {
+      setState(() {
+        _draftStatusMessage = validationError;
+        _isDraftStatusError = true;
+      });
+      return;
+    }
+
+    final appState = AppStateScope.of(context);
+    final token = await appState.getValidAuthToken();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (token == null || token.trim().isEmpty) {
+      setState(() {
+        _draftStatusMessage = 'You are not logged in.';
+        _isDraftStatusError = true;
+      });
+      return;
+    }
+
+    final headers = _buildAuthHeaders(appState, token);
+    final categoryName = _categories
+        .firstWhere(
+          (c) => c.id == _selectedCategory,
+          orElse: () => const ExpenseCategory(id: '', name: ''),
+        )
+        .name;
+    final paymentModeName = _paymentModes
+        .firstWhere(
+          (mode) => mode.id == _selectedPaymentMode,
+          orElse: () => const PaymentMode(id: '', name: ''),
+        )
+        .name;
+    final parsedAmount = double.tryParse(
+      _amountController.text
+          .replaceAll(RegExp(r'[^0-9.,-]'), '')
+          .replaceAll(',', ''),
+    );
+
+    final requestData = {
+      'expense_name': _nameController.text.trim(),
+      'note': _notesController.text.trim(),
+      'date': DateFormat('yyyy-MM-dd').format(_expenseDate),
+      'amount': parsedAmount ?? 0,
+      'vendor': _selectedVendorId ?? '',
+      'category': categoryName.isNotEmpty ? categoryName : _selectedCategory,
+      'paymentmode': _selectedPaymentMode ?? '',
+      'payment_method_name': paymentModeName,
+      'is_draft': true,
+    };
+
+    setState(() {
+      _isSavingDraft = true;
+      _draftStatusMessage = null;
+      _isDraftStatusError = false;
+    });
+
+    try {
+      final savedDraft = _activeDraftId == null
+          ? await _expensesService.createExpense(
+              headers: headers,
+              data: requestData,
+            )
+          : await _expensesService.updateExpense(
+              id: _activeDraftId!,
+              headers: headers,
+              data: requestData,
+            );
+
+      if (_attachmentsMarkedForDeletion.isNotEmpty) {
+        await _expensesService.deleteAttachments(
+          id: savedDraft.id,
+          headers: headers,
+          attachmentIds: _attachmentsMarkedForDeletion.toList(),
+        );
+      }
+
+      if (_attachments.isNotEmpty) {
+        await _expensesService.uploadAttachments(
+          id: savedDraft.id,
+          headers: headers,
+          attachments: _attachments,
+        );
+      }
+
+      final refreshedDraft = await _expensesService.getExpense(
+        id: savedDraft.id,
+        headers: headers,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _prefillFromDraft(refreshedDraft);
+        _attachments = [];
+        _isSavingDraft = false;
+        _draftStatusMessage =
+            'Draft saved at ${DateFormat.Hm().format(DateTime.now())}';
+        _isDraftStatusError = false;
+      });
+
+      if (closeAfterSave) {
+        Navigator.of(context).pop();
+      }
+
+      if (showSuccessSnackbar) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Expense draft saved successfully.')),
+        );
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSavingDraft = false;
+        _draftStatusMessage = 'Failed to save draft: $error';
+        _isDraftStatusError = true;
+      });
+    }
+  }
+}
+
+class _ExistingAttachmentsList extends StatelessWidget {
+  const _ExistingAttachmentsList({
+    required this.attachments,
+    required this.onRemove,
+    required this.pendingDeletionCount,
+  });
+
+  final List<ExpenseAttachment> attachments;
+  final ValueChanged<int> onRemove;
+  final int pendingDeletionCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('Existing attachments', style: theme.textTheme.titleSmall),
+            if (pendingDeletionCount > 0) ...[
+              const SizedBox(width: 8),
+              Chip(
+                label: Text('Deleting on save: $pendingDeletionCount'),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (attachments.isEmpty)
+          Text(
+            'No attachments uploaded for this draft.',
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: attachments.length,
+            itemBuilder: (context, index) {
+              final attachment = attachments[index];
+              final subtitleParts = <String>[];
+              final sizeLabel = attachment.sizeLabel?.trim();
+              if (sizeLabel != null && sizeLabel.isNotEmpty) {
+                subtitleParts.add(sizeLabel);
+              }
+              final uploadedBy = attachment.uploadedBy?.trim();
+              if (uploadedBy != null && uploadedBy.isNotEmpty) {
+                subtitleParts.add('Uploaded by $uploadedBy');
+              }
+              final subtitle = subtitleParts.isEmpty
+                  ? null
+                  : subtitleParts.join(' • ');
+
+              return Card(
+                key: ValueKey(
+                  'expense-existing-attachment-$index-${attachment.fileName}',
+                ),
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
+                  leading: const Icon(Icons.attach_file),
+                  title: Text(attachment.fileName),
+                  subtitle: subtitle == null ? null : Text(subtitle),
+                  trailing: IconButton(
+                    tooltip: 'Remove attachment',
+                    icon: const Icon(Icons.close),
+                    onPressed: () => onRemove(index),
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
+    );
   }
 }

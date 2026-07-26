@@ -175,6 +175,7 @@ class CreateGoodsReceiptItem {
     required this.goodsMoney,
     required this.subTotal,
     required this.unitId,
+    required this.lotNumber,
     this.taxes,
     this.serialNumber = '',
   });
@@ -186,6 +187,7 @@ class CreateGoodsReceiptItem {
   final double goodsMoney;
   final double subTotal;
   final String unitId;
+  final String lotNumber;
   final dynamic taxes;
   final String serialNumber;
 
@@ -199,6 +201,7 @@ class CreateGoodsReceiptItem {
       'sub_total': subTotal,
       'unit_id': unitId,
       'taxes': taxes,
+      'lot_number': lotNumber,
       'serial_number': serialNumber,
     };
   }

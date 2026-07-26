@@ -1168,6 +1168,22 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     final goodsReceiptCode =
         'IR-${cleanedPrefix.isNotEmpty ? cleanedPrefix : order.number}';
 
+    LotNumberSettings lotSettings;
+    try {
+      lotSettings = await _inventoryOptionsService.fetchLotNumberSettings(
+        headers: headers,
+      );
+    } catch (error) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Purchase order saved but failed to load lot numbers: $error',
+          ),
+        ),
+      );
+      return;
+    }
+
     final receiptDate = _itemsReceivedDate ?? _orderDate ?? DateTime.now();
 
     final supplierName = _findVendorById(_selectedVendorId)?.name ??
@@ -1175,7 +1191,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
         '';
 
     final goodsReceiptItems = _buildGoodsReceiptItems(
+      lotNumberSettings: lotSettings,
       warehouseId: warehouseId,
+      receiptDate: receiptDate,
     );
 
     final request = CreateGoodsReceiptRequest(
@@ -1229,22 +1247,35 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
   }
 
   List<CreateGoodsReceiptItem> _buildGoodsReceiptItems({
+    required LotNumberSettings lotNumberSettings,
     required String warehouseId,
+    required DateTime receiptDate,
   }) {
+    final lotDateSegment = DateFormat('MMyy').format(receiptDate);
+
+    var nextLotNumber = lotNumberSettings.nextLotNumber;
+
     return _items
         .where((item) => (item.itemId ?? '').isNotEmpty)
         .map(
-          (item) => CreateGoodsReceiptItem(
-            commodityCode: item.itemId ?? '',
-            warehouseId: warehouseId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            goodsMoney: item.subtotal,
-            subTotal: item.total,
-            unitId: item.itemId ?? '',
-            taxes: null,
-            serialNumber: '',
-          ),
+          (item) {
+            final lotNumber =
+                '${lotNumberSettings.prefix}-$lotDateSegment-${nextLotNumber.toString().padLeft(5, '0')}';
+            nextLotNumber += 1;
+
+            return CreateGoodsReceiptItem(
+              commodityCode: item.itemId ?? '',
+              warehouseId: warehouseId,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              goodsMoney: item.subtotal,
+              subTotal: item.total,
+              unitId: item.itemId ?? '',
+              taxes: null,
+              lotNumber: lotNumber,
+              serialNumber: '',
+            );
+          },
         )
         .toList(growable: false);
   }
