@@ -908,14 +908,14 @@ class _PaymentsTabState extends State<_PaymentsTab> {
   @override
   void initState() {
     super.initState();
-    _payments = List<PurchaseOrderPayment>.from(widget.payments);
+    _payments = _deduplicatePayments(widget.payments);
   }
 
   @override
   void didUpdateWidget(covariant _PaymentsTab oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.payments != widget.payments) {
-      _payments = List<PurchaseOrderPayment>.from(widget.payments);
+      _payments = _deduplicatePayments(widget.payments);
     }
     if (widget.apiHeaders != null && !_hasAttemptedLoadingModes) {
       _loadPaymentModes();
@@ -966,6 +966,26 @@ class _PaymentsTabState extends State<_PaymentsTab> {
       return int.tryParse(match.group(1)!);
     }
     return int.tryParse(orderNumber);
+  }
+
+  List<PurchaseOrderPayment> _deduplicatePayments(
+    List<PurchaseOrderPayment> payments,
+  ) {
+    final seenIds = <String>{};
+    final deduplicated = <PurchaseOrderPayment>[];
+
+    for (final payment in payments) {
+      final paymentId = payment.id?.trim();
+      if (paymentId != null && paymentId.isNotEmpty) {
+        if (seenIds.contains(paymentId)) {
+          continue;
+        }
+        seenIds.add(paymentId);
+      }
+      deduplicated.add(payment);
+    }
+
+    return deduplicated;
   }
 
   Future<void> _openAddPaymentDialog() async {
