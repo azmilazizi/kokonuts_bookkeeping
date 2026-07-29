@@ -22,14 +22,21 @@ class AuthExpirationHandler {
 
   Future<void> handleSessionExpired() async {
     final navigator = navigatorKey?.currentState;
-    final context = navigator?.overlay?.context ?? navigator?.context;
+    final context = navigator?.context;
 
-    if (navigator == null || context == null || _isDialogVisible) {
+    if (navigator == null ||
+        context == null ||
+        _isDialogVisible ||
+        !navigator.mounted) {
       return;
     }
 
     _isDialogVisible = true;
     try {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!navigator.mounted) {
+        return;
+      }
       await showDialog<void>(
         context: context,
         barrierDismissible: false,
