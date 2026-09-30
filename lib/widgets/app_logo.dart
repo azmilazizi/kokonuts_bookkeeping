@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 
-String _resolveAppLogoAsset(BuildContext context) {
-  final brightness = Theme.of(context).brightness;
-  return brightness == Brightness.dark
-      ? 'assets/images/app_logo_dark.png'
-      : 'assets/images/app_logo_light.png';
-}
+// The dark variant was identical to the light one and has been removed,
+// so both themes use the same logo.
+String _resolveAppLogoAsset(BuildContext context) =>
+    'assets/images/app_logo_light.png';
 
 /// Displays the application logo, automatically adapting to the active theme.
 class AppLogo extends StatelessWidget {
