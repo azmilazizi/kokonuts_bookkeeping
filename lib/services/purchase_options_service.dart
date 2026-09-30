@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
+import 'api_error.dart';
 
 class PurchaseOptionsService {
   PurchaseOptionsService({http.Client? client})
@@ -24,7 +25,7 @@ class PurchaseOptionsService {
 
     if (response.statusCode != 200) {
       throw PurchaseOptionsException(
-        'Options request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Options request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -139,5 +140,5 @@ class PurchaseOptionsException implements Exception {
   final String message;
 
   @override
-  String toString() => 'PurchaseOptionsException: $message';
+  String toString() => message;
 }

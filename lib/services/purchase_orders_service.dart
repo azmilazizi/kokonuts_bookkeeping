@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
 import '../utils/platform_file_loader.dart';
+import 'api_error.dart';
 
 class PurchaseOrdersService {
   PurchaseOrdersService({http.Client? client})
@@ -55,7 +56,7 @@ class PurchaseOrdersService {
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw PurchaseOrdersException(
-        'We couldn\'t save the payments. Please try again or contact support if this keeps happening.',
+        apiErrorMessage(response, 'We couldn\'t save the payments. Please try again or contact support if this keeps happening.'),
       );
     }
   }
@@ -96,7 +97,7 @@ class PurchaseOrdersService {
     final resolved = await http.Response.fromStream(response);
     if (resolved.statusCode != 200 && resolved.statusCode != 204) {
       throw PurchaseOrdersException(
-        'We couldn\'t remove the selected payments right now. Please try again later.',
+        apiErrorMessage(resolved, 'We couldn\'t remove the selected payments right now. Please try again later.'),
       );
     }
   }
@@ -129,7 +130,7 @@ class PurchaseOrdersService {
 
     if (response.statusCode != 200) {
       throw PurchaseOrdersException(
-        'We couldn\'t load purchase orders right now. Please try again in a moment.',
+        apiErrorMessage(response, 'We couldn\'t load purchase orders right now. Please try again in a moment.'),
       );
     }
 
@@ -180,7 +181,7 @@ class PurchaseOrdersService {
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw PurchaseOrdersException(
-        'The purchase order couldn\'t be created right now. Please try again later.',
+        apiErrorMessage(response, 'The purchase order couldn\'t be created right now. Please try again later.'),
       );
     }
 
@@ -227,7 +228,7 @@ class PurchaseOrdersService {
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw PurchaseOrdersException(
-        'The purchase order couldn\'t be updated right now. Please try again later.',
+        apiErrorMessage(response, 'The purchase order couldn\'t be updated right now. Please try again later.'),
       );
     }
 
@@ -268,7 +269,7 @@ class PurchaseOrdersService {
 
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw PurchaseOrdersException(
-        'The purchase order couldn\'t be deleted. Please try again later.',
+        apiErrorMessage(response, 'The purchase order couldn\'t be deleted. Please try again later.'),
       );
     }
   }
@@ -319,7 +320,7 @@ class PurchaseOrdersService {
         resolved.statusCode != 201 &&
         resolved.statusCode != 204) {
       throw PurchaseOrdersException(
-        'The attachments couldn\'t be uploaded right now. Please try again later.',
+        apiErrorMessage(resolved, 'The attachments couldn\'t be uploaded right now. Please try again later.'),
       );
     }
   }
@@ -356,7 +357,7 @@ class PurchaseOrdersService {
     final resolved = await http.Response.fromStream(response);
     if (resolved.statusCode != 200 && resolved.statusCode != 204) {
       throw PurchaseOrdersException(
-        'The attachments couldn\'t be deleted right now. Please try again later.',
+        apiErrorMessage(resolved, 'The attachments couldn\'t be deleted right now. Please try again later.'),
       );
     }
   }
@@ -1046,7 +1047,7 @@ class PurchaseOrdersException implements Exception {
   final String message;
 
   @override
-  String toString() => 'PurchaseOrdersException: $message';
+  String toString() => message;
 }
 
 DateTime? _parseDateString(String value) {

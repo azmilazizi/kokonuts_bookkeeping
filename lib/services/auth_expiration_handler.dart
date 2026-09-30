@@ -8,7 +8,7 @@ class AuthExpiredException implements Exception {
   final String message;
 
   @override
-  String toString() => 'AuthExpiredException: $message';
+  String toString() => message;
 }
 
 class AuthExpirationHandler {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
+import 'api_error.dart';
 
 class PaymentModesService {
   PaymentModesService({http.Client? client})
@@ -25,7 +26,7 @@ class PaymentModesService {
 
     if (response.statusCode != 200) {
       throw PaymentModesException(
-        'Payment mode request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Payment mode request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -176,5 +177,5 @@ class PaymentModesException implements Exception {
   final String message;
 
   @override
-  String toString() => 'PaymentModesException: $message';
+  String toString() => message;
 }

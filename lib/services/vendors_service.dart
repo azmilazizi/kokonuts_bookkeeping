@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
+import 'api_error.dart';
 
 class VendorsService {
   VendorsService({http.Client? client})
@@ -24,7 +25,7 @@ class VendorsService {
 
     if (response.statusCode != 200) {
       throw VendorsServiceException(
-        'Vendor request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Vendor request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -125,7 +126,7 @@ class VendorsServiceException implements Exception {
   final String message;
 
   @override
-  String toString() => 'VendorsServiceException: $message';
+  String toString() => message;
 }
 
 class VendorSummary {

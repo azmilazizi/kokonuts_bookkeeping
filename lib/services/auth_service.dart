@@ -12,7 +12,7 @@ class AuthException implements Exception {
   final Map<String, List<String>> fieldErrors;
 
   @override
-  String toString() => 'AuthException: $message';
+  String toString() => message;
 }
 
 /// Handles authentication-related network requests.

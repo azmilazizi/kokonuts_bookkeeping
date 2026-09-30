@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
+import 'api_error.dart';
 
 /// Fetches a single purchase order and maps it to strongly typed classes.
 class PurchaseOrderDetailService {
@@ -30,7 +31,7 @@ class PurchaseOrderDetailService {
 
     if (response.statusCode != 200) {
       throw PurchaseOrderDetailException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -739,7 +740,7 @@ class PurchaseOrderDetailException implements Exception {
   final String message;
 
   @override
-  String toString() => 'PurchaseOrderDetailException: $message';
+  String toString() => message;
 }
 
 List<dynamic> _extractRelatedCollection(

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
+import 'api_error.dart';
 
 class WarehousesService {
   WarehousesService({http.Client? client})
@@ -28,7 +29,7 @@ class WarehousesService {
 
     if (response.statusCode != 200) {
       throw WarehousesException(
-        'Warehouses request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Warehouses request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -82,7 +83,7 @@ class WarehousesService {
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw WarehousesException(
-        'Goods receipt request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Goods receipt request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
   }
@@ -223,7 +224,7 @@ class WarehousesException implements Exception {
   final String message;
 
   @override
-  String toString() => 'WarehousesException: $message';
+  String toString() => message;
 }
 
 String _formatDate(DateTime value) {

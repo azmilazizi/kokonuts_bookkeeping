@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
+import 'api_error.dart';
 
 class InventoryItemsService {
   InventoryItemsService({http.Client? client})
@@ -27,7 +28,7 @@ class InventoryItemsService {
 
     if (response.statusCode != 200) {
       throw InventoryItemsException(
-        'Items request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Items request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -136,5 +137,5 @@ class InventoryItemsException implements Exception {
   final String message;
 
   @override
-  String toString() => 'InventoryItemsException: $message';
+  String toString() => message;
 }

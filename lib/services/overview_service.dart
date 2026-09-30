@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
+import 'api_error.dart';
 
 class OverviewService {
   OverviewService({http.Client? client})
@@ -39,7 +40,7 @@ class OverviewService {
 
     if (response.statusCode != 200) {
       throw OverviewException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -92,7 +93,7 @@ class OverviewService {
 
     if (response.statusCode != 200) {
       throw OverviewException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -385,5 +386,5 @@ class OverviewException implements Exception {
   const OverviewException(this.message);
   final String message;
   @override
-  String toString() => 'OverviewException: $message';
+  String toString() => message;
 }

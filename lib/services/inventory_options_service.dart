@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
+import 'api_error.dart';
 
 class InventoryOptionsService {
   InventoryOptionsService({http.Client? client})
@@ -28,7 +29,7 @@ class InventoryOptionsService {
 
     if (response.statusCode != 200) {
       throw InventoryOptionsException(
-        'Options request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Options request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -78,7 +79,7 @@ class InventoryOptionsService {
 
     if (response.statusCode != 200) {
       throw InventoryOptionsException(
-        'Option $optionKey request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Option $optionKey request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -175,7 +176,7 @@ class InventoryOptionsException implements Exception {
   final String message;
 
   @override
-  String toString() => 'InventoryOptionsException: $message';
+  String toString() => message;
 }
 
 class LotNumberSettings {

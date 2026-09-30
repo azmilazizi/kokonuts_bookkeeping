@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
+import 'api_error.dart';
 
 /// Exception thrown when purchase order draft operations fail.
 class PurchaseOrderDraftsException implements Exception {
@@ -12,7 +13,7 @@ class PurchaseOrderDraftsException implements Exception {
   final String message;
 
   @override
-  String toString() => 'PurchaseOrderDraftsException: $message';
+  String toString() => message;
 }
 
 /// Represents a purchase order draft with associated items, payments, and attachments.
@@ -428,7 +429,7 @@ class PurchaseOrderDraftsService {
 
     if (response.statusCode != 200) {
       throw PurchaseOrderDraftsException(
-        'We could not load purchase order drafts right now. Please try again shortly.',
+        apiErrorMessage(response, 'We could not load purchase order drafts right now. Please try again shortly.'),
       );
     }
 
@@ -476,7 +477,7 @@ class PurchaseOrderDraftsService {
 
     if (response.statusCode != 200) {
       throw PurchaseOrderDraftsException(
-        'We could not load the purchase order draft. Please try again.',
+        apiErrorMessage(response, 'We could not load the purchase order draft. Please try again.'),
       );
     }
 
@@ -569,7 +570,7 @@ class PurchaseOrderDraftsService {
 
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw PurchaseOrderDraftsException(
-        'The draft could not be deleted right now. Please try again later.',
+        apiErrorMessage(response, 'The draft could not be deleted right now. Please try again later.'),
       );
     }
   }
@@ -664,7 +665,7 @@ class PurchaseOrderDraftsService {
     final resolved = await http.Response.fromStream(response);
     if (resolved.statusCode != 200 && resolved.statusCode != 204) {
       throw PurchaseOrderDraftsException(
-        'The attachments couldn\'t be deleted right now. Please try again later.',
+        apiErrorMessage(resolved, 'The attachments couldn\'t be deleted right now. Please try again later.'),
       );
     }
   }
@@ -699,7 +700,7 @@ class PurchaseOrderDraftsService {
         resolved.statusCode != 201 &&
         resolved.statusCode != 204) {
       throw PurchaseOrderDraftsException(
-        'The draft attachments could not be moved to the purchase order right now. Please try again later.',
+        apiErrorMessage(resolved, 'The draft attachments could not be moved to the purchase order right now. Please try again later.'),
       );
     }
   }
@@ -743,7 +744,7 @@ class PurchaseOrderDraftsService {
     if (response.statusCode != 200 && response.statusCode != 201) {
       final actionVerb = method.toUpperCase() == 'POST' ? 'created' : 'updated';
       throw PurchaseOrderDraftsException(
-        'The draft could not be $actionVerb right now. Please try again later.',
+        apiErrorMessage(response, 'The draft could not be $actionVerb right now. Please try again later.'),
       );
     }
 

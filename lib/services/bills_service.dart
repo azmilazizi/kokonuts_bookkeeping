@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
 import 'auth_http_client.dart';
+import 'api_error.dart';
 
 class BillsService {
   BillsService({http.Client? client})
@@ -45,7 +46,7 @@ class BillsService {
 
     if (response.statusCode != 200) {
       throw BillsException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -85,7 +86,7 @@ class BillsService {
 
     if (response.statusCode != 200) {
       throw BillsException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -127,7 +128,7 @@ class BillsService {
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw BillsException(
-        'Create failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Create failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -185,7 +186,7 @@ class BillsService {
         resolved.statusCode != 201 &&
         resolved.statusCode != 204) {
       throw BillsException(
-        'Attachment upload failed with status ${resolved.statusCode}: ${resolved.body}',
+        apiErrorMessage(resolved, 'Attachment upload failed with status ${resolved.statusCode}: ${resolved.body}'),
       );
     }
   }
@@ -205,7 +206,7 @@ class BillsService {
 
     if (response.statusCode != 200) {
       throw BillsException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -258,7 +259,7 @@ class BillsService {
 
     if (response.statusCode != 200) {
       throw BillsException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -326,7 +327,7 @@ class BillsService {
         resolved.statusCode != 201 &&
         resolved.statusCode != 204) {
       throw BillsException(
-        'Payment attachment upload failed with status ${resolved.statusCode}: ${resolved.body}',
+        apiErrorMessage(resolved, 'Payment attachment upload failed with status ${resolved.statusCode}: ${resolved.body}'),
       );
     }
 
@@ -420,7 +421,7 @@ class BillsService {
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw BillsException(
-        'Payment request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Payment request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -491,7 +492,7 @@ class BillsService {
     final resolved = await http.Response.fromStream(response);
     if (resolved.statusCode != 200 && resolved.statusCode != 204) {
       throw BillsException(
-        'Payment delete failed with status ${resolved.statusCode}: ${resolved.body}',
+        apiErrorMessage(resolved, 'Payment delete failed with status ${resolved.statusCode}: ${resolved.body}'),
       );
     }
   }
@@ -511,7 +512,7 @@ class BillsService {
 
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw BillsException(
-        'Delete request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Delete request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
   }
@@ -539,7 +540,7 @@ class BillsService {
 
     if (response.statusCode != 200) {
       throw BillsException(
-        'Vendor request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Vendor request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -803,7 +804,7 @@ class BillsException implements Exception {
   final String message;
 
   @override
-  String toString() => 'BillsException: $message';
+  String toString() => message;
 }
 
 class Bill {

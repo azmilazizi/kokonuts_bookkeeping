@@ -14,6 +14,7 @@ import '../services/payment_modes_service.dart';
 import 'attachment_picker.dart';
 import 'currency_input_formatter.dart';
 import 'form_error_banner.dart';
+import '../services/api_error.dart';
 
 enum _EntryType {
   cashDeposit('Cash Deposit'),
@@ -872,7 +873,7 @@ class _JournalEntryDialogState extends State<JournalEntryDialog> {
         resolved.statusCode != 201 &&
         resolved.statusCode != 204) {
       throw Exception(
-        'The attachments couldn\'t be uploaded right now. Please try again later.',
+        apiErrorMessage(resolved, 'The attachments couldn\'t be uploaded right now. Please try again later.'),
       );
     }
   }

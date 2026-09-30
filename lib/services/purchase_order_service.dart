@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
+import 'api_error.dart';
 
 /// Represents a single purchase order entry returned from the API.
 class PurchaseOrder {
@@ -138,7 +139,7 @@ class PurchaseOrderException implements Exception {
   final String message;
 
   @override
-  String toString() => 'PurchaseOrderException: $message';
+  String toString() => message;
 }
 
 /// Handles retrieving purchase orders from the backend service with pagination.
@@ -177,7 +178,7 @@ class PurchaseOrderService {
 
     if (response.statusCode != 200) {
       throw PurchaseOrderException(
-        'We couldn\'t load purchase orders right now. Please try again in a moment.',
+        apiErrorMessage(response, 'We couldn\'t load purchase orders right now. Please try again in a moment.'),
       );
     }
 

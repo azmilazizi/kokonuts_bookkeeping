@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
+import 'api_error.dart';
 
 class ExpensesService {
   ExpensesService({http.Client? client})
@@ -44,7 +45,7 @@ class ExpensesService {
 
     if (response.statusCode != 200) {
       throw ExpensesException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -85,7 +86,7 @@ class ExpensesService {
 
     if (response.statusCode != 200) {
       throw ExpensesException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -128,7 +129,7 @@ class ExpensesService {
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw ExpensesException(
-        'Update failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Update failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -174,7 +175,7 @@ class ExpensesService {
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw ExpensesException(
-        'Create failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Create failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -238,7 +239,7 @@ class ExpensesService {
         resolved.statusCode != 201 &&
         resolved.statusCode != 204) {
       throw ExpensesException(
-        'Attachment upload failed with status ${resolved.statusCode}: ${resolved.body}',
+        apiErrorMessage(resolved, 'Attachment upload failed with status ${resolved.statusCode}: ${resolved.body}'),
       );
     }
   }
@@ -272,7 +273,7 @@ class ExpensesService {
     final resolved = await http.Response.fromStream(response);
     if (resolved.statusCode != 200 && resolved.statusCode != 204) {
       throw ExpensesException(
-        'Attachment delete failed with status ${resolved.statusCode}: ${resolved.body}',
+        apiErrorMessage(resolved, 'Attachment delete failed with status ${resolved.statusCode}: ${resolved.body}'),
       );
     }
   }
@@ -295,7 +296,7 @@ class ExpensesService {
 
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw ExpensesException(
-        'Delete failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Delete failed with status ${response.statusCode}: ${response.body}'),
       );
     }
   }
@@ -314,7 +315,7 @@ class ExpensesService {
 
     if (response.statusCode != 200) {
       throw ExpensesException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -888,7 +889,7 @@ class ExpensesException implements Exception {
   final String message;
 
   @override
-  String toString() => 'ExpensesException: $message';
+  String toString() => message;
 }
 
 double? _parseDouble(dynamic value) {

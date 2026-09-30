@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
+import 'api_error.dart';
 
 class BillCategory {
   const BillCategory({
@@ -58,7 +59,7 @@ class BillCategoryService {
 
     if (response.statusCode != 200) {
       throw BillCategoryException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -104,7 +105,7 @@ class BillCategoryService {
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw BillCategoryException(
-        'Create failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Create failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -153,7 +154,7 @@ class BillCategoryService {
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw BillCategoryException(
-        'Update failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Update failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -188,7 +189,7 @@ class BillCategoryService {
 
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw BillCategoryException(
-        'Delete failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Delete failed with status ${response.statusCode}: ${response.body}'),
       );
     }
   }
@@ -224,5 +225,5 @@ class BillCategoryException implements Exception {
   final String message;
 
   @override
-  String toString() => 'BillCategoryException: $message';
+  String toString() => message;
 }

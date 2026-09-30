@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'auth_http_client.dart';
+import 'api_error.dart';
 
 class AccountsService {
   AccountsService({http.Client? client})
@@ -29,7 +30,7 @@ class AccountsService {
 
     if (response.statusCode != 200) {
       throw AccountsException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -73,7 +74,7 @@ class AccountsService {
 
     if (response.statusCode != 200) {
       throw AccountsException(
-          'Request failed with status ${response.statusCode}: ${response.body}');
+          apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'));
     }
 
     dynamic decoded;
@@ -121,7 +122,7 @@ class AccountsService {
 
     if (response.statusCode != 200) {
       throw AccountsException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -155,7 +156,7 @@ class AccountsService {
 
     if (response.statusCode != 200) {
       throw AccountsException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -202,7 +203,7 @@ class AccountsService {
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw AccountsException(
-        'Request failed with status ${response.statusCode}: ${response.body}',
+        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
       );
     }
 
@@ -492,7 +493,7 @@ class AccountsException implements Exception {
   final String message;
 
   @override
-  String toString() => 'AccountsException: $message';
+  String toString() => message;
 }
 
 class AccountType {
