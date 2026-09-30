@@ -677,6 +677,42 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     return null;
   }
 
+  void _setItemsReceived(bool value) {
+    setState(() {
+      _itemsReceived = value;
+      if (!_itemsReceived) {
+        _selectedWarehouseId = null;
+        _itemsReceivedDate = null;
+      } else {
+        _itemsReceivedDate ??= _orderDate ?? DateTime.now();
+      }
+      _markDirty();
+    });
+  }
+
+  void _setPaid(bool value) {
+    setState(() {
+      _isPaid = value;
+      if (!_isPaid) {
+        if (_isEditing) {
+          for (final payment in _payments) {
+            final removedPaymentId = payment.paymentId?.trim();
+            if (removedPaymentId != null && removedPaymentId.isNotEmpty) {
+              _removedPaymentIds.add(removedPaymentId);
+            }
+          }
+        }
+        for (final payment in _payments) {
+          payment.dispose();
+        }
+        _payments.clear();
+      } else if (_payments.isEmpty) {
+        _addPaymentEntry();
+      }
+      _markDirty();
+    });
+  }
+
   void _handleItemsChanged() {
     if (!_isRestoringDraft) {
       _markDirty();
@@ -1783,85 +1819,47 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                     ),
                   ],
                   const SizedBox(height: 16),
-                  Row(
+                  _StatusSectionCard(
+                    icon: Icons.inventory_2_outlined,
+                    color: Colors.blue,
+                    title: 'Items Received',
+                    subtitle: _alreadyReceived
+                        ? 'Already received — the goods receipt exists, so stock won\'t be added again.'
+                        : 'Creates the goods receipt and adds the items to stock.',
+                    value: _itemsReceived,
+                    onChanged: _isSubmitting ? null : _setItemsReceived,
                     children: [
-                      Checkbox(
-                        value: _itemsReceived,
-                        onChanged: (value) {
-                          setState(() {
-                            _itemsReceived = value ?? false;
-                            if (!_itemsReceived) {
-                              _selectedWarehouseId = null;
-                              _itemsReceivedDate = null;
-                            } else {
-                              _itemsReceivedDate ??= _orderDate ?? DateTime.now();
-                            }
-                            _markDirty();
-                          });
-                        },
+                      _buildWarehouseDropdown(),
+                      const SizedBox(height: 12),
+                      _OrderDateField(
+                        label: 'Date items received',
+                        date: _itemsReceivedDate ?? DateTime.now(),
+                        onTap: _pickItemsReceivedDate,
                       ),
-                      const SizedBox(width: 8),
-                      const Text('Items Received'),
                     ],
                   ),
-                  if (_itemsReceived) ...[
-                    const SizedBox(height: 12),
-                    _buildWarehouseDropdown(),
-                    const SizedBox(height: 12),
-                    _OrderDateField(
-                      label: 'Date items received',
-                      date: _itemsReceivedDate ?? DateTime.now(),
-                      onTap: _pickItemsReceivedDate,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  Row(
+                  const SizedBox(height: 12),
+                  _StatusSectionCard(
+                    icon: Icons.payments_outlined,
+                    color: Colors.green,
+                    title: 'Paid',
+                    subtitle: 'Records the payments made for this purchase order.',
+                    value: _isPaid,
+                    onChanged: _isSubmitting ? null : _setPaid,
                     children: [
-                      Checkbox(
-                        value: _isPaid,
-                        onChanged: (value) {
-                          setState(() {
-                            _isPaid = value ?? false;
-                            if (!_isPaid) {
-                              if (_isEditing) {
-                                for (final payment in _payments) {
-                                  final removedPaymentId = payment.paymentId
-                                      ?.trim();
-                                  if (removedPaymentId != null &&
-                                      removedPaymentId.isNotEmpty) {
-                                    _removedPaymentIds.add(removedPaymentId);
-                                  }
-                                }
-                              }
-                              for (final payment in _payments) {
-                                payment.dispose();
-                              }
-                              _payments.clear();
-                            } else if (_payments.isEmpty) {
-                              _addPaymentEntry();
-                            }
-                            _markDirty();
-                          });
-                        },
+                      _PaymentEntriesTable(
+                        entries: _payments,
+                        isLoadingPaymentModes: _isLoadingReferenceData,
+                        paymentModes: _paymentModes,
+                        onAdd: _addPaymentEntry,
+                        onRemove: _removePaymentEntry,
+                        onPickDate: _pickPaymentDate,
+                        onPaymentModeChanged: (entry, modeId) =>
+                            setState(() => entry.setPaymentModeId(modeId)),
                       ),
-                      const SizedBox(width: 8),
-                      const Text('Paid'),
                     ],
                   ),
-                  if (_isPaid) ...[
-                    const SizedBox(height: 12),
-                    _PaymentEntriesTable(
-                      entries: _payments,
-                      isLoadingPaymentModes: _isLoadingReferenceData,
-                      paymentModes: _paymentModes,
-                      onAdd: _addPaymentEntry,
-                      onRemove: _removePaymentEntry,
-                      onPickDate: _pickPaymentDate,
-                      onPaymentModeChanged: (entry, modeId) =>
-                          setState(() => entry.setPaymentModeId(modeId)),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
+                  const SizedBox(height: 12),
                   const SizedBox(height: 12),
                   _buildVendorField(theme),
                   const SizedBox(height: 12),
@@ -2675,6 +2673,105 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       return 'Discount cannot exceed subtotal.';
     }
     return null;
+  }
+}
+
+/// A switchable section (Items Received / Paid): tinted, bordered card with
+/// an icon, title and explanation; its fields show only while switched on.
+class _StatusSectionCard extends StatelessWidget {
+  const _StatusSectionCard({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+    required this.children,
+  });
+
+  final IconData icon;
+  final MaterialColor color;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final accent = isDark ? color.shade300 : color.shade700;
+    final borderColor = value ? accent : theme.dividerColor;
+    final background = value
+        ? accent.withValues(alpha: isDark ? 0.10 : 0.06)
+        : theme.colorScheme.surface;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor, width: value ? 1.5 : 1),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: onChanged == null ? null : () => onChanged!(!value),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, color: accent, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: value ? accent : null,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(subtitle, style: theme.textTheme.bodySmall),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: value,
+                    activeTrackColor: accent,
+                    onChanged: onChanged,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (value) ...[
+            Divider(height: 1, color: borderColor.withValues(alpha: 0.4)),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 
