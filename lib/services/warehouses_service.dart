@@ -178,6 +178,8 @@ class CreateGoodsReceiptItem {
     required this.lotNumber,
     this.taxes,
     this.serialNumber = '',
+    this.batchSize,
+    this.unitsPerBatch,
   });
 
   final String commodityCode;
@@ -191,11 +193,19 @@ class CreateGoodsReceiptItem {
   final dynamic taxes;
   final String serialNumber;
 
+  /// Packs/batches received; with [unitsPerBatch] the CRM stores
+  /// stock = batch_size x units_per_batch (quantity is sent already converted).
+  final double? batchSize;
+  final double? unitsPerBatch;
+
   Map<String, dynamic> toJson() {
     return {
       'commodity_code': commodityCode,
       'warehouse_id': warehouseId,
       'quantity': quantity,
+      if (batchSize != null && unitsPerBatch != null) 'batch_size': batchSize,
+      if (batchSize != null && unitsPerBatch != null)
+        'units_per_batch': unitsPerBatch,
       'unit_price': unitPrice,
       'goods_money': goodsMoney,
       'sub_total': subTotal,

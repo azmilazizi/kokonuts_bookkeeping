@@ -1274,10 +1274,18 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                 '${lotNumberSettings.prefix}-$lotDateSegment-${nextLotNumber.toString().padLeft(5, '0')}';
             nextLotNumber += 1;
 
+            // Stock received is batch size x units per batch, and unitPrice is
+            // per stock unit, matching the CRM's own PO receipts.
+            final unitsPerBatch = (item.unitsPerBatch ?? 1) > 0
+                ? (item.unitsPerBatch ?? 1)
+                : 1.0;
+
             return CreateGoodsReceiptItem(
               commodityCode: item.itemId ?? '',
               warehouseId: warehouseId,
-              quantity: item.quantity,
+              quantity: item.quantity * unitsPerBatch,
+              batchSize: item.quantity,
+              unitsPerBatch: unitsPerBatch,
               unitPrice: item.unitPrice,
               goodsMoney: item.subtotal,
               subTotal: item.total,
