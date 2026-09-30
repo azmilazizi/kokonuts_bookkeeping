@@ -138,6 +138,7 @@ class PurchaseOrderDraftItem {
     this.inventoryItemId,
     this.inventoryItemName,
     this.description,
+    this.unitsPerBatch,
   });
 
   final String id;
@@ -151,6 +152,9 @@ class PurchaseOrderDraftItem {
   final double discount;
   final double total;
 
+  /// Stock units in one purchased batch (quantity is the batch count).
+  final double? unitsPerBatch;
+
   factory PurchaseOrderDraftItem.fromJson(Map<String, dynamic> json) {
     return PurchaseOrderDraftItem(
       id: json['id']?.toString() ?? '',
@@ -163,6 +167,7 @@ class PurchaseOrderDraftItem {
       subtotal: _parseDouble(json['subtotal']) ?? 0,
       discount: _parseDouble(json['discount']) ?? 0,
       total: _parseDouble(json['total']) ?? 0,
+      unitsPerBatch: _parseDouble(json['units_per_batch']),
     );
   }
 
@@ -177,6 +182,7 @@ class PurchaseOrderDraftItem {
       'quantity': quantity,
       'subtotal': subtotal,
       'discount': discount,
+      if (unitsPerBatch != null) 'units_per_batch': unitsPerBatch,
     };
   }
 }

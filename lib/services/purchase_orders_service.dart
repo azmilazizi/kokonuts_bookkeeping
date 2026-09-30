@@ -734,18 +734,29 @@ class CreatePurchaseOrderItem {
     required this.unitPrice,
     required this.total,
     this.unitId,
+    this.unitsPerBatch,
     this.description,
     this.lineItemId,
   });
 
   final String itemId;
   final String itemName;
+
+  /// Batch size: how many packs/batches were bought.
   final double quantity;
   final double subtotal;
   final double discount;
+
+  /// Price per stock unit: total / (quantity x unitsPerBatch).
   final double unitPrice;
   final double total;
+
+  /// tblitems.unit_id of the item (unit type), never the item id.
   final String? unitId;
+
+  /// Stock units in one batch. Required by the CRM on new lines; old lines
+  /// saved without one may stay blank.
+  final double? unitsPerBatch;
   final String? description;
   final String? lineItemId;
 
@@ -754,10 +765,12 @@ class CreatePurchaseOrderItem {
       'pur_order': purchaseOrderNumber ?? 0,
       'item_code': itemId,
       'description': description,
-      'unit_id': unitId ?? itemId,
+      'unit_id': unitId,
       'unit_price': unitPrice,
       'quantity': quantity,
+      if (unitsPerBatch != null) 'units_per_batch': unitsPerBatch,
       'into_money': subtotal,
+      'discount': 0,
       'discount_%': 0,
       'discount_money': discount,
       'total_money': total,

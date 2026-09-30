@@ -255,6 +255,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
             initialDiscount: CurrencyInputFormatter.normalizeExistingValue(
               _formatDouble(item.discountValue ?? 0),
             ),
+            initialUnitsPerBatch: item.unitsPerBatch,
           ),
         )
         .toList();
@@ -324,6 +325,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                 initialDiscount: CurrencyInputFormatter.normalizeExistingValue(
                   _formatDouble(item.discount),
                 ),
+                initialUnitsPerBatch: item.unitsPerBatch,
               ),
             )
             .toList(growable: false),
@@ -606,7 +608,11 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       final formattedName = item == null
           ? null
           : _formatInventoryItemName(item);
-      _pendingItem.setItem(itemName: formattedName, itemId: item?.id);
+      _pendingItem.setItem(
+        itemName: formattedName,
+        itemId: item?.id,
+        defaultUnitsPerBatch: item?.unitsPerBatch,
+      );
       _pendingItemError = null;
       _markDirty();
     });
@@ -637,6 +643,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       initialQuantity: _pendingItem.quantityController.text,
       initialSubtotal: _pendingItem.subtotalController.text,
       initialDiscount: _pendingItem.discountController.text,
+      initialUnitsPerBatch: _pendingItem.unitsPerBatch,
     );
 
     setState(() {
@@ -651,7 +658,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       return 'Select an item before adding it to the order.';
     }
     if (_pendingItem.quantity <= 0) {
-      return 'Enter a quantity greater than zero.';
+      return 'Enter a batch size greater than zero.';
+    }
+    if ((_pendingItem.unitsPerBatch ?? 0) <= 0) {
+      return 'Enter the units per batch (e.g. 800 for an 800 g pack, 1 if you count packs).';
     }
     if (_pendingItem.subtotal < 0) {
       return 'Subtotal cannot be negative.';
@@ -929,7 +939,8 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
             discount: item.discount,
             unitPrice: item.unitPrice,
             total: item.total,
-            unitId: item.itemId,
+            unitId: _findInventoryItemById(item.itemId)?.unitId,
+            unitsPerBatch: item.unitsPerBatch,
           ),
         )
         .toList(growable: false);
@@ -1554,6 +1565,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
             description: item.descriptionController.text.trim().isEmpty
                 ? null
                 : item.descriptionController.text.trim(),
+            unitsPerBatch: item.unitsPerBatch,
           ),
         )
         .toList(growable: false);
@@ -2484,6 +2496,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                                 itemName: selected == null
                                     ? null
                                     : _formatInventoryItemName(selected),
+                                defaultUnitsPerBatch: selected?.unitsPerBatch,
                               );
                               _markDirty();
                             });
@@ -2506,7 +2519,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
               children: [
                 TextFormField(
                   controller: item.quantityController,
-                  decoration: const InputDecoration(labelText: 'Quantity'),
+                  decoration: const InputDecoration(
+                    labelText: 'Batch size',
+                    helperText: 'Packs / batches bought',
+                  ),
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                     signed: false,
@@ -2515,6 +2531,24 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                     FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
                   ],
                   validator: (value) => _validateQuantityField(
+                    item,
+                    isPlaceholder: isPlaceholder,
+                  ),
+                ),
+                TextFormField(
+                  controller: item.unitsPerBatchController,
+                  decoration: InputDecoration(
+                    labelText: 'Units/Batch',
+                    helperText: _unitsPerBatchHelper(item),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                    signed: false,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  ],
+                  validator: (value) => _validateUnitsPerBatchField(
                     item,
                     isPlaceholder: isPlaceholder,
                   ),
@@ -2546,7 +2580,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
                   ),
                 ),
                 _SystemValueField(
-                  label: 'Unit price (RM)',
+                  label: 'Price per unit (RM)',
                   value: item.unitPrice,
                 ),
                 _SystemValueField(label: 'Total (RM)', value: item.total),
@@ -2567,7 +2601,34 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       return null;
     }
     if (item.quantity <= 0) {
-      return 'Enter a quantity greater than zero.';
+      return 'Enter a batch size greater than zero.';
+    }
+    return null;
+  }
+
+  String? _unitsPerBatchHelper(_PurchaseOrderItemDraft item) {
+    final unit = _findInventoryItemById(item.itemId)?.unitName?.trim();
+    return (unit == null || unit.isEmpty) ? 'Stock units per batch' : '$unit per batch';
+  }
+
+  /// Required on new lines (the CRM rejects them otherwise). Lines of an
+  /// existing PO saved before Units/Batch existed may stay blank, but a value
+  /// that was saved can't be cleared.
+  String? _validateUnitsPerBatchField(
+    _PurchaseOrderItemDraft item, {
+    required bool isPlaceholder,
+  }) {
+    if (isPlaceholder) {
+      return null;
+    }
+    final text = item.unitsPerBatchController.text.trim();
+    if (text.isEmpty) {
+      final grandfathered = (item.lineItemId?.isNotEmpty ?? false) &&
+          !item.hadUnitsPerBatch;
+      return grandfathered ? null : 'Enter units per batch.';
+    }
+    if ((item.unitsPerBatch ?? 0) <= 0) {
+      return 'Units per batch must be greater than zero.';
     }
     return null;
   }
@@ -3714,7 +3775,12 @@ class _PurchaseOrderItemDraft {
     String initialQuantity = '1',
     String initialSubtotal = '0',
     String initialDiscount = '0',
+    double? initialUnitsPerBatch,
   }) : descriptionController = TextEditingController(text: initialDescription),
+       unitsPerBatchController = TextEditingController(
+         text: initialUnitsPerBatch == null ? '' : _formatUnits(initialUnitsPerBatch),
+       ),
+       hadUnitsPerBatch = initialUnitsPerBatch != null,
        quantityController = TextEditingController(text: initialQuantity),
        subtotalController = TextEditingController(
          text: CurrencyInputFormatter.normalizeExistingValue(initialSubtotal),
@@ -3732,9 +3798,26 @@ class _PurchaseOrderItemDraft {
     subtotalController.addListener(onChanged);
     discountController.addListener(onChanged);
     nameController.addListener(onChanged);
+    unitsPerBatchController.addListener(onChanged);
+  }
+
+  static String _formatUnits(double value) {
+    if (value == value.roundToDouble()) {
+      return value.toStringAsFixed(0);
+    }
+    return value
+        .toStringAsFixed(4)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
   }
 
   final TextEditingController descriptionController;
+
+  /// Stock units in one batch (pack). Batch size x this = stock received.
+  final TextEditingController unitsPerBatchController;
+
+  /// Whether the line was loaded with a saved Units/Batch (can't be cleared).
+  final bool hadUnitsPerBatch;
   final TextEditingController quantityController;
   final TextEditingController subtotalController;
   final TextEditingController discountController;
@@ -3761,6 +3844,14 @@ class _PurchaseOrderItemDraft {
   double get discount =>
       double.tryParse(discountController.text.replaceAll(',', '.')) ?? 0;
 
+  double? get unitsPerBatch {
+    final text = unitsPerBatchController.text.trim();
+    if (text.isEmpty) {
+      return null;
+    }
+    return double.tryParse(text.replaceAll(',', '.'));
+  }
+
   double get total {
     final value = subtotal - discount;
     if (value.isNaN || value.isInfinite) {
@@ -3769,7 +3860,12 @@ class _PurchaseOrderItemDraft {
     return value <= 0 ? 0 : value;
   }
 
-  double get unitPrice => quantity <= 0 ? 0 : total / quantity;
+  /// Price per stock unit, same as the CRM: total / (batch size x units/batch).
+  double get unitPrice {
+    final upb = unitsPerBatch ?? 1;
+    final units = quantity * (upb > 0 ? upb : 1);
+    return units <= 0 ? 0 : total / units;
+  }
 
   bool get hasContent {
     return (displayName?.isNotEmpty ?? false) ||
@@ -3779,10 +3875,17 @@ class _PurchaseOrderItemDraft {
         discountController.text.trim().isNotEmpty;
   }
 
-  void setItem({String? itemId, String? itemName}) {
+  /// [defaultUnitsPerBatch] (the item's pack size) only fills an empty
+  /// Units/Batch, so a value the user typed isn't overwritten.
+  void setItem({String? itemId, String? itemName, double? defaultUnitsPerBatch}) {
     this.itemId = itemId;
     this.itemName = itemName;
     nameController.text = itemName ?? '';
+    if (unitsPerBatchController.text.trim().isEmpty &&
+        defaultUnitsPerBatch != null &&
+        defaultUnitsPerBatch > 0) {
+      unitsPerBatchController.text = _formatUnits(defaultUnitsPerBatch);
+    }
     _onChanged();
   }
 
@@ -3799,6 +3902,7 @@ class _PurchaseOrderItemDraft {
     discountController.text = CurrencyInputFormatter.normalizeExistingValue(
       '0',
     );
+    unitsPerBatchController.clear();
     _onChanged();
   }
 
@@ -3808,5 +3912,6 @@ class _PurchaseOrderItemDraft {
     quantityController.dispose();
     subtotalController.dispose();
     discountController.dispose();
+    unitsPerBatchController.dispose();
   }
 }

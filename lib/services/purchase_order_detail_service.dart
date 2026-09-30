@@ -417,6 +417,7 @@ class PurchaseOrderItem {
     this.discountValue,
     this.itemId,
     this.lineItemId,
+    this.unitsPerBatch,
   });
 
   factory PurchaseOrderItem.fromJson(
@@ -498,6 +499,7 @@ class PurchaseOrderItem {
       discountValue: _parseDouble(discountValue),
       itemId: _string(json['item_id']) ?? _string(json['itemid']),
       lineItemId: lineItemId,
+      unitsPerBatch: _parseDouble(json['units_per_batch']),
     );
   }
 
@@ -513,6 +515,9 @@ class PurchaseOrderItem {
   final double? discountValue;
   final String? itemId;
   final String? lineItemId;
+
+  /// Stock units in one purchased batch; null on lines saved before it existed.
+  final double? unitsPerBatch;
 
   bool get hasDiscount => discountLabel != null;
 }

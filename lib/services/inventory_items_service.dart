@@ -63,12 +63,19 @@ class InventoryItemsService {
       final skuCode = _readString(source, const ['sku_code', 'skuCode', 'sku']);
       final skuName =
           _readString(source, const ['sku_name', 'skuName', 'name']);
+      final unitId = _readString(source, const ['unit_id', 'unitId']);
+      final unitsPerBatch = double.tryParse(
+        _readString(source, const ['units_per_batch', 'unitsPerBatch']) ?? '',
+      );
       if (name != null && id != null) {
         target.add(InventoryItem(
           id: id,
           name: name,
           skuCode: skuCode,
           skuName: skuName,
+          unitId: unitId,
+          unitName: _readString(source, const ['unit', 'unit_name']),
+          unitsPerBatch: unitsPerBatch,
         ));
       }
       for (final value in source.values) {
@@ -103,12 +110,24 @@ class InventoryItem {
     required this.name,
     this.skuCode,
     this.skuName,
+    this.unitId,
+    this.unitName,
+    this.unitsPerBatch,
   });
 
   final String id;
   final String name;
   final String? skuCode;
   final String? skuName;
+
+  /// tblitems.unit_id — the unit type, not the item id.
+  final String? unitId;
+
+  /// Stock unit label, e.g. "gram(s)" or "unit(s)".
+  final String? unitName;
+
+  /// Stock units in one purchased batch (pack), used to prefill Units/Batch.
+  final double? unitsPerBatch;
 }
 
 class InventoryItemsException implements Exception {
