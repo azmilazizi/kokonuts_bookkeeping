@@ -498,7 +498,10 @@ class PurchaseOrderItem {
       rateValue: _parseDouble(rateValue),
       amountValue: _parseDouble(amountValue),
       discountValue: _parseDouble(discountValue),
-      itemId: _string(json['item_id']) ?? _string(json['itemid']),
+      // The CRM's PO lines carry the inventory item as item_code.
+      itemId: _string(json['item_id']) ??
+          _string(json['itemid']) ??
+          _nonZero(_string(json['item_code'])),
       lineItemId: lineItemId,
       unitsPerBatch: _parseDouble(json['units_per_batch']),
     );
@@ -519,6 +522,9 @@ class PurchaseOrderItem {
 
   /// Stock units in one purchased batch; null on lines saved before it existed.
   final double? unitsPerBatch;
+
+  /// Description as typed, without the "—" placeholder used for display.
+  String get editableDescription => description == '—' ? '' : description;
 
   bool get hasDiscount => discountLabel != null;
 }
@@ -1206,3 +1212,6 @@ String? _formatDate(DateTime? value) {
   final year = value.year.toString().padLeft(4, '0');
   return '$day-$month-$year';
 }
+
+String? _nonZero(String? value) =>
+    (value == null || value.trim().isEmpty || value.trim() == '0') ? null : value.trim();

@@ -252,7 +252,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
             initialItemId: item.itemId,
             initialItemName: item.name,
             initialLineItemId: item.lineItemId,
-            initialDescription: item.description,
+            initialDescription: item.editableDescription,
             initialQuantity: _formatDouble(item.quantityValue ?? 1),
             initialSubtotal: CurrencyInputFormatter.normalizeExistingValue(
               _formatDouble(item.amountValue ?? 0),
