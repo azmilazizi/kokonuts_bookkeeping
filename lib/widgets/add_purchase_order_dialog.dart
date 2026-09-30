@@ -122,6 +122,10 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       '${warehouse.code}-${warehouse.name}';
 
   bool _itemsReceived = false;
+
+  /// True when an existing PO was loaded already received: it has its goods
+  /// receipt, so saving must not ask for a warehouse or create another one.
+  bool _alreadyReceived = false;
   DateTime? _itemsReceivedDate;
   String? _selectedWarehouseId;
   String? _inventoryReceivedPrefix;
@@ -231,6 +235,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     _selectedVendorName = detail.vendorName;
     _selectedVendorId = detail.vendorId;
     _itemsReceived = detail.deliveryStatusId == 1;
+    _alreadyReceived = _itemsReceived;
     _itemsReceivedDate = _itemsReceived ? detail.deliveryDate : null;
     _orderDiscountController.text =
         CurrencyInputFormatter.normalizeExistingValue(
@@ -987,7 +992,9 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
       payments = parsedPayments;
     }
 
-    if (_itemsReceived && (_selectedWarehouseId?.trim().isEmpty ?? true)) {
+    if (_itemsReceived &&
+        !_alreadyReceived &&
+        (_selectedWarehouseId?.trim().isEmpty ?? true)) {
       setState(() {
         _submitError = 'Select a warehouse when items are marked as received.';
       });
@@ -1147,7 +1154,7 @@ class _AddPurchaseOrderDialogState extends State<AddPurchaseOrderDialog> {
     required Map<String, String> headers,
     required PurchaseOrder order,
   }) async {
-    if (!_itemsReceived) {
+    if (!_itemsReceived || _alreadyReceived) {
       return;
     }
 

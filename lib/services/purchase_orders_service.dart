@@ -620,7 +620,10 @@ class CreatePurchaseOrderRequest {
     final discountPercent = 0;
     final discountAmount =
         isDiscountPercentage ? subtotal * (discountValue / 100) : discountValue;
-    final isDelivered = itemsReceived;
+    // A new PO is marked delivered by its goods receipt once that succeeds
+    // (the CRM does this when the receipt is posted), so a failed receipt
+    // can't leave a "delivered" PO with no stock. Updates keep the flag.
+    final isDelivered = isUpdate && itemsReceived;
     final deliveryStatusValue = isDelivered ? 1 : 0;
     final deliveryDate = isDelivered ? _formatDate(orderDate) : null;
     final payload = <String, dynamic>{
