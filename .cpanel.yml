@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/kokonuts/public_html/kokonuts_bookkeeping/
+    - /bin/cp -R build/web/. $DEPLOYPATH
