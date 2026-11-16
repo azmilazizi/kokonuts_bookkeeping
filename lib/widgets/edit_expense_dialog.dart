@@ -52,13 +52,15 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
     final sanitizedToken = token
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
-    final normalizedAuth =
-        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
     final autoTokenValue = rawToken
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
-    final authtokenHeader =
-        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
 
     return _expensesService.getExpense(
       id: widget.expense.id,
@@ -89,9 +91,7 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
           return AlertDialog(
             title: Row(
               children: [
-                const Expanded(
-                  child: Text('Unable to load expense details'),
-                ),
+                const Expanded(child: Text('Unable to load expense details')),
                 IconButton(
                   tooltip: 'Close',
                   onPressed: () => Navigator.of(context).pop(),
@@ -117,9 +117,7 @@ class _EditExpenseDialogState extends State<EditExpenseDialog> {
           return AlertDialog(
             title: Row(
               children: [
-                const Expanded(
-                  child: Text('Unable to load expense details'),
-                ),
+                const Expanded(child: Text('Unable to load expense details')),
                 IconButton(
                   tooltip: 'Close',
                   onPressed: () => Navigator.of(context).pop(),
@@ -155,14 +153,7 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
   final _vendorsService = VendorsService();
   final _expensesService = ExpensesService();
 
-  final _categories = const [
-    'Office Supplies',
-    'Travel',
-    'Meals & Entertainment',
-    'Utilities',
-    'Professional Services',
-    'Other',
-  ];
+  List<ExpenseCategory> _categories = const [];
 
   late DateTime _expenseDate;
   bool _isSaving = false;
@@ -180,20 +171,29 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
 
   String _vendorLabel(String id) {
     return _vendors
-            .firstWhere(
-              (vendor) => vendor.id == id,
-              orElse: () => VendorSummary(id: id, name: 'Unknown vendor'),
-            )
-            .name;
+        .firstWhere(
+          (vendor) => vendor.id == id,
+          orElse: () => VendorSummary(id: id, name: 'Unknown vendor'),
+        )
+        .name;
   }
 
   String _paymentModeLabel(String id) {
     return _paymentModes
-            .firstWhere(
-              (mode) => mode.id == id,
-              orElse: () => PaymentMode(id: id, name: 'Unknown mode'),
-            )
-            .name;
+        .firstWhere(
+          (mode) => mode.id == id,
+          orElse: () => PaymentMode(id: id, name: 'Unknown mode'),
+        )
+        .name;
+  }
+
+  String _categoryLabel(String id) {
+    return _categories
+        .firstWhere(
+          (category) => category.id == id,
+          orElse: () => ExpenseCategory(id: id, name: 'Unknown category'),
+        )
+        .name;
   }
 
   // Attachment handling
@@ -205,7 +205,9 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.expense.name);
-    _categoryController = TextEditingController(text: widget.expense.categoryName);
+    _categoryController = TextEditingController(
+      text: widget.expense.categoryName,
+    );
     _amountController = TextEditingController(
       text: CurrencyInputFormatter.normalizeExistingValue(
         widget.expense.amount?.toStringAsFixed(2) ?? widget.expense.amountLabel,
@@ -227,7 +229,9 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
     }
 
     _selectedVendorName = widget.expense.vendor;
-    // We don't have vendor ID in Expense object initially, so we try to match by name when vendors load
+    _selectedVendorId = widget.expense.vendorId.isNotEmpty
+        ? widget.expense.vendorId
+        : null;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadReferenceData();
@@ -269,6 +273,7 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
       final results = await Future.wait([
         _paymentModesService.fetchPaymentModes(headers: headers),
         _vendorsService.fetchVendors(headers: headers),
+        _expensesService.fetchCategories(headers: headers),
       ]);
 
       if (!mounted) {
@@ -278,6 +283,7 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
       setState(() {
         _paymentModes = results[0] as List<PaymentMode>;
         _vendors = results[1] as List<VendorSummary>;
+        _categories = results[2] as List<ExpenseCategory>;
 
         _selectedPaymentMode = _resolveInitialPaymentMode();
         _resolveInitialVendor();
@@ -297,7 +303,15 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
   }
 
   void _resolveInitialVendor() {
-    if (_vendors.isEmpty || _selectedVendorName == null) return;
+    if (_vendors.isEmpty) return;
+
+    if (_selectedVendorId != null &&
+        _vendors.any((vendor) => vendor.id == _selectedVendorId)) {
+      _selectedVendorName = _vendorLabel(_selectedVendorId!);
+      return;
+    }
+
+    if (_selectedVendorName == null) return;
 
     final matched = _vendors.firstWhere(
       (v) => v.name.toLowerCase() == _selectedVendorName!.toLowerCase(),
@@ -321,13 +335,18 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
       return currentSelection;
     }
 
+    if (widget.expense.paymentModeId.isNotEmpty &&
+        _paymentModes.any((mode) => mode.id == widget.expense.paymentModeId)) {
+      return widget.expense.paymentModeId;
+    }
+
     final matched = _paymentModes.firstWhere(
       (mode) =>
           mode.name.toLowerCase() == _initialPaymentModeLabel.toLowerCase(),
-      orElse: () => _paymentModes.first,
+      orElse: () => const PaymentMode(id: '', name: ''),
     );
 
-    return matched.id;
+    return matched.id.isEmpty ? null : matched.id;
   }
 
   Map<String, String> _buildAuthHeaders(AppState appState, String token) {
@@ -335,13 +354,15 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
     final sanitizedToken = token
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
-    final normalizedAuth =
-        sanitizedToken.isNotEmpty ? 'Bearer $sanitizedToken' : token.trim();
+    final normalizedAuth = sanitizedToken.isNotEmpty
+        ? 'Bearer $sanitizedToken'
+        : token.trim();
     final autoTokenValue = rawToken
         .replaceFirst(RegExp('^Bearer\\s+', caseSensitive: false), '')
         .trim();
-    final authtokenHeader =
-        autoTokenValue.isNotEmpty ? autoTokenValue : sanitizedToken;
+    final authtokenHeader = autoTokenValue.isNotEmpty
+        ? autoTokenValue
+        : sanitizedToken;
     return {'authtoken': authtokenHeader, 'Authorization': normalizedAuth};
   }
 
@@ -472,8 +493,9 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
       onChanged: (value) {
         setState(() {
           _selectedVendorId = value;
-          _selectedVendorName =
-              value != null && value.isNotEmpty ? _vendorLabel(value) : null;
+          _selectedVendorName = value != null && value.isNotEmpty
+              ? _vendorLabel(value)
+              : null;
         });
       },
       validator: (value) {
@@ -503,19 +525,12 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
   }
 
   Widget _buildCategoryField() {
-    final items = {
-      ..._categories,
-      if (widget.expense.categoryName.trim().isNotEmpty)
-        widget.expense.categoryName,
-    }.toList();
-
     return SearchableDropdownFormField<String>(
-      initialValue: items.contains(_categoryController.text)
-          ? _categoryController.text
-          : null,
-      items: items,
-      itemToString: (value) => value,
+      initialValue: _resolveInitialCategory(),
+      items: _categories.map((category) => category.id).toList(),
+      itemToString: _categoryLabel,
       decoration: const InputDecoration(labelText: 'Expense category'),
+      enabled: !_isLoadingReferenceData,
       hintText: 'Select a category',
       dialogTitle: 'Select expense category',
       onChanged: (value) {
@@ -531,6 +546,19 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
         return null;
       },
     );
+  }
+
+  String? _resolveInitialCategory() {
+    if (_categories.any(
+      (category) => category.id == widget.expense.categoryId,
+    )) {
+      return widget.expense.categoryId;
+    }
+    final name = widget.expense.categoryName.trim().toLowerCase();
+    final match = _categories.where(
+      (category) => category.name.trim().toLowerCase() == name,
+    );
+    return match.isEmpty ? null : match.first.id;
   }
 
   Widget _buildDateField(BuildContext context) {
@@ -585,8 +613,9 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
         labelText: 'Payment mode',
         helperText: _referenceDataError,
       ),
-      hintText:
-          _isLoadingReferenceData ? 'Loading payment modes...' : 'Choose payment mode',
+      hintText: _isLoadingReferenceData
+          ? 'Loading payment modes...'
+          : 'Choose payment mode',
       enabled: !_isLoadingReferenceData,
       dialogTitle: 'Select payment mode',
       onChanged: (value) => setState(() => _selectedPaymentMode = value),
@@ -664,9 +693,9 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
 
     if (token == null || token.trim().isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You are not logged in.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('You are not logged in.')));
       }
       setState(() => _isSaving = false);
       return;
@@ -683,19 +712,23 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
     final paymentModeName = _selectedPaymentMode == null
         ? _initialPaymentModeLabel
         : _paymentModes
-            .firstWhere(
-              (mode) => mode.id == _selectedPaymentMode,
-              orElse: () => const PaymentMode(id: '', name: ''),
-            )
-            .name;
+              .firstWhere(
+                (mode) => mode.id == _selectedPaymentMode,
+                orElse: () => const PaymentMode(id: '', name: ''),
+              )
+              .name;
 
     final requestData = {
       'expense_name': _nameController.text.trim(),
       'amount': resolvedAmount,
       'date': DateFormat('yyyy-MM-dd').format(_expenseDate),
-      'category': _categoryController.text.trim().isEmpty
-          ? widget.expense.categoryName
-          : _categoryController.text.trim(),
+      'category': _categories
+          .firstWhere(
+            (category) => category.id == _categoryController.text.trim(),
+            orElse: () =>
+                ExpenseCategory(id: '', name: _categoryController.text.trim()),
+          )
+          .name,
       'vendor': _selectedVendorId ?? '',
       'paymentmode': _selectedPaymentMode ?? '',
       'payment_method_name': paymentModeName,
@@ -893,8 +926,9 @@ class _ExistingAttachmentsList extends StatelessWidget {
               if (uploadedBy != null && uploadedBy.isNotEmpty) {
                 subtitleParts.add('Uploaded by $uploadedBy');
               }
-              final subtitle =
-                  subtitleParts.isEmpty ? null : subtitleParts.join(' • ');
+              final subtitle = subtitleParts.isEmpty
+                  ? null
+                  : subtitleParts.join(' • ');
 
               return Card(
                 key: ValueKey(
