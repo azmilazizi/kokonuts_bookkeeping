@@ -1,7 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../app/app_state.dart';
@@ -481,6 +480,7 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
     }
 
     return SearchableDropdownFormField<String>(
+      key: ValueKey('vendor-${_selectedVendorId ?? ''}'),
       initialValue: _selectedVendorId,
       items: _vendors.map((vendor) => vendor.id).toList(),
       itemToString: _vendorLabel,
@@ -526,6 +526,7 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
 
   Widget _buildCategoryField() {
     return SearchableDropdownFormField<String>(
+      key: ValueKey('category-${_resolveInitialCategory() ?? ''}'),
       initialValue: _resolveInitialCategory(),
       items: _categories.map((category) => category.id).toList(),
       itemToString: _categoryLabel,
@@ -606,6 +607,7 @@ class _EditExpenseFormState extends State<_EditExpenseForm> {
 
   Widget _buildPaymentModeField() {
     return SearchableDropdownFormField<String>(
+      key: ValueKey('payment-mode-${_selectedPaymentMode ?? ''}'),
       initialValue: _selectedPaymentMode,
       items: _paymentModes.map((mode) => mode.id).toList(),
       itemToString: _paymentModeLabel,
