@@ -562,6 +562,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
 
   Widget _buildVendorField() {
     return SearchableDropdownFormField<String>(
+      key: ValueKey('expense-vendor-${_selectedVendorId ?? ''}'),
       initialValue: _selectedVendorId,
       items: _vendors.map((vendor) => vendor.id).toList(),
       itemToString: _vendorLabel,
@@ -628,6 +629,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
 
   Widget _buildCategoryDropdown() {
     return SearchableDropdownFormField<String>(
+      key: ValueKey('expense-category-${_selectedCategory ?? ''}'),
       initialValue: _selectedCategory,
       items: _categories.map((category) => category.id).toList(),
       itemToString: _categoryLabel,
@@ -689,6 +691,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
 
   Widget _buildPaymentModeField() {
     return SearchableDropdownFormField<String>(
+      key: ValueKey('expense-payment-mode-${_selectedPaymentMode ?? ''}'),
       initialValue: _selectedPaymentMode,
       items: _paymentModes.map((mode) => mode.id).toList(),
       itemToString: _paymentModeLabel,
