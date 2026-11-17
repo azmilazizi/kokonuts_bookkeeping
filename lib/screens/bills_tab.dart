@@ -19,8 +19,7 @@ class BillsTab extends StatefulWidget {
   BillsTabState createState() => BillsTabState();
 }
 
-class BillsTabState extends State<BillsTab>
-    with AutomaticKeepAliveClientMixin {
+class BillsTabState extends State<BillsTab> with AutomaticKeepAliveClientMixin {
   final _service = BillsService();
   final _scrollController = ScrollController();
   final _horizontalController = ScrollController();
@@ -34,6 +33,7 @@ class BillsTabState extends State<BillsTab>
   BillsSortColumn _sortColumn = BillsSortColumn.billDate;
   bool _sortAscending = false;
   String _filterQuery = '';
+  bool _showDrafts = false;
 
   static const _perPage = 20;
   // The bills table includes action buttons which require extra width; raising
@@ -111,6 +111,7 @@ class BillsTabState extends State<BillsTab>
         page: pageToLoad,
         perPage: _perPage,
         search: _filterQuery.isEmpty ? null : _filterQuery,
+        draftsOnly: _showDrafts,
         headers: headers,
       );
 
@@ -254,8 +255,9 @@ class BillsTabState extends State<BillsTab>
         final maxWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : _minTableWidth;
-        final tableWidth =
-            maxWidth < _minTableWidth ? _minTableWidth : maxWidth;
+        final tableWidth = maxWidth < _minTableWidth
+            ? _minTableWidth
+            : maxWidth;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -282,12 +284,28 @@ class BillsTabState extends State<BillsTab>
                           onSearchPressed: _handleSearchPressed,
                           isSearchEnabled: !_isLoading,
                           horizontalController: _horizontalController,
-                          trailing: DateRangeFilterButton(
-                            label: 'Bill or due date',
-                            startDate: _filterStartDate,
-                            endDate: _filterEndDate,
-                            onRangeSelected: _handleDateRangeSelected,
-                            onClear: _clearDateRange,
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              FilterChip(
+                                label: const Text('Drafts'),
+                                selected: _showDrafts,
+                                onSelected: _isLoading
+                                    ? null
+                                    : (selected) {
+                                        setState(() => _showDrafts = selected);
+                                        _fetchPage(reset: true);
+                                      },
+                              ),
+                              const SizedBox(width: 8),
+                              DateRangeFilterButton(
+                                label: 'Bill or due date',
+                                startDate: _filterStartDate,
+                                endDate: _filterEndDate,
+                                onRangeSelected: _handleDateRangeSelected,
+                                onClear: _clearDateRange,
+                              ),
+                            ],
                           ),
                         ),
                         Expanded(
@@ -326,9 +344,7 @@ class BillsTabState extends State<BillsTab>
                                     );
                                   }, childCount: _bills.length),
                                 ),
-                                SliverToBoxAdapter(
-                                  child: _buildFooter(theme),
-                                ),
+                                SliverToBoxAdapter(child: _buildFooter(theme)),
                               ],
                             ),
                           ),
@@ -915,10 +931,7 @@ class _BillRowState extends State<_BillRow> {
           child: Row(
             children: [
               _DataCell(widget.vendorName, flex: _columnFlex[0]),
-              _DataCell(
-                _descriptionLabel(widget.bill),
-                flex: _columnFlex[1],
-              ),
+              _DataCell(_descriptionLabel(widget.bill), flex: _columnFlex[1]),
               _DataCell(
                 widget.bill.formattedDate,
                 flex: _columnFlex[2],

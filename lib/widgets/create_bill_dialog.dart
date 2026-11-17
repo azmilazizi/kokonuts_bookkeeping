@@ -411,9 +411,8 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
                         children: [
                           Checkbox(
                             value: _advancedEntry,
-                            onChanged: (val) => setState(
-                              () => _advancedEntry = val ?? false,
-                            ),
+                            onChanged: (val) =>
+                                setState(() => _advancedEntry = val ?? false),
                           ),
                           const Text('Advanced Entry'),
                         ],
@@ -433,8 +432,12 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Close'),
         ),
+        OutlinedButton(
+          onPressed: _isSubmitting ? null : () => _submit(asDraft: true),
+          child: const Text('Save Draft'),
+        ),
         FilledButton(
-          onPressed: _isSubmitting ? null : _submit,
+          onPressed: _isSubmitting ? null : () => _submit(),
           child: _isSubmitting
               ? const SizedBox(
                   width: 16,
@@ -561,8 +564,9 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
               width: 120,
               child: TextFormField(
                 controller: _debitAmountController,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 inputFormatters: const [CurrencyInputFormatter()],
                 decoration: const InputDecoration(labelText: 'Amount'),
                 textAlign: TextAlign.right,
@@ -604,8 +608,9 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
       initialValue: _selectedCategoryId,
       items: _categories.map((c) => c.id).toList(),
       itemToString: _categoryLabel,
-      hintText:
-          _isLoadingCategories ? 'Loading categories...' : 'Select a category',
+      hintText: _isLoadingCategories
+          ? 'Loading categories...'
+          : 'Select a category',
       enabled: !_isLoadingCategories,
       dialogTitle: 'Select bill category',
       createLabel: 'Add new category',
@@ -661,8 +666,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         _buildAccountRow(
           label: 'Credit account',
           selected: _selectedCreditAccount,
-          onChanged: (value) =>
-              setState(() => _selectedCreditAccount = value),
+          onChanged: (value) => setState(() => _selectedCreditAccount = value),
           amountController: _creditAmountController,
         ),
         if (_accountsError != null) ...[
@@ -710,8 +714,9 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
             enabled: !_isLoadingAccounts,
             dialogTitle: 'Select $label',
             createLabel: 'Create new Account',
-            onCreateNew:
-                _isLoadingAccounts ? null : (_) => _handleCreateAccount(),
+            onCreateNew: _isLoadingAccounts
+                ? null
+                : (_) => _handleCreateAccount(),
             onChanged: _isLoadingAccounts || _accounts.isEmpty
                 ? null
                 : onChanged,
@@ -771,22 +776,24 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
 
     setState(() {
       final updated = [..._accounts];
-      final existingIndex =
-          updated.indexWhere((account) => account.id == created.id);
+      final existingIndex = updated.indexWhere(
+        (account) => account.id == created.id,
+      );
       if (existingIndex >= 0) {
         updated[existingIndex] = created;
       } else {
         updated.add(created);
       }
       updated.sort(
-          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      );
       _accounts = updated;
     });
 
     return created.id;
   }
 
-  Future<void> _submit() async {
+  Future<void> _submit({bool asDraft = false}) async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -843,7 +850,8 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         'credit_lines': [
           {'account': _selectedCreditAccount, 'amount': debitAmount},
         ],
-        'approved': 1,
+        'approved': asDraft ? 0 : 1,
+        'is_draft': asDraft ? 1 : 0,
         if (_attachments.isNotEmpty)
           'attachments': _attachments.map((file) => file.name).toList(),
       };
@@ -861,18 +869,13 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         'expense_name': _nameController.text.trim(),
         'amount': amount,
         'debit_lines': [
-          {
-            'account': category.debitAccount?.toString(),
-            'amount': amount,
-          },
+          {'account': category.debitAccount?.toString(), 'amount': amount},
         ],
         'credit_lines': [
-          {
-            'account': category.creditAccount?.toString(),
-            'amount': amount,
-          },
+          {'account': category.creditAccount?.toString(), 'amount': amount},
         ],
-        'approved': 1,
+        'approved': asDraft ? 0 : 1,
+        'is_draft': asDraft ? 1 : 0,
         if (_attachments.isNotEmpty)
           'attachments': _attachments.map((file) => file.name).toList(),
       };
@@ -978,8 +981,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         }
 
         if (_selectedCreditAccount != null &&
-            !_accounts.any(
-                (account) => account.id == _selectedCreditAccount)) {
+            !_accounts.any((account) => account.id == _selectedCreditAccount)) {
           _selectedCreditAccount = null;
         }
       });
@@ -1073,8 +1075,9 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
     final headers = _buildAuthHeaders(appState, token);
 
     try {
-      final categories =
-          await _categoryService.fetchCategories(headers: headers);
+      final categories = await _categoryService.fetchCategories(
+        headers: headers,
+      );
 
       if (!mounted) {
         return;
@@ -1083,7 +1086,8 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
       setState(() {
         _categories = categories
           ..sort(
-              (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          );
 
         if (_selectedCategoryId != null &&
             !_categories.any((c) => c.id == _selectedCategoryId)) {

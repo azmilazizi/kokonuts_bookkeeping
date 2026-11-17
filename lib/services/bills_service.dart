@@ -9,12 +9,13 @@ import 'api_error.dart';
 
 class BillsService {
   BillsService({http.Client? client})
-      : _client = client ?? createAuthAwareClient();
+    : _client = client ?? createAuthAwareClient();
 
   final http.Client _client;
 
   static const _baseUrl = 'https://crm.kokonuts.my/accounting/api/v1/bills';
-  static const _vendorBaseUrl = 'https://crm.kokonuts.my/purchase/api/v1/vendors';
+  static const _vendorBaseUrl =
+      'https://crm.kokonuts.my/purchase/api/v1/vendors';
   static const _billBaseUrl = 'https://crm.kokonuts.my/accounting/api/v1/bill';
   static const _attachmentFieldName = 'file';
 
@@ -27,6 +28,7 @@ class BillsService {
     String? fromDate,
     String? toDate,
     String? search,
+    bool draftsOnly = false,
   }) async {
     final params = {'page': '$page', 'per_page': '$perPage'};
     if (fromDate != null) params['from'] = fromDate;
@@ -34,6 +36,7 @@ class BillsService {
     if (search != null && search.trim().isNotEmpty) {
       params['search'] = search.trim();
     }
+    if (draftsOnly) params['draft'] = '1';
 
     final uri = Uri.parse(_baseUrl).replace(queryParameters: params);
 
@@ -46,7 +49,10 @@ class BillsService {
 
     if (response.statusCode != 200) {
       throw BillsException(
-        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
+        apiErrorMessage(
+          response,
+          'Request failed with status ${response.statusCode}: ${response.body}',
+        ),
       );
     }
 
@@ -63,7 +69,11 @@ class BillsService {
         .map(Bill.fromJson)
         .toList();
 
-    final pagination = _resolvePagination(decoded, currentPage: page, perPage: perPage);
+    final pagination = _resolvePagination(
+      decoded,
+      currentPage: page,
+      perPage: perPage,
+    );
 
     return BillsPage(bills: bills, hasMore: pagination.hasMore);
   }
@@ -86,7 +96,10 @@ class BillsService {
 
     if (response.statusCode != 200) {
       throw BillsException(
-        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
+        apiErrorMessage(
+          response,
+          'Request failed with status ${response.statusCode}: ${response.body}',
+        ),
       );
     }
 
@@ -128,7 +141,10 @@ class BillsService {
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw BillsException(
-        apiErrorMessage(response, 'Create failed with status ${response.statusCode}: ${response.body}'),
+        apiErrorMessage(
+          response,
+          'Create failed with status ${response.statusCode}: ${response.body}',
+        ),
       );
     }
 
@@ -162,8 +178,8 @@ class BillsService {
     );
 
     final uploadFiles = files.whereType<http.MultipartFile>().toList(
-          growable: false,
-        );
+      growable: false,
+    );
     if (uploadFiles.isEmpty) {
       return;
     }
@@ -186,7 +202,10 @@ class BillsService {
         resolved.statusCode != 201 &&
         resolved.statusCode != 204) {
       throw BillsException(
-        apiErrorMessage(resolved, 'Attachment upload failed with status ${resolved.statusCode}: ${resolved.body}'),
+        apiErrorMessage(
+          resolved,
+          'Attachment upload failed with status ${resolved.statusCode}: ${resolved.body}',
+        ),
       );
     }
   }
@@ -206,7 +225,10 @@ class BillsService {
 
     if (response.statusCode != 200) {
       throw BillsException(
-        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
+        apiErrorMessage(
+          response,
+          'Request failed with status ${response.statusCode}: ${response.body}',
+        ),
       );
     }
 
@@ -217,18 +239,16 @@ class BillsService {
       throw BillsException('Unable to parse response: $error');
     }
 
-    final paymentsJson = _extractItems(decoded)
-        .whereType<Map<String, dynamic>>()
-        .map(BillPayment.fromJson)
-        .toList();
+    final paymentsJson = _extractItems(
+      decoded,
+    ).whereType<Map<String, dynamic>>().map(BillPayment.fromJson).toList();
 
     if (paymentsJson.isEmpty && decoded is Map<String, dynamic>) {
       final data = decoded['data'];
       if (data is Map<String, dynamic>) {
-        return _extractItems(data)
-            .whereType<Map<String, dynamic>>()
-            .map(BillPayment.fromJson)
-            .toList();
+        return _extractItems(
+          data,
+        ).whereType<Map<String, dynamic>>().map(BillPayment.fromJson).toList();
       }
     }
 
@@ -248,10 +268,7 @@ class BillsService {
     try {
       response = await _client.get(
         uri,
-        headers: {
-          'Accept': 'application/json',
-          ...headers,
-        },
+        headers: {'Accept': 'application/json', ...headers},
       );
     } catch (error) {
       throw BillsException('Failed to reach server: $error');
@@ -259,7 +276,10 @@ class BillsService {
 
     if (response.statusCode != 200) {
       throw BillsException(
-        apiErrorMessage(response, 'Request failed with status ${response.statusCode}: ${response.body}'),
+        apiErrorMessage(
+          response,
+          'Request failed with status ${response.statusCode}: ${response.body}',
+        ),
       );
     }
 
@@ -273,13 +293,15 @@ class BillsService {
     Map<String, dynamic>? attachmentJson;
     if (decoded is Map<String, dynamic>) {
       attachmentJson = _findMap(decoded, const ['data', 'attachment', 'file']);
-      attachmentJson ??=
-          decoded['data'] is Map<String, dynamic> ? decoded['data'] : decoded;
+      attachmentJson ??= decoded['data'] is Map<String, dynamic>
+          ? decoded['data']
+          : decoded;
     }
 
     if (attachmentJson == null) {
-      final extracted =
-          _extractItems(decoded).whereType<Map<String, dynamic>>().toList();
+      final extracted = _extractItems(
+        decoded,
+      ).whereType<Map<String, dynamic>>().toList();
       if (extracted.isNotEmpty) {
         attachmentJson = extracted.first;
       }
@@ -304,7 +326,9 @@ class BillsService {
       return null;
     }
 
-    final uri = Uri.parse('$_billBaseUrl/$billId/payment/$paymentId/attachment');
+    final uri = Uri.parse(
+      '$_billBaseUrl/$billId/payment/$paymentId/attachment',
+    );
 
     final request = http.MultipartRequest('POST', uri)
       ..headers.addAll({'Accept': 'application/json', ...headers})
@@ -327,7 +351,10 @@ class BillsService {
         resolved.statusCode != 201 &&
         resolved.statusCode != 204) {
       throw BillsException(
-        apiErrorMessage(resolved, 'Payment attachment upload failed with status ${resolved.statusCode}: ${resolved.body}'),
+        apiErrorMessage(
+          resolved,
+          'Payment attachment upload failed with status ${resolved.statusCode}: ${resolved.body}',
+        ),
       );
     }
 
@@ -345,13 +372,15 @@ class BillsService {
     Map<String, dynamic>? attachmentJson;
     if (decoded is Map<String, dynamic>) {
       attachmentJson = _findMap(decoded, const ['data', 'attachment', 'file']);
-      attachmentJson ??=
-          decoded['data'] is Map<String, dynamic> ? decoded['data'] : decoded;
+      attachmentJson ??= decoded['data'] is Map<String, dynamic>
+          ? decoded['data']
+          : decoded;
     }
 
     if (attachmentJson == null) {
-      final extracted =
-          _extractItems(decoded).whereType<Map<String, dynamic>>().toList();
+      final extracted = _extractItems(
+        decoded,
+      ).whereType<Map<String, dynamic>>().toList();
       if (extracted.isNotEmpty) {
         attachmentJson = extracted.first;
       }
@@ -421,7 +450,10 @@ class BillsService {
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw BillsException(
-        apiErrorMessage(response, 'Payment request failed with status ${response.statusCode}: ${response.body}'),
+        apiErrorMessage(
+          response,
+          'Payment request failed with status ${response.statusCode}: ${response.body}',
+        ),
       );
     }
 
@@ -434,7 +466,9 @@ class BillsService {
 
     final paymentJson = _extractPayment(decoded);
     if (paymentJson == null) {
-      throw BillsException('Payment response did not include a payment payload.');
+      throw BillsException(
+        'Payment response did not include a payment payload.',
+      );
     }
 
     var payment = BillPayment.fromJson(paymentJson);
@@ -476,11 +510,7 @@ class BillsService {
     final request = http.Request(
       'DELETE',
       Uri.parse('$_billBaseUrl/$billId/payment/$normalizedPaymentId'),
-    )
-      ..headers.addAll({
-        'Accept': 'application/json',
-        ...headers,
-      });
+    )..headers.addAll({'Accept': 'application/json', ...headers});
 
     http.StreamedResponse response;
     try {
@@ -492,7 +522,10 @@ class BillsService {
     final resolved = await http.Response.fromStream(response);
     if (resolved.statusCode != 200 && resolved.statusCode != 204) {
       throw BillsException(
-        apiErrorMessage(resolved, 'Payment delete failed with status ${resolved.statusCode}: ${resolved.body}'),
+        apiErrorMessage(
+          resolved,
+          'Payment delete failed with status ${resolved.statusCode}: ${resolved.body}',
+        ),
       );
     }
   }
@@ -512,7 +545,10 @@ class BillsService {
 
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw BillsException(
-        apiErrorMessage(response, 'Delete request failed with status ${response.statusCode}: ${response.body}'),
+        apiErrorMessage(
+          response,
+          'Delete request failed with status ${response.statusCode}: ${response.body}',
+        ),
       );
     }
   }
@@ -540,7 +576,10 @@ class BillsService {
 
     if (response.statusCode != 200) {
       throw BillsException(
-        apiErrorMessage(response, 'Vendor request failed with status ${response.statusCode}: ${response.body}'),
+        apiErrorMessage(
+          response,
+          'Vendor request failed with status ${response.statusCode}: ${response.body}',
+        ),
       );
     }
 
@@ -553,14 +592,16 @@ class BillsService {
 
     String? vendorName;
     if (decoded is Map<String, dynamic>) {
-      vendorName = _stringValue(decoded['vendor_name']) ??
+      vendorName =
+          _stringValue(decoded['vendor_name']) ??
           _stringValue(decoded['company']) ??
           _stringValue(decoded['company_name']) ??
           _stringValue(decoded['name']);
       if (vendorName == null) {
         final candidate = _findMap(decoded, const ['data', 'vendor']);
         if (candidate != null) {
-          vendorName = _stringValue(candidate['vendor_name']) ??
+          vendorName =
+              _stringValue(candidate['vendor_name']) ??
               _stringValue(candidate['company']) ??
               _stringValue(candidate['company_name']) ??
               _stringValue(candidate['name']);
@@ -569,7 +610,8 @@ class BillsService {
     } else if (decoded is List) {
       for (final item in decoded) {
         if (item is Map<String, dynamic>) {
-          vendorName = _stringValue(item['vendor_name']) ??
+          vendorName =
+              _stringValue(item['vendor_name']) ??
               _stringValue(item['company']) ??
               _stringValue(item['company_name']) ??
               _stringValue(item['name']);
@@ -703,7 +745,9 @@ class BillsService {
 
   bool _looksLikeBill(Map<String, dynamic> map) {
     return map.containsKey('id') &&
-        (map.containsKey('bill_date') || map.containsKey('date') || map.containsKey('amount'));
+        (map.containsKey('bill_date') ||
+            map.containsKey('date') ||
+            map.containsKey('amount'));
   }
 
   bool _looksLikePayment(Map<String, dynamic> map) {
@@ -782,7 +826,6 @@ class BillsService {
     }
     return null;
   }
-
 }
 
 class BillsPage {
@@ -818,6 +861,7 @@ class Bill {
     required this.status,
     required this.totalAmount,
     required this.currencySymbol,
+    this.isDraft = false,
     this.attachments = const [],
     this.creditAccountId,
     this.debitAccountId,
@@ -830,18 +874,17 @@ class Bill {
     this.debitAccounts = const [],
   });
 
+  final bool isDraft;
+
   factory Bill.fromJson(Map<String, dynamic> json) {
     final totalValue = json['amount'] ?? json['total'];
     final statusValue = json['status'];
 
     final attachments = _extractRelatedCollection(json, const [
-          'attachments',
-          'files',
-          'documents',
-        ])
-        .whereType<Map<String, dynamic>>()
-        .map(BillAttachment.fromJson)
-        .toList();
+      'attachments',
+      'files',
+      'documents',
+    ]).whereType<Map<String, dynamic>>().map(BillAttachment.fromJson).toList();
 
     final attachmentUrl = _stringValue(json['attachment']);
     if (attachmentUrl != null && attachmentUrl.trim().isNotEmpty) {
@@ -853,29 +896,33 @@ class Bill {
       );
     }
 
-    final payments = _extractRelatedCollection(json, const [
-          'payments',
-          'payment_history',
-          'paymentHistory',
-          'payment_logs',
-          'paymentRecords',
-          'payment_details',
-        ])
-        .whereType<Map<String, dynamic>>()
-        .map(BillPayment.fromJson)
-        .toList(growable: false);
+    final payments =
+        _extractRelatedCollection(json, const [
+              'payments',
+              'payment_history',
+              'paymentHistory',
+              'payment_logs',
+              'paymentRecords',
+              'payment_details',
+            ])
+            .whereType<Map<String, dynamic>>()
+            .map(BillPayment.fromJson)
+            .toList(growable: false);
 
     final creditAccountRaw = json['credit_account'] ?? json['creditAccount'];
     final debitAccountRaw = json['debit_account'] ?? json['debitAccount'];
 
-    final creditAccountId = _accountIdFromValue(creditAccountRaw) ??
+    final creditAccountId =
+        _accountIdFromValue(creditAccountRaw) ??
         _stringValue(json['credit_account_id']) ??
         _stringValue(json['creditAccountId']);
-    final debitAccountId = _accountIdFromValue(debitAccountRaw) ??
+    final debitAccountId =
+        _accountIdFromValue(debitAccountRaw) ??
         _stringValue(json['debit_account_id']) ??
         _stringValue(json['debitAccountId']);
     final hasStructuredCreditAccount =
-        creditAccountRaw is Iterable || creditAccountRaw is Map<String, dynamic>;
+        creditAccountRaw is Iterable ||
+        creditAccountRaw is Map<String, dynamic>;
     final hasStructuredDebitAccount =
         debitAccountRaw is Iterable || debitAccountRaw is Map<String, dynamic>;
 
@@ -890,37 +937,42 @@ class Bill {
 
     return Bill(
       id: _stringValue(json['id']) ?? '',
-      vendorId: _stringValue(json['vendor_id']) ??
-          _stringValue(json['vendor']) ??
-          '',
+      vendorId:
+          _stringValue(json['vendor_id']) ?? _stringValue(json['vendor']) ?? '',
       vendorName: _stringValue(json['vendor_name']),
       expenseName:
-          _stringValue(json['expense_name']) ?? _stringValue(json['expenseName']),
+          _stringValue(json['expense_name']) ??
+          _stringValue(json['expenseName']),
       billDate: _parseDate(_stringValue(json['date'])),
-      dueDate: _parseDate(_stringValue(json['due_date'])) ??
+      dueDate:
+          _parseDate(_stringValue(json['due_date'])) ??
           _parseDate(_stringValue(json['date'])),
       status: BillStatus.fromCode(_parseInt(statusValue)),
       totalAmount: _parseDouble(totalValue),
-      currencySymbol: _stringValue(json['currency_symbol']) ??
+      currencySymbol:
+          _stringValue(json['currency_symbol']) ??
           _stringValue(json['currency']) ??
           '',
+      isDraft: json['is_draft'] == true || json['is_draft']?.toString() == '1',
       attachments: attachments,
       creditAccountId: creditAccountId,
       debitAccountId: debitAccountId,
-      creditAccount: _accountNameFromValue(creditAccountRaw) ??
+      creditAccount:
+          _accountNameFromValue(creditAccountRaw) ??
           _stringValue(json['credit_account_name']) ??
           _stringValue(json['creditAccountName']) ??
           (hasStructuredCreditAccount
               ? null
               : _stringValue(json['credit_account']) ??
-                  _stringValue(json['creditAccount'])),
-      debitAccount: _accountNameFromValue(debitAccountRaw) ??
+                    _stringValue(json['creditAccount'])),
+      debitAccount:
+          _accountNameFromValue(debitAccountRaw) ??
           _stringValue(json['debit_account_name']) ??
           _stringValue(json['debitAccountName']) ??
           (hasStructuredDebitAccount
               ? null
               : _stringValue(json['debit_account']) ??
-                  _stringValue(json['debitAccount'])),
+                    _stringValue(json['debitAccount'])),
       datePaid: _parseDate(_stringValue(json['date_paid'])),
       totalPaid: _parseDouble(json['total_paid'] ?? json['paid']),
       totalDue: _parseDouble(json['total_due'] ?? json['due']),
@@ -1207,7 +1259,8 @@ class BillAttachment {
       uploadedAt: uploadedAt,
       sizeLabel: sizeLabel,
       id: id,
-      paymentId: _stringValue(json['payment_id']) ??
+      paymentId:
+          _stringValue(json['payment_id']) ??
           _stringValue(json['paymentId']) ??
           _stringValue(json['id']),
       paymentDate: paymentDate,
@@ -1253,9 +1306,9 @@ class BillPayment {
     final hasEmptyAttachment =
         rawAttachment is String && rawAttachment.trim().isEmpty;
 
-    final payBillItemPaid = _extractItems(json['pay_bill_item_paid'])
-        .whereType<Map<String, dynamic>>()
-        .toList();
+    final payBillItemPaid = _extractItems(
+      json['pay_bill_item_paid'],
+    ).whereType<Map<String, dynamic>>().toList();
 
     final payBillItemName = payBillItemPaid.isNotEmpty
         ? _stringValue(payBillItemPaid.first['item_name'])
@@ -1267,13 +1320,14 @@ class BillPayment {
     } else if (attachment is Map<String, dynamic>) {
       attachmentFileName =
           _stringValue(attachment['file_name']) ??
-              _stringValue(attachment['filename']) ??
-              _stringValue(attachment['name']) ??
-              _stringValue(attachment['title']);
+          _stringValue(attachment['filename']) ??
+          _stringValue(attachment['name']) ??
+          _stringValue(attachment['title']);
     }
 
     return BillPayment(
-      id: _stringValue(json['id']) ??
+      id:
+          _stringValue(json['id']) ??
           _stringValue(json['payment_id']) ??
           _stringValue(json['payment_no']) ??
           _stringValue(json['paymentId']) ??
@@ -1290,20 +1344,25 @@ class BillPayment {
             _stringValue(json['created_at']),
       ),
       paymentAccountId:
-          _stringValue(json['account_credit']) ?? _stringValue(json['accountCredit']),
+          _stringValue(json['account_credit']) ??
+          _stringValue(json['accountCredit']),
       depositAccountId:
-          _stringValue(json['account_debit']) ?? _stringValue(json['accountDebit']),
-      referenceNo: _stringValue(json['reference_no']) ??
+          _stringValue(json['account_debit']) ??
+          _stringValue(json['accountDebit']),
+      referenceNo:
+          _stringValue(json['reference_no']) ??
           _stringValue(json['referenceNo']) ??
           _stringValue(json['reference']),
-      paymentAccount: _stringValue(json['payment_account']) ??
+      paymentAccount:
+          _stringValue(json['payment_account']) ??
           _stringValue(json['paymentAccount']) ??
           _stringValue(json['account_name']) ??
           _stringValue(json['accountName']) ??
           _stringValue(json['account']),
       amount: Bill._parseDouble(json['payment_amount'] ?? json['amount']),
-      attachment:
-          attachment == null ? null : BillAttachment.fromJson(attachment),
+      attachment: attachment == null
+          ? null
+          : BillAttachment.fromJson(attachment),
       attachmentFileName: attachmentFileName,
       hasEmptyAttachment: hasEmptyAttachment,
       hasAttachmentString: hasAttachmentString,
@@ -1377,8 +1436,9 @@ String _fileNameFromPath(String value) {
   }
 
   final parsed = Uri.tryParse(trimmed);
-  final segments =
-      parsed?.pathSegments.where((segment) => segment.isNotEmpty).toList();
+  final segments = parsed?.pathSegments
+      .where((segment) => segment.isNotEmpty)
+      .toList();
   if (segments != null && segments.isNotEmpty) {
     return segments.last;
   }
@@ -1486,6 +1546,9 @@ class BillStatus {
     if (code == null) {
       return unpaid;
     }
-    return _all.firstWhere((status) => status.code == code, orElse: () => unpaid);
+    return _all.firstWhere(
+      (status) => status.code == code,
+      orElse: () => unpaid,
+    );
   }
 }
