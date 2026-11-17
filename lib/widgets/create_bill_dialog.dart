@@ -852,6 +852,7 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         ],
         'approved': asDraft ? 0 : 1,
         'is_draft': asDraft ? 1 : 0,
+        'advanced_entry': 1,
         if (_attachments.isNotEmpty)
           'attachments': _attachments.map((file) => file.name).toList(),
       };
@@ -874,6 +875,8 @@ class _CreateBillDialogState extends State<CreateBillDialog> {
         'credit_lines': [
           {'account': category.creditAccount?.toString(), 'amount': amount},
         ],
+        'advanced_entry': 0,
+        'bill_category_id_simple': int.tryParse(_selectedCategoryId ?? ''),
         'approved': asDraft ? 0 : 1,
         'is_draft': asDraft ? 1 : 0,
         if (_attachments.isNotEmpty)

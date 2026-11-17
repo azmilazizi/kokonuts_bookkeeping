@@ -116638,6 +116638,7 @@ c.m(0,"debit_lines",A.b([A.ab(["account",n.ax,"amount",e],f,b)],a))
 c.m(0,"credit_lines",A.b([A.ab(["account",n.ay,"amount",e],f,b)],a))
 c.m(0,"approved",a6?0:1)
 c.m(0,"is_draft",a6?1:0)
+c.m(0,"advanced_entry",1)
 f=n.CW
 if(f.length!==0){b=A.W(f).i("U<1,j>")
 f=A.A(new A.U(f,new A.aJ4(),b),b.i("a6.E"))
@@ -116658,6 +116659,9 @@ a2=t.CF
 c.m(0,"debit_lines",A.b([A.ab(["account",b,"amount",a1],f,a)],a2))
 b=a0.d
 c.m(0,"credit_lines",A.b([A.ab(["account",b==null?null:B.h.j(b),"amount",a1],f,a)],a2))
+c.m(0,"advanced_entry",0)
+f=n.ch
+c.m(0,"bill_category_id_simple",A.c3(f==null?"":f,null))
 c.m(0,"approved",a6?0:1)
 c.m(0,"is_draft",a6?1:0)
 f=n.CW
